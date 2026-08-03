@@ -50,3 +50,24 @@ class ToolExtension:
 
     def register(self, registry):
         registry.add_tool("sample", SampleTool)
+
+
+class EmptyDocsLoader:
+    """Loader whose resolve returns no docs — pins the U3 empty-load guard
+    at the run_pipeline call site."""
+
+    name = "empty"
+    defaultable = False
+
+    def add_cli_args(self, parser):
+        parser.add_argument("--empty", action="store_true", default=None)
+
+    def resolve(self, args):
+        return {}, "empty subject"
+
+
+class EmptyLoaderExtension:
+    name = "empty-loader"
+
+    def register(self, registry):
+        registry.add_document_loader(EmptyDocsLoader())
