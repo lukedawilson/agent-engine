@@ -6,9 +6,9 @@ build-backend = "setuptools.build_meta"
 name = "agent-engine"
 version = "0.1.0"
 description = "Opinionated LangGraph engine for OpenHands agent pipelines"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
-    "openhands-sdk>=1.17.0",
+    "openhands-sdk ~=1.17.0",
     "langgraph>=1.2",
     "langgraph-checkpoint-sqlite>=3.0",
     "pydantic>=2.0",
