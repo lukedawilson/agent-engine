@@ -32,12 +32,14 @@ class Extension(Protocol):
     def register(self, registry: "Registry") -> None: ...
 
 
-def _contributed_options(loader: DocumentLoader) -> list[str]:
-    """The CLI option strings a loader would add — probed with a throwaway
-    parser so collisions are caught at load time, not at parse time."""
+def _contributed_options(loader: DocumentLoader) -> list[tuple[str, str]]:
+    """The (option string, dest) pairs a loader would add — probed with a
+    throwaway parser so collisions are caught at load time, not parse time,
+    and the selection flow can map parsed args back to their loader."""
     probe = argparse.ArgumentParser(add_help=False)
     loader.add_cli_args(probe)
-    return [opt for action in probe._actions for opt in action.option_strings]
+    return [(opt, action.dest) for action in probe._actions
+            for opt in action.option_strings]
 
 
 class Registry:
@@ -45,6 +47,7 @@ class Registry:
         self.actions: dict[str, Callable] = {}
         self.document_loaders: list[DocumentLoader] = []
         self.cli_option_owners: dict[str, str] = {}  # option string -> loader name
+        self.cli_dests: dict[str, str] = {}  # argparse dest -> loader name
 
     def add_action(self, name: str, fn: Callable) -> None:
         """Register a node-shaped action: (state, params) -> state update."""
@@ -53,14 +56,16 @@ class Registry:
         self.actions[name] = fn
 
     def add_document_loader(self, loader: DocumentLoader) -> None:
-        for opt in _contributed_options(loader):
+        pairs = _contributed_options(loader)
+        for opt, _dest in pairs:
             owner = self.cli_option_owners.get(opt)
             if owner is not None:
                 raise ValueError(
                     f"CLI option {opt!r} is contributed by both document "
                     f"loader {owner!r} and {loader.name!r}")
-        for opt in _contributed_options(loader):
+        for opt, dest in pairs:
             self.cli_option_owners[opt] = loader.name
+            self.cli_dests[dest] = loader.name
         self.document_loaders.append(loader)
 
     def add_tool(self, name: str, tool: type) -> None:
@@ -71,13 +76,15 @@ class Registry:
 
 
 def default_registry() -> Registry:
-    """Core built-ins. The `plan` document loader is registered in loaders.py
-    (Task 7) once its resolver exists."""
+    """Core built-ins: actions `kill_listeners`/`commit`, document loader
+    `plan` (flag `--plan PATH`)."""
     from . import actions as _actions
+    from .loaders import PlanDocumentLoader
 
     reg = Registry()
     reg.add_action("kill_listeners", _actions.kill_listeners)
     reg.add_action("commit", _actions.commit)
+    reg.add_document_loader(PlanDocumentLoader())
     return reg
 
 
