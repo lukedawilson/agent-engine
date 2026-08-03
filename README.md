@@ -102,8 +102,8 @@ steps:
 
   - name: review
     agent: review
-    artifact: review.md
-    verdicts: {pass: APPROVED, fail: CHANGES_REQUESTED}
+    artifact: review-findings.md
+    verdicts: {pass: APPROVED, fail: NEEDS CHANGES}
     on_pass: port_sweep
     on_fail: {goto: dev, retry: true}
 
@@ -122,8 +122,9 @@ steps:
 
   - name: commit
     action: commit                    # built-in action
+    on_pass: success                  # terminal (also the default for the last step)
     params:
-      message: "feat: construct plan plan.md (agent dev loop)"
+      message: "feat: construct {subject} (agent dev loop)"  # {subject} templated
 ```
 
 Step semantics:
