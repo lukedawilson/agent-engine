@@ -1,0 +1,7 @@
+__pycache__/
+*.egg-info/
+.venv/
+.pr/
+.pytest_cache/
+dist/
+build/
