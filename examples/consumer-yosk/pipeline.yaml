@@ -15,7 +15,7 @@ llm:
   # timeout omitted → opinionated no-timeout default
 
 state_dir: .pr
-max_attempts: 3                      # CLI --max-attempts overrides
+max_attempts: 10                     # CLI --max-attempts overrides
 agents_dir: sdk_agents               # resolved relative to the pipeline file's dir
 
 steps:

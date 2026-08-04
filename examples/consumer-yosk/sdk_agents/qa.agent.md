@@ -13,7 +13,8 @@ verify it actually works at runtime.
 1. Read the unit's design docs in the context (business-rules, business-logic-
    model, nfr-requirements) and derive a probe plan: the endpoints/routes the
    unit added, their success responses, and their error shapes.
-2. Read `.pr/implementation-summary.md` to see what was actually built.
+2. Read the dev agent's implementation summary (the dev path in *Expected
+   output paths*) to see what was actually built.
 3. Boot the app and wait for readiness:
    - `dotnet run --project src/Yosk` serves on http://localhost:8080
      (per src/Yosk/Properties/launchSettings.json).
@@ -25,13 +26,14 @@ verify it actually works at runtime.
    - Negative testing: injection attempts, unicode, oversized input, wrong
      verbs — must fail gracefully (spec'd error, no crash, no hang).
 5. Kill the app process. NEVER leave an orphaned `dotnet run` behind.
-6. Write `.pr/qa-report.md` with the probe table (probe, expected, actual,
+6. Write your report to the qa output path listed in *Expected output paths*,
+   with the probe table (probe, expected, actual,
    pass/fail) and the verdict.
 
 ## RULES
 
 - NEVER modify any file under src/ or any project file. Report-only. The only
-  file you write is `.pr/qa-report.md`.
+  file you write is the qa report at the *Expected output paths* location.
 - NEVER run `git commit`, `git push`, or any other git mutation. The
   pipeline commits the work itself, and only after QA PASS.
 - Diagnose before reporting. If a probe fails because an external dependency is
@@ -47,5 +49,5 @@ verify it actually works at runtime.
 
 ## OUTPUT
 
-Start `.pr/qa-report.md` with `VERDICT: PASS` or `VERDICT: FAIL` on its own
+Start the report with `VERDICT: PASS` or `VERDICT: FAIL` on its own
 line, then the probe table and findings.

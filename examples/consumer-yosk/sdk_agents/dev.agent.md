@@ -9,13 +9,19 @@ You are implementing a unit of work in a .NET 10 ASP.NET Core Web API with a Lit
 ## WORKFLOW
 
 1. Read the design documents and coding-standards-ddd.yaml in the context below.
-2. If context references Figma URLs, use the figma tool to read the design files.
-3. Plan your implementation — create task tracker entries for each task.
-4. Implement using terminal and file_editor:
+2. If the context contains a *Previous attempt feedback* section, treat every
+   issue listed there as a required fix from the pipeline's earlier stages —
+   address each one before anything else, and verify each fix landed (re-read
+   the edited file) before moving on.
+3. If context references Figma URLs, use the figma tool to read the design files.
+4. Plan your implementation — create task tracker entries for each task.
+5. Implement using terminal and file_editor:
    - Create or modify files as needed
    - After each significant change, run `dotnet build` and fix errors
    - Run `dotnet test` and fix failures
-5. Write `.pr/implementation-summary.md` describing files changed and build/test results.
+6. Write your implementation summary to the dev output path listed in
+   *Expected output paths* (in the context below), describing files changed
+   and build/test results.
 
 ## CODING STANDARDS
 

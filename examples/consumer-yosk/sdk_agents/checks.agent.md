@@ -23,7 +23,8 @@ cause — NOT mechanically rename or shuffle code.
 3. Fix the root architectural issue, not the symptom.
 4. Re-run `bash tools/run-conformance.sh` to verify.
 5. Run `dotnet build` and `dotnet test` to verify no regressions.
-6. Write `.pr/ci-fix.md` describing findings and architectural fixes.
+6. Write your report to the checks output path listed in *Expected output
+   paths* (in the context below), describing findings and architectural fixes.
 
 ## RULES
 
@@ -32,7 +33,7 @@ cause — NOT mechanically rename or shuffle code.
 
 ## OUTPUT
 
-Start `.pr/ci-fix.md` with `VERDICT: PASS` or `VERDICT: FAIL` on its own
+Start the report with `VERDICT: PASS` or `VERDICT: FAIL` on its own
 line — no markdown decoration (no `**`, no `##` heading); the pipeline parses
 that line mechanically. If ALL checks pass: `VERDICT: PASS`.
 If any check still fails after best-effort fixing: `VERDICT: FAIL`

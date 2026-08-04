@@ -47,6 +47,19 @@ class Runtime:
     workspace: Path
 
 
+def prompt_dir(runtime: Runtime) -> str:
+    """state_dir as agents must address it. Agents resolve prompt paths
+    against their workspace, so a bare `state_dir.name` only reaches the real
+    state_dir when the pipeline file sits at the workspace root — yosk runs
+    agent-engine/pipeline.yaml from the repo root, where `.pr` and
+    `agent-engine/.pr` diverge. Workspace-relative when under the workspace,
+    the absolute path when outside it."""
+    try:
+        return str(runtime.state_dir.relative_to(runtime.workspace))
+    except ValueError:
+        return str(runtime.state_dir)
+
+
 @dataclass
 class AgentResult:
     """Outcome of a single agent stage run.
@@ -101,9 +114,9 @@ def build_context(runtime: Runtime, docs: dict[str, str], subject: str,
         if step.agent is None:
             continue
         for produced in step.produces:
-            lines.append(f"{step.name} agent writes: `{runtime.state_dir.name}/{produced}`")
+            lines.append(f"{step.name} agent writes: `{prompt_dir(runtime)}/{produced}`")
         if step.artifact is not None:
-            lines.append(f"{step.name} agent writes: `{runtime.state_dir.name}/{step.artifact}`")
+            lines.append(f"{step.name} agent writes: `{prompt_dir(runtime)}/{step.artifact}`")
     if lines:
         parts.append("## Expected output paths\n\n" + "\n".join(lines))
     if notes:
@@ -151,7 +164,7 @@ def _unclear_note(runtime: Runtime, step: StepConfig, attempt: int,
                   text: str | None, truncated: bool, max_iterations: int) -> str:
     """Explain an unclear verdict to the next attempt — and surface the
     artifact's content when it exists, so real findings are never swallowed."""
-    rel = f"{runtime.state_dir.name}/{step.artifact}"
+    rel = f"{prompt_dir(runtime)}/{step.artifact}"
     if truncated:
         lead = (f"{step.name} agent was cut short on attempt {attempt} "
                 f"(hit the {max_iterations}-turn limit or was stopped "

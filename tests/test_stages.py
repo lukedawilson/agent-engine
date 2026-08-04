@@ -75,6 +75,32 @@ class TestBuildContext:
         ctx = build_context(runtime, {}, "s", ["note one", "note two"])
         assert "## Previous attempt feedback\n\nnote one\n\nnote two" in ctx
 
+    def test_output_paths_workspace_relative_for_subdirectory_pipeline(self, tmp_path):
+        """yosk layout: the pipeline YAML lives in a subdirectory while the
+        workspace is the repo root — the prompt path must reach the real
+        state_dir; state_dir.name alone sends agents to the wrong directory
+        (U18 burned 3 attempts on an unfindable ci-fix.md)."""
+        state_dir = tmp_path / "agent-engine" / ".pr"
+        state_dir.mkdir(parents=True)
+        rt = Runtime(cfg=make_cfg(STEPS), registry=default_registry(),
+                     llm=LLM(model="openai/test-model", api_key="sk-test"),
+                     agents_dir=tmp_path / "agents", state_dir=state_dir,
+                     workspace=tmp_path)
+        ctx = build_context(rt, {}, "s", [])
+        assert "checks agent writes: `agent-engine/.pr/ci-fix.md`" in ctx
+
+    def test_output_paths_absolute_when_state_dir_outside_workspace(self, tmp_path):
+        state_dir = tmp_path / "state" / ".pr"
+        state_dir.mkdir(parents=True)
+        workspace = tmp_path / "ws"
+        workspace.mkdir()
+        rt = Runtime(cfg=make_cfg(STEPS), registry=default_registry(),
+                     llm=LLM(model="openai/test-model", api_key="sk-test"),
+                     agents_dir=tmp_path / "agents", state_dir=state_dir,
+                     workspace=workspace)
+        ctx = build_context(rt, {}, "s", [])
+        assert f"checks agent writes: `{state_dir}/ci-fix.md`" in ctx
+
 
 class TestAgentNode:
     def test_pass_verdict(self, runtime, fake_agents):
@@ -104,6 +130,17 @@ class TestAgentNode:
         (note,) = update["notes"]
         assert "did not write `.pr/ci-fix.md` on attempt 1" in note
         assert update["retry_target"] == "dev"  # on_fail's goto
+
+    def test_unclear_note_carries_workspace_relative_path(self, tmp_path, fake_agents):
+        state_dir = tmp_path / "agent-engine" / ".pr"
+        state_dir.mkdir(parents=True)
+        rt = Runtime(cfg=make_cfg(STEPS), registry=default_registry(),
+                     llm=LLM(model="openai/test-model", api_key="sk-test"),
+                     agents_dir=tmp_path / "agents", state_dir=state_dir,
+                     workspace=tmp_path)
+        update = make_agent_node(rt, rt.cfg.steps[1])(make_state())
+        (note,) = update["notes"]
+        assert "did not write `agent-engine/.pr/ci-fix.md` on attempt 1" in note
 
     def test_unparseable_verdict_surfaces_content(self, runtime, fake_agents):
         fake_agents.set("checks", [("write", "ci-fix.md", "I am undecided")])
