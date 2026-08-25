@@ -33,6 +33,11 @@ Exit code is `0` on pipeline success, `1` otherwise. Each run prints its
 thread id; `--resume` continues the latest checkpoint of a previous thread
 (crash, Ctrl-C, exhaustion) with all accumulated notes intact.
 
+`--ai-dlc-unit` accepts any unambiguous spelling of a unit number — `U2`,
+`2`, `U002`, `002` — or the full unit slug (`U002-custom-configuration`).
+If multiple unit directories match one id, the run fails loudly naming
+every candidate; pass the full slug to disambiguate.
+
 ## What a run looks like
 
 The consumer-yosk example pipeline is:
@@ -180,7 +185,10 @@ Loader-selection flow: a loader's flag in argv selects it; flags from two
 loaders in one invocation error out; with no flag, the sole `defaultable`
 loader autoruns (the bundled `ai-dlc` loader autodetects the current unit
 from `aidlc-docs/aidlc-state.md`), otherwise the run proceeds with no
-injected docs and the pipeline `name:` as subject. A selected loader that
+injected docs and the pipeline `name:` as subject. Unit ids resolve by
+exact directory name or by numeric prefix (`unit-004-preset-management`
+answers to `4`, `004`, `U4`, `U004`, or its full slug); ambiguous ids fail
+loud listing all matches. A selected loader that
 yields zero docs **fails fast** — context is never silently degraded.
 Duplicate CLI option strings across loaders are a load-time error naming both.
 

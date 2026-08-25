@@ -209,3 +209,81 @@ class TestAidlcDocumentLoader:
         assert [l.name for l in reg.document_loaders] == ["ai-dlc"]
         assert reg.cli_option_owners["--ai-dlc-unit"] == "ai-dlc"
         assert reg.cli_dests["ai_dlc_unit"] == "ai-dlc"
+
+
+class TestResolveUnitDocsFlexibleUnitIds:
+    """Numeric tolerance: U004 / 004 / 4 / U4 must all resolve the same unit.
+
+    Real-world unit dirs are named unit-NNN-slug (e.g.
+    unit-004-preset-management); the loader must accept any unambiguous
+    spelling of the unit number and fail loud on ambiguity."""
+
+    def _unit(self, tmp_path, name):
+        unit_dir = tmp_path / "construction" / name
+        unit_dir.mkdir(parents=True)
+        (unit_dir / "design.md").write_text("# Design")
+        return unit_dir
+
+    @pytest.mark.parametrize("unit_id", [
+        "4", "U4", "u4", "004", "U004",
+        "004-preset-management", "U004-preset-management",
+    ])
+    def test_accepts_all_spellings_for_slugged_dir(self, tmp_path, unit_id):
+        self._unit(tmp_path, "unit-004-preset-management")
+        assert resolve_unit_docs(tmp_path, unit_id)["design.md"] == "# Design"
+
+    def test_plain_number_matches_underscore_dir_form(self, tmp_path):
+        self._unit(tmp_path, "unit_004_presets")
+        assert resolve_unit_docs(tmp_path, "4")["design.md"] == "# Design"
+
+    def test_higher_number_does_not_match(self, tmp_path):
+        self._unit(tmp_path, "unit-40")
+        with pytest.raises(FileNotFoundError, match="unit"):
+            resolve_unit_docs(tmp_path, "4")
+
+    def test_zero_padded_plain_dir(self, tmp_path):
+        self._unit(tmp_path, "unit-004")
+        assert resolve_unit_docs(tmp_path, "U4")["design.md"] == "# Design"
+
+    def test_ambiguous_number_raises_loud(self, tmp_path):
+        self._unit(tmp_path, "unit-4")
+        self._unit(tmp_path, "unit-004-preset-management")
+        with pytest.raises(RuntimeError, match="[Aa]mbiguous") as exc:
+            resolve_unit_docs(tmp_path, "4")
+        assert "unit-4" in str(exc.value)
+        assert "unit-004-preset-management" in str(exc.value)
+
+    def test_ambiguous_u_prefixed_number_raises_loud(self, tmp_path):
+        self._unit(tmp_path, "unit-004")
+        self._unit(tmp_path, "unit-004-preset-management")
+        with pytest.raises(RuntimeError, match="[Aa]mbiguous"):
+            resolve_unit_docs(tmp_path, "U004")
+
+    def test_non_numeric_id_still_uses_exact_match(self, tmp_path):
+        self._unit(tmp_path, "unit-scan")
+        assert resolve_unit_docs(tmp_path, "scan")["design.md"] == "# Design"
+
+
+class TestFlexibleIdsViaLoader:
+    def test_autodetect_resolves_slugged_zero_padded_dir(self, tmp_path):
+        unit_dir = tmp_path / "construction" / "unit-004-preset-management"
+        unit_dir.mkdir(parents=True)
+        (unit_dir / "design.md").write_text("# Design")
+        (tmp_path / "aidlc-state.md").write_text(
+            "# State\n\n- **Current Stage**: CONSTRUCTION — Unit 004 ADL-01.\n")
+        loader = AidlcDocumentLoader(docs_dir=tmp_path)
+
+        docs, subject = loader.resolve(argparse.Namespace(ai_dlc_unit=None))
+
+        assert docs["design.md"] == "# Design"
+        assert subject == "unit U004"
+
+    def test_plain_number_subject(self, tmp_path):
+        unit_dir = tmp_path / "construction" / "unit-4"
+        unit_dir.mkdir(parents=True)
+        (unit_dir / "design.md").write_text("# Design")
+        loader = AidlcDocumentLoader(docs_dir=tmp_path)
+
+        docs, subject = loader.resolve(argparse.Namespace(ai_dlc_unit="4"))
+
+        assert subject == "unit U4"

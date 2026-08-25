@@ -1,6 +1,7 @@
 """AI-DLC document-loader extension. Loading IS choosing: name
 `agent_engine.extensions.aidlc:AidlcExtension` in the pipeline's
-`extensions:` list and the pipeline gains `--ai-dlc-unit U<N>` plus bare-run
+`extensions:` list and the pipeline gains `--ai-dlc-unit` (any
+unambiguous unit spelling: U4 / 4 / 004 / U004 / full slug) plus bare-run
 autodetect of the current unit from `aidlc-docs/aidlc-state.md`.
 
 Resolvers are verbatim ports of yosk's `resolve_unit_docs` /
@@ -14,6 +15,21 @@ import re
 from pathlib import Path
 
 _DOC_SUFFIXES = (".md", ".yaml", ".yml", ".txt")
+_UNIT_DIR_NUMBER = re.compile(r"unit[-_](\d+)")
+
+
+def _leading_number(text: str) -> int | None:
+    """Leading digits of a unit id (``"004-preset-management"`` -> 4), or
+    None for ids that do not start with a number."""
+    match = re.match(r"(\d+)", text)
+    return int(match.group(1)) if match else None
+
+
+def _dir_unit_number(dir_name: str) -> int | None:
+    """Numeric prefix of a unit dir name (``"unit-004-preset-management"``
+    -> 4, ``"unit-14"`` -> 14)."""
+    match = _UNIT_DIR_NUMBER.match(dir_name.lower())
+    return int(match.group(1)) if match else None
 
 
 def resolve_unit_docs(docs_dir: Path | str, unit_id: str) -> dict[str, str]:
@@ -24,23 +40,39 @@ def resolve_unit_docs(docs_dir: Path | str, unit_id: str) -> dict[str, str]:
         unit_id = unit_id[1:]
 
     unit_patterns = [f"unit-{unit_id}", f"unit_{unit_id}"]
+    number = _leading_number(unit_id)
     construction_dir = docs_dir / "construction"
-    unit_dir = None
+    candidates: list[Path] = []
     if construction_dir.is_dir():
         for entry in sorted(construction_dir.iterdir()):
             if not entry.is_dir():
                 continue
-            if any(entry.name.lower() == p.lower() for p in unit_patterns):
-                unit_dir = entry
-                for file in sorted(entry.rglob("*")):
-                    if file.is_file() and file.suffix in _DOC_SUFFIXES:
-                        key = str(file.relative_to(entry))
-                        docs[key] = file.read_text()
+            name = entry.name.lower()
+            if name == unit_patterns[0].lower() or name == unit_patterns[1].lower():
+                candidates.append(entry)
+            elif number is not None and _dir_unit_number(entry.name) == number:
+                candidates.append(entry)
 
+    candidates = sorted(set(candidates), key=lambda p: p.name.lower())
+    if len(candidates) > 1:
+        raise RuntimeError(
+            f"Ambiguous unit id '{unit_id}': multiple unit directories match "
+            f"({', '.join(p.name for p in candidates)}). Pass the full unit "
+            "slug to disambiguate.")
+
+    unit_dir = candidates[0] if candidates else None
     if unit_dir is None:
+        look_for = ", ".join(unit_patterns)
+        if number is not None:
+            look_for += f", or any unit dir numbered {number}"
         raise FileNotFoundError(
             f"No docs directory found for unit {unit_id} under {construction_dir} "
-            f"(looked for {', '.join(unit_patterns)})")
+            f"(looked for {look_for})")
+
+    for file in sorted(unit_dir.rglob("*")):
+        if file.is_file() and file.suffix in _DOC_SUFFIXES:
+            key = str(file.relative_to(unit_dir))
+            docs[key] = file.read_text()
 
     # At this point docs holds only unit-dir files — an empty load means the
     # pipeline would build context from inception docs alone (the 2026-07-19
@@ -91,7 +123,8 @@ def _normalize_unit(unit: str) -> str:
 
 
 class AidlcDocumentLoader:
-    """`--ai-dlc-unit U<N>`, or bare-run autodetect from aidlc-state.md."""
+    """`--ai-dlc-unit` (any unambiguous spelling), or bare-run
+    autodetect from aidlc-state.md."""
 
     name = "ai-dlc"
     defaultable = True
@@ -101,8 +134,10 @@ class AidlcDocumentLoader:
 
     def add_cli_args(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument("--ai-dlc-unit", metavar="U<N>", default=None,
-                            help="AI-DLC unit ID (e.g. U2); defaults to the "
-                                 "current unit in aidlc-docs/aidlc-state.md")
+                        help="AI-DLC unit ID: any unambiguous spelling "
+                             "(U4, 4, 004, U004) or the full unit slug "
+                             "(U004-preset-management); defaults to the "
+                             "current unit in aidlc-docs/aidlc-state.md")
 
     def resolve(self, args: argparse.Namespace) -> tuple[dict[str, str], str]:
         unit = (_normalize_unit(args.ai_dlc_unit) if args.ai_dlc_unit
