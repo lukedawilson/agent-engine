@@ -7,6 +7,7 @@ auto-commit can never swallow pre-existing unrelated changes (run 004: the
 dev agent's b4acb62a swept up an unrelated .gitignore edit).
 """
 
+import os
 import subprocess
 import sys
 import time
@@ -30,12 +31,17 @@ def git_worktree_clean(path: Path) -> bool:
 
 def _listening_pids(port: int, match: str | None) -> list[str]:
     """PIDs of processes listening on `port`, optionally only those whose
-    command line contains `match`."""
+    command line contains `match`. The current process is always excluded — a
+    pipeline must never sweep its own listener (e.g. a live --viz server),
+    only orphaned listeners left behind by earlier runs or agent subprocesses."""
     out = subprocess.run(
         ["lsof", "-nP", "-ti", f"tcp:{port}", "-sTCP:LISTEN"],
         capture_output=True, text=True, check=False).stdout
+    self_pid = str(os.getpid())
     pids = []
     for pid in out.split():
+        if pid == self_pid:
+            continue
         if match is not None:
             cmd = subprocess.run(
                 ["ps", "-p", pid, "-o", "command="],

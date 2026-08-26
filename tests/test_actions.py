@@ -3,6 +3,7 @@ TestGitWorktreeClean / TestCommitNode, retargeted at the node-shaped
 `(state, params) -> dict` API. Real processes and real git repos throughout:
 git and sockets are local utilities, not network boundaries."""
 
+import os
 import shutil
 import socket
 import subprocess
@@ -12,7 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from agent_engine.actions import commit, git_worktree_clean, kill_listeners, kill_listeners_on_port
+from agent_engine.actions import (_listening_pids, commit, git_worktree_clean,
+                                  kill_listeners, kill_listeners_on_port)
 
 lsof_required = pytest.mark.skipif(
     shutil.which("lsof") is None, reason="lsof required")
@@ -154,6 +156,21 @@ class TestKillListenersOnPort:
         finally:
             if proc.poll() is None:
                 proc.kill()
+
+    @lsof_required
+    def test_never_sweeps_own_listener(self):
+        """A pipeline's own process may be listening on the swept port (the
+        live --viz server). It must never be swept — only orphaned listeners
+        from other processes (previous runs / agent subprocesses)."""
+        port = free_port()
+        s = socket.socket()
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(("127.0.0.1", port))
+        s.listen()
+        try:
+            assert str(os.getpid()) not in _listening_pids(port, None)
+        finally:
+            s.close()
 
 
 class TestGitWorktreeClean:

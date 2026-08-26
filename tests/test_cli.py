@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_engine.cli import main
+from agent_engine.cli import build_parser, main
 
 PLAIN_YAML = """\
 name: tiny
@@ -107,6 +107,8 @@ class TestHelp:
         out = capsys.readouterr().out
         assert "--resume" in out
         assert "--max-attempts" in out
+        assert "--viz" in out
+        assert "--viz-port" in out
         assert "--plan" in out  # built-in plan loader is always present
 
     def test_extension_flags_only_when_configured(self, repo, capsys):
@@ -165,3 +167,50 @@ class TestRun:
         assert main(["resume.yaml", "--resume", tid]) == 0
         # dev completed before the crash — only checks re-ran on resume
         assert fake_agents.agents_called() == ["dev", "checks", "checks"]
+
+
+class TestViz:
+    def test_viz_flags_parse(self, repo):
+        args = build_parser("pipeline.yaml").parse_args(
+            ["pipeline.yaml", "--viz", "--viz-port", "9"])
+        assert args.viz is True
+        assert args.viz_port == 9
+
+    def test_lifecycle_serves_and_keeps_alive(self, repo, fake_agents, monkeypatch):
+        import queue
+
+        fake_agents.set("dev", [("write", "implementation-summary.md", "done")])
+        captured = {}
+
+        def fake_serve_viz(bus, topology, subject, port):
+            captured["bus"] = bus
+            captured["topology"] = topology
+            captured["subject"] = subject
+            captured["port"] = port
+            return object(), object()
+
+        def interrupt():
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr("agent_engine.viz.serve_viz", fake_serve_viz)
+        opened = []
+        monkeypatch.setattr("webbrowser.open", opened.append)
+        monkeypatch.setattr("agent_engine.viz.wait_for_interrupt", interrupt)
+
+        code = main(["pipeline.yaml", "--plan", "plan.md", "--viz"])
+        assert code == 0
+        assert "dev" in captured["topology"]
+        assert "success" in captured["topology"]
+        assert captured["subject"] == "plan plan.md"
+        assert captured["port"] == 8321
+        assert opened == ["http://127.0.0.1:8321"]
+
+        events = []
+        q = captured["bus"].subscribe()
+        while True:
+            try:
+                events.append(q.get_nowait())
+            except queue.Empty:
+                break
+        assert any(e["type"] == "run_started" for e in events)
+        assert any(e["type"] == "run_finished" for e in events)

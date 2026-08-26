@@ -9,6 +9,7 @@ NOTE: port_sweep params use port 18099 with an impossible match string so a
 test run can never kill a real local dev server (topology is unchanged)."""
 
 import argparse
+import queue
 import sqlite3
 import subprocess
 from pathlib import Path
@@ -20,6 +21,7 @@ from agent_engine.graph import build_graph, run_pipeline
 from agent_engine.llm import build_llm
 from agent_engine.registry import default_registry, load_extensions
 from agent_engine.stages import Runtime
+from agent_engine.viz import VizBus
 
 YOSK_YAML = """\
 name: yosk-construction
@@ -249,3 +251,61 @@ class TestResume:
         run_pipeline_args = args(plan=None, resume="no-such-thread")
         with pytest.raises(ValueError, match="no-such-thread"):
             run_pipeline("pipeline.yaml", run_pipeline_args)
+
+
+def drain_events(bus: VizBus) -> list[dict]:
+    q = bus.subscribe()
+    events = []
+    while True:
+        try:
+            events.append(q.get_nowait())
+        except queue.Empty:
+            return events
+
+
+class TestVizStream:
+    def test_stream_path_matches_invoke(self, repo, fake_agents):
+        script_all_pass(fake_agents)
+        bus = VizBus()
+        ok, attempts = run_pipeline("pipeline.yaml", args(), viz_bus=bus)
+        assert (ok, attempts) == (True, 1)
+        events = drain_events(bus)
+        assert [e["type"] for e in events][0] == "run_started"
+        assert [e["type"] for e in events][-1] == "run_finished"
+        started = [e["node"] for e in events if e["type"] == "node_started"]
+        assert started == ["dev", "checks", "review", "port_sweep", "qa",
+                           "commit", "success"]
+        assert events[0]["subject"] == "plan plan.md"
+        assert events[0]["max_attempts"] == 3
+        assert events[-1]["success"] is True
+        assert events[-1]["attempts"] == 1
+
+    def test_stream_path_failure_returns_same(self, repo, fake_agents):
+        fake_agents.set("checks", [("write", "ci-fix.md", "VERDICT: FAIL")])
+        bus = VizBus()
+        ok, attempts = run_pipeline("pipeline.yaml", args(), viz_bus=bus)
+        assert (ok, attempts) == (False, 3)
+        events = drain_events(bus)
+        assert events[-1]["type"] == "run_finished"
+        assert events[-1]["success"] is False
+        assert events[-1]["attempts"] == 3
+
+    def test_resume_via_stream_continues(self, repo, fake_agents):
+        script_all_pass(fake_agents)
+        fake_agents.set("review", [
+            ("crash",),  # process death mid-run (escapes the stream)
+            ("write", "review-findings.md", "VERDICT: APPROVED"),
+        ])
+        with pytest.raises(KeyboardInterrupt):
+            run_pipeline("pipeline.yaml", args(), viz_bus=VizBus())
+
+        db = repo / ".pr" / "loop-checkpoints.sqlite"
+        with sqlite3.connect(db) as conn:
+            (tid,) = conn.execute(
+                "SELECT DISTINCT thread_id FROM checkpoints").fetchone()
+
+        ok, attempts = run_pipeline(
+            "pipeline.yaml", args(plan=None, resume=tid), viz_bus=VizBus())
+        assert (ok, attempts) == (True, 1)
+        assert fake_agents.agents_called() == \
+            ["dev", "checks", "review", "review", "qa"]

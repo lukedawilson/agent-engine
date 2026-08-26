@@ -32,7 +32,9 @@ agent-engine examples/self/pipeline.yaml --resume <thread-id> --max-attempts 5
 
 Exit code is `0` on pipeline success, `1` otherwise. Each run prints its
 thread id; `--resume` continues the latest checkpoint of a previous thread
-(crash, Ctrl-C, exhaustion) with all accumulated notes intact.
+(crash, Ctrl-C, exhaustion) with all accumulated notes intact. Add `--viz`
+to serve a live graph view on localhost and auto-open the browser
+(`--viz-port` overrides the default 8321).
 
 `--ai-dlc-unit` accepts any unambiguous spelling of a unit number — `U2`,
 `2`, `U002`, `002` — or the full unit slug (`U002-custom-configuration`).

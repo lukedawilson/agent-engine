@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import operator
 import uuid
+import webbrowser
 from pathlib import Path
 from typing import Annotated, TypedDict
 
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 
+from . import viz
 from .actions import git_worktree_clean
 from .config import load_config
 from .llm import build_llm
@@ -91,13 +93,19 @@ def _resolve_docs(cfg, base: Path, registry: Registry,
     return docs, subject
 
 
-def run_pipeline(cfg_path, args) -> tuple[bool, int]:
+def run_pipeline(cfg_path, args, *, viz_bus=None) -> tuple[bool, int]:
     """Load a pipeline YAML, resolve docs via the selected document loader,
     and run the graph to completion. Returns (success, attempts) — the
     public API, yosk's `construct`/`resume_loop` equivalent.
 
-    `args` carries the parsed CLI namespace: loader flags, --resume, and
-    --max-attempts (which overrides the YAML value when set)."""
+    `args` carries the parsed CLI namespace: loader flags, --resume,
+    --max-attempts (which overrides the YAML value when set), and --viz.
+
+    With ``viz_bus=None`` and no ``--viz`` the graph runs via
+    ``graph.invoke`` exactly as before. A passed-in ``viz_bus`` (programmatic)
+    or ``--viz`` (CLI) switches to ``graph.stream`` and publishes live events;
+    the CLI path additionally serves the HTTP page, opens the browser, and
+    keeps the process alive so the final graph stays inspectable."""
     cfg_path = Path(cfg_path)
     cfg = load_config(cfg_path)
     base = cfg_path.resolve().parent
@@ -142,15 +150,68 @@ def run_pipeline(cfg_path, args) -> tuple[bool, int]:
             "retry_target": None,
             "thread_id": thread_id,
         }
+    bus = viz_bus
+    keep_alive = False
     with SqliteSaver.from_conn_string(db) as saver:
         if resume and saver.get_tuple(config) is None:
             raise ValueError(
                 f"No checkpoint found for thread {thread_id!r} in {db} — "
                 f"nothing to resume.")
         graph = build_graph(runtime, saver)
-        final = graph.invoke(initial, config)
-    success = final["outcome"] == "success"
+
+        if bus is None and getattr(args, "viz", False):
+            start_state = initial if initial is not None \
+                else graph.get_state(config).values
+            topology = graph.get_graph().draw_mermaid()
+            bus = viz.VizBus()
+            viz.serve_viz(bus, topology, start_state["subject"], args.viz_port)
+            url = f"http://127.0.0.1:{args.viz_port}"
+            print(f"Live graph viz: {url}", flush=True)
+            webbrowser.open(url)
+            keep_alive = True
+
+        if bus is not None:
+            start_state = initial if initial is not None \
+                else graph.get_state(config).values
+            bus.publish({
+                "type": "run_started",
+                "subject": start_state["subject"],
+                "max_attempts": start_state["max_attempts"],
+                "thread_id": thread_id,
+            })
+            final = None
+            try:
+                for part in graph.stream(initial, config,
+                                         stream_mode=["tasks", "updates"],
+                                         version="v2"):
+                    for event in viz.translate(part):
+                        bus.publish(event)
+                final = graph.get_state(config).values
+            finally:
+                if final is None:
+                    try:
+                        final = graph.get_state(config).values
+                    except Exception:
+                        final = None
+                if final is not None:
+                    success = final.get("outcome") == "success"
+                    attempts = final.get("attempt", 0)
+                else:
+                    success = False
+                    attempts = 0
+                bus.publish({"type": "run_finished",
+                             "success": success, "attempts": attempts})
+        else:
+            final = graph.invoke(initial, config)
+            success = final["outcome"] == "success"
+            attempts = final["attempt"]
+
     if not success and not final["failed"]:
         print(f"[{final['subject']}] FAILED after {final['attempt']} attempt(s).",
               flush=True)
-    return success, final["attempt"]
+    if keep_alive:
+        try:
+            viz.wait_for_interrupt()
+        except KeyboardInterrupt:
+            pass
+    return success, attempts

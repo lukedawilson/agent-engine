@@ -47,7 +47,12 @@ def consumer_repo(tmp_path, monkeypatch, fake_agents):
     agents_dir all resolve exactly as they would in a consumer's repo."""
     repo = tmp_path / "repo"
     (repo / "examples" / "self").mkdir(parents=True)
-    shutil.copytree(EXAMPLE, repo / "examples" / "self", dirs_exist_ok=True)
+    # .pr is the pipeline's gitignored build-artifact dir. It must NOT ride
+    # into the "shipped example" copy — a prior real run can leave stale
+    # artifacts there, and committing them would flip commit_allowed to False
+    # once clear_attempt_artifacts deletes the produced files.
+    shutil.copytree(EXAMPLE, repo / "examples" / "self", dirs_exist_ok=True,
+                    ignore=shutil.ignore_patterns(".pr"))
     (repo / "README.md").write_text("# README\n")
     monkeypatch.chdir(repo)
     subprocess.run(["git", "init", "-q"], check=True)
