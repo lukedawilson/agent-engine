@@ -24,9 +24,10 @@ Requires Python ≥ 3.11.
 
 ```bash
 export OPENAI_API_KEY=...   # whatever env var your pipeline's api_key_env names
-agent-engine examples/consumer-yosk/pipeline.yaml --plan plan.md
-agent-engine examples/consumer-yosk/pipeline.yaml --ai-dlc-unit U2
-agent-engine examples/consumer-yosk/pipeline.yaml --resume <thread-id> --max-attempts 5
+agent-engine examples/self/pipeline.yaml --plan plan.md
+agent-engine examples/self/pipeline.yaml --ai-dlc-unit U2
+agent-engine examples/self/pipeline.yaml --resume <thread-id> --max-attempts 5
+./trigger-agent-engine.sh --plan plan.md   # same thing, from the repo root
 ```
 
 Exit code is `0` on pipeline success, `1` otherwise. Each run prints its
@@ -40,7 +41,8 @@ every candidate; pass the full slug to disambiguate.
 
 ## What a run looks like
 
-The consumer-yosk example pipeline is:
+The shipped self-loop example (`examples/self/`, launched from the repo root
+so the pipeline constructs this library itself) is:
 
 ```
 dev ──▶ checks ──▶ review ──▶ port_sweep ──▶ qa ──▶ commit
@@ -70,14 +72,14 @@ Every stage boundary is checkpointed to `<state_dir>/loop-checkpoints.sqlite`
 
 ## pipeline.yaml reference
 
-Verbatim from `examples/consumer-yosk/pipeline.yaml` (comments added):
+Verbatim from `examples/self/pipeline.yaml` (comments added):
 
 ```yaml
-name: yosk-construction
+name: agent-engine-construction
 extensions:
   - agent_engine.extensions.aidlc:AidlcExtension
 additional_files:
-  - coding-standards-ddd.yaml        # shared context for every agent step
+  - ../../README.md                  # shared context for every agent step
 
 llm:
   model: openai/deepseek-v4-pro
@@ -114,7 +116,7 @@ steps:
 
   - name: port_sweep
     action: kill_listeners            # built-in action
-    params: {port: 8080, match: "Yosk"}
+    params: {port: 8321, match: "agent-engine"}  # sweep an orphaned --viz server
     on_pass: qa
 
   - name: qa
@@ -162,8 +164,9 @@ class MyExtension:
         registry.add_document_loader(MyLoader())                  # context sources
 ```
 
-Working samples ship in `examples/consumer-yosk/extensions/`
-(`figma_tool.py`, `conformance_action.py`).
+Working samples of all three kinds ship as the test fixture
+`tests/sample_ext.py` (actions, tools, a document loader — plus constructor-
+failure coverage).
 
 **Actions** receive `(state, params)`; returning continues the pipeline,
 raising fails the run. Actions have no verdict channel — for retry-driven
@@ -211,9 +214,11 @@ Duplicate CLI option strings across loaders are a load-time error naming both.
 
 ## The example consumer
 
-`examples/consumer-yosk/` is a complete, runnable consumer: the pipeline
-above, its four agent definitions (`sdk_agents/`), a shared standards doc,
-and two extension modules. The e2e suite (`tests/test_e2e_fixtures.py`)
-replays historical failure fixtures against it — markdown-decorated
-verdicts, stale-artifact hygiene, verdict-first truncation, unclear-verdict
-retry, dirty-worktree commit skip, and empty-context fail-fast.
+`examples/self/` is a complete, runnable consumer that turns the library on
+its own repo: the pipeline above, its four agent definitions (`sdk_agents/`),
+and this README wired in as shared context. Run it from the repo root with
+`./trigger-agent-engine.sh --plan plan.md`. The e2e suite
+(`tests/test_e2e_fixtures.py`) replays historical failure fixtures against
+it — markdown-decorated verdicts, stale-artifact hygiene, verdict-first
+truncation, unclear-verdict retry, dirty-worktree commit skip, and
+empty-context fail-fast.

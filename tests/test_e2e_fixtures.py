@@ -1,13 +1,14 @@
-"""Historical-fixture e2e: the failures that shaped the yosk loop's policies,
-replayed against the SHIPPED example pipeline (examples/consumer-yosk/) —
+"""Historical-fixture e2e: the failures that shaped the dev loop's policies,
+replayed against the SHIPPED example pipeline (examples/self/) —
 a byte-identical copy per test, so state_dir, agents_dir and additional_files
 resolve exactly as they would in a consumer's repo.
 
 run_agent is stubbed (the SDK network boundary, via the fake_agents fixture);
 files, git, checkpoints, verdict parsing and routing are all real. The
-example's verbatim port sweep (port 8080, match "Yosk") is neutralized at the
-OS boundary (_listening_pids) because a contributor's real yosk dev server
-may be listening — kill behavior itself is covered in test_actions.py.
+example's verbatim port sweep (port 8321, match "agent-engine") is
+neutralized at the OS boundary (_listening_pids) because a contributor's
+real process may be listening on that port — kill behavior itself is covered
+in test_actions.py.
 """
 
 import shutil
@@ -22,7 +23,7 @@ from agent_engine.config import load_config
 from agent_engine.llm import build_llm
 from agent_engine.registry import default_registry
 
-EXAMPLE = Path(__file__).resolve().parent.parent / "examples" / "consumer-yosk"
+EXAMPLE = Path(__file__).resolve().parent.parent / "examples" / "self"
 
 
 def _passing_scripts(fake_agents, **overrides):
@@ -40,9 +41,14 @@ def _passing_scripts(fake_agents, **overrides):
 
 @pytest.fixture
 def consumer_repo(tmp_path, monkeypatch, fake_agents):
-    """Byte-identical copy of the shipped example as a clean git repo."""
+    """Byte-identical copy of the shipped example as a clean git repo,
+    laid out like the real repo (README at the root, pipeline under
+    examples/self/) so additional_files (../../README.md), state_dir and
+    agents_dir all resolve exactly as they would in a consumer's repo."""
     repo = tmp_path / "repo"
-    shutil.copytree(EXAMPLE, repo)
+    (repo / "examples" / "self").mkdir(parents=True)
+    shutil.copytree(EXAMPLE, repo / "examples" / "self", dirs_exist_ok=True)
+    (repo / "README.md").write_text("# README\n")
     monkeypatch.chdir(repo)
     subprocess.run(["git", "init", "-q"], check=True)
     subprocess.run(["git", "config", "user.email", "t@t"], check=True)
@@ -51,7 +57,8 @@ def consumer_repo(tmp_path, monkeypatch, fake_agents):
     subprocess.run(["git", "add", "-A"], check=True)
     subprocess.run(["git", "commit", "-qm", "init"], check=True)
     monkeypatch.setenv("OPENAI_API_KEY", "fake-key")
-    # Never kill the contributor's real yosk dev server (see module docstring).
+    # Never kill a contributor's real process on that port (see module
+    # docstring).
     monkeypatch.setattr("agent_engine.actions._listening_pids",
                         lambda *a, **k: [])
     return repo
@@ -71,7 +78,7 @@ class TestHistoricalFixtures:
         _passing_scripts(fake_agents, checks=[
             ("write", "ci-fix.md",
              "## CI analysis\n\nEverything is fine.\n\n**VERDICT: PASS**\n")])
-        rc = main([str(consumer_repo / "pipeline.yaml"), "--plan", "plan.md"])
+        rc = main([str(consumer_repo / "examples" / "self" / "pipeline.yaml"), "--plan", "plan.md"])
         assert rc == 0
         assert fake_agents.agents_called() == ["dev", "checks", "review", "qa"]
         assert "feat: construct plan plan.md (agent dev loop)" in _log(
@@ -88,11 +95,11 @@ class TestHistoricalFixtures:
             ("ok",),  # attempt 2 writes nothing
             ("write", "ci-fix.md", "Fixed.\n\nVERDICT: PASS\n"),
         ])
-        rc = main([str(consumer_repo / "pipeline.yaml"), "--plan", "plan.md"])
+        rc = main([str(consumer_repo / "examples" / "self" / "pipeline.yaml"), "--plan", "plan.md"])
         assert rc == 0
         attempt3_checks = fake_agents.messages_for("checks")[-1]
-        assert ("checks agent did not write `.pr/ci-fix.md` on attempt 2."
-                in attempt3_checks)
+        assert ("checks agent did not write `examples/self/.pr/ci-fix.md` "
+                "on attempt 2." in attempt3_checks)
         assert "checks output (attempt 2)" not in attempt3_checks
 
     def test_verdict_written_before_turn_cap_still_passes(self, consumer_repo,
@@ -103,7 +110,7 @@ class TestHistoricalFixtures:
         _passing_scripts(fake_agents, qa=[
             ("write_truncated", "qa-report.md",
              "Partial QA findings, cut short.\n\nVERDICT: PASS\n")])
-        rc = main([str(consumer_repo / "pipeline.yaml"), "--plan", "plan.md"])
+        rc = main([str(consumer_repo / "examples" / "self" / "pipeline.yaml"), "--plan", "plan.md"])
         assert rc == 0
         assert fake_agents.agents_called().count("qa") == 1
         assert "(agent dev loop)" in _log(consumer_repo)
@@ -119,7 +126,7 @@ class TestHistoricalFixtures:
              "Line two of findings.\n"),
             ("write", "ci-fix.md", "Decided.\n\nVERDICT: PASS\n"),
         ])
-        rc = main([str(consumer_repo / "pipeline.yaml"), "--plan", "plan.md"])
+        rc = main([str(consumer_repo / "examples" / "self" / "pipeline.yaml"), "--plan", "plan.md"])
         assert rc == 0
         attempt2_dev = fake_agents.messages_for("dev")[1]
         assert "unparseable" in attempt2_dev
@@ -132,7 +139,7 @@ class TestHistoricalFixtures:
         a dirty-at-start run still succeeds, it just doesn't commit."""
         (consumer_repo / "plan.md").write_text("# Plan\n\nEdited by a human.\n")
         _passing_scripts(fake_agents)
-        rc = main([str(consumer_repo / "pipeline.yaml"), "--plan", "plan.md"])
+        rc = main([str(consumer_repo / "examples" / "self" / "pipeline.yaml"), "--plan", "plan.md"])
         assert rc == 0
         assert "(agent dev loop)" not in _log(consumer_repo)
 
@@ -142,42 +149,17 @@ class TestHistoricalFixtures:
         (consumer_repo / "aidlc-docs" / "construction"
          / "unit-99").mkdir(parents=True)
         with pytest.raises(RuntimeError, match="yielded no docs"):
-            main([str(consumer_repo / "pipeline.yaml"),
+            main([str(consumer_repo / "examples" / "self" / "pipeline.yaml"),
                   "--ai-dlc-unit", "U99"])
         assert fake_agents.calls == []
 
 
-class TestExampleExtensions:
-    def test_figma_extension_makes_example_dev_agent_buildable(
-            self, consumer_repo, monkeypatch):
-        """The example's dev.agent.md names the consumer-owned `figma` tool —
-        it only builds once the sample FigmaExtension has registered it.
+class TestExampleExtensionless:
+    def test_example_dev_agent_builds_with_bundled_registry(self, monkeypatch):
+        """The example's agents name only bundled tools — the dev agent
+        builds against the default registry with no consumer extensions.
         (Real SDK factory, fake-key LLM — no network.)"""
-        monkeypatch.syspath_prepend(str(EXAMPLE / "extensions"))
-        from figma_tool import FigmaExtension
         registry = default_registry()
-        FigmaExtension().register(registry)
         cfg = load_config(EXAMPLE / "pipeline.yaml")
         agent = load_agent(EXAMPLE / "sdk_agents", "dev", build_llm(cfg.llm))
         assert agent is not None
-
-    def test_conformance_action_surfaces_script_failure(self, tmp_path,
-                                                        monkeypatch):
-        """The sample conformance action passes through on exit 0 and raises
-        (failing the run, like an agent exception) with the script's output
-        in the error on failure."""
-        monkeypatch.syspath_prepend(str(EXAMPLE / "extensions"))
-        import conformance_action
-        registry = default_registry()
-        conformance_action.ConformanceExtension().register(registry)
-        assert "run_conformance" in registry.actions
-
-        ok = tmp_path / "ok.sh"
-        ok.write_text("#!/bin/bash\nexit 0\n")
-        assert conformance_action.run_conformance(
-            {}, {"script": str(ok)}) == {}
-
-        bad = tmp_path / "bad.sh"
-        bad.write_text("#!/bin/bash\necho specific-failure-token\nexit 1\n")
-        with pytest.raises(RuntimeError, match="specific-failure-token"):
-            conformance_action.run_conformance({}, {"script": str(bad)})

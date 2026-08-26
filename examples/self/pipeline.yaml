@@ -1,10 +1,10 @@
-name: yosk-construction
+name: agent-engine-construction
 
 extensions:
   - agent_engine.extensions.aidlc:AidlcExtension   # bundled; loading IS choosing
 
 additional_files:                    # top-level, standalone, optional
-  - coding-standards-ddd.yaml        # resolved relative to the pipeline file's dir;
+  - ../../README.md                  # resolved relative to the pipeline file's dir;
                                      # listed-but-missing → fail fast
 
 llm:
@@ -40,7 +40,7 @@ steps:
 
   - name: port_sweep
     action: kill_listeners
-    params: { port: 8080, match: Yosk }
+    params: { port: 8321, match: agent-engine }  # sweep an orphaned --viz server
     on_pass: qa
 
   - name: qa
