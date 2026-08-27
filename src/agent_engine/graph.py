@@ -99,13 +99,16 @@ def run_pipeline(cfg_path, args, *, viz_bus=None) -> tuple[bool, int]:
     public API, yosk's `construct`/`resume_loop` equivalent.
 
     `args` carries the parsed CLI namespace: loader flags, --resume,
-    --max-attempts (which overrides the YAML value when set), and --viz.
+    --max-attempts (which overrides the YAML value when set), and --no-viz.
 
-    With ``viz_bus=None`` and no ``--viz`` the graph runs via
+    The live viz is on by default for CLI runs (suppressed with ``--no-viz``).
+    With ``viz_bus=None`` and viz suppressed, the graph runs via
     ``graph.invoke`` exactly as before. A passed-in ``viz_bus`` (programmatic)
-    or ``--viz`` (CLI) switches to ``graph.stream`` and publishes live events;
-    the CLI path additionally serves the HTTP page, opens the browser, and
-    keeps the process alive so the final graph stays inspectable."""
+    or a default-on CLI run switches to ``graph.stream`` and publishes live
+    events; the CLI path additionally serves the HTTP page, opens the browser,
+    and keeps the process alive so the final graph stays inspectable.
+    Programmatic Namespaces without a ``no_viz`` attribute get no server —
+    default-on is a CLI-layer concern."""
     cfg_path = Path(cfg_path)
     cfg = load_config(cfg_path)
     base = cfg_path.resolve().parent
@@ -159,12 +162,13 @@ def run_pipeline(cfg_path, args, *, viz_bus=None) -> tuple[bool, int]:
                 f"nothing to resume.")
         graph = build_graph(runtime, saver)
 
-        if bus is None and getattr(args, "viz", False):
+        if bus is None and not getattr(args, "no_viz", True):
             start_state = initial if initial is not None \
                 else graph.get_state(config).values
-            topology = graph.get_graph().draw_mermaid()
+            topology, nodes = viz.topology_mermaid(cfg)
             bus = viz.VizBus()
-            viz.serve_viz(bus, topology, start_state["subject"], args.viz_port)
+            viz.serve_viz(bus, topology, start_state["subject"], args.viz_port,
+                          nodes)
             url = f"http://127.0.0.1:{args.viz_port}"
             print(f"Live graph viz: {url}", flush=True)
             webbrowser.open(url)

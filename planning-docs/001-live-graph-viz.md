@@ -1,8 +1,8 @@
 # Live Graph Visualization — Implementation Plan
 
-> **Status: PLANNED**
+> **Status: COMPLETED**
 
-> **For agentic workers:** Use bite-sized task execution to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Use bite-sized task execution to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add an opt-in `--viz` flag to the `agent-engine` CLI that spins up a localhost web page showing the pipeline graph (config-driven — e.g. the shipped self-loop example's `dev→checks→review→port_sweep→qa→commit`, plus the `bump`/`success` terminals) with **live** node highlighting — `pending / running / passed / failed` — plus subject, attempt n/max, one verdict badge per verdict step (any step declaring `artifact`+`verdicts`), and an event log. Zero new dependencies, zero behavior change when the flag is absent.
 
@@ -64,10 +64,10 @@ Whitelist for `state` events: `attempt, step_verdicts, outcome, failed`. (`docs`
 - Consumes: v2 StreamParts from `graph.stream(..., stream_mode=["tasks", "updates"], version="v2")`
 - Produces: event dicts per the protocol above (no `run_*` events here — those come from `run_pipeline`)
 
-- [ ]**Step 1: Failing unit tests** — start part (`triggers`) → `node_started`; finish part (`error` None) → `node_finished ok:true`; finish part (`error` str) → `ok:false`; updates part → single `state` event with ONLY whitelisted keys (feed it `{"docs": ..., "context": ..., "notes": ..., "commit_allowed": ...}` and assert they're dropped); unknown/other parts → `[]`.
-- [ ]**Step 2: Implement `translate`** — minimal pure function.
-- [ ]**Step 3: Failing e2e test** — real tiny `StateGraph` (2 nodes) + `MemorySaver`, stream `["tasks","updates"]` v2, assert translated sequence is `node_started a → state → node_finished a(ok) → node_started b → …` in order.
-- [ ]**Step 4: Green + refactor.**
+- [x]**Step 1: Failing unit tests** — start part (`triggers`) → `node_started`; finish part (`error` None) → `node_finished ok:true`; finish part (`error` str) → `ok:false`; updates part → single `state` event with ONLY whitelisted keys (feed it `{"docs": ..., "context": ..., "notes": ..., "commit_allowed": ...}` and assert they're dropped); unknown/other parts → `[]`.
+- [x]**Step 2: Implement `translate`** — minimal pure function.
+- [x]**Step 3: Failing e2e test** — real tiny `StateGraph` (2 nodes) + `MemorySaver`, stream `["tasks","updates"]` v2, assert translated sequence is `node_started a → state → node_finished a(ok) → node_started b → …` in order.
+- [x]**Step 4: Green + refactor.**
 
 ### Task 2: `VizBus` — thread-safe pub/sub with backlog
 
@@ -79,8 +79,8 @@ Whitelist for `state` events: `attempt, step_verdicts, outcome, failed`. (`docs`
 - `VizBus(maxlen=500)`: `publish(event)`, `subscribe() -> queue.Queue` (replays bounded backlog into the new subscriber first — late-opening browser tabs catch up), `unsubscribe(q)`
 - Thread-safe: nodes publish from the pipeline thread; SSE handler threads consume.
 
-- [ ]**Step 1: Failing tests** — fan-out to 2 subscribers; late subscriber receives backlog in order; unsubscribe stops delivery; backlog evicts oldest beyond `maxlen`; concurrent publish from N threads loses no events.
-- [ ]**Step 2: Implement + green + refactor.**
+- [x]**Step 1: Failing tests** — fan-out to 2 subscribers; late subscriber receives backlog in order; unsubscribe stops delivery; backlog evicts oldest beyond `maxlen`; concurrent publish from N threads loses no events.
+- [x]**Step 2: Implement + green + refactor.**
 
 ### Task 3: HTTP/SSE server + embedded HTML page
 
@@ -95,10 +95,10 @@ Whitelist for `state` events: `attempt, step_verdicts, outcome, failed`. (`docs`
 
 **Page (MVP):** Mermaid.js v11 CDN; fetch `/topology`, `mermaid.render`; `new EventSource("/events")`; per event update a `node -> status` map and re-render with `classDef` (`running` amber pulse, `passed` green, `failed` red, default pending) + `class <node> <status>` lines; sidebar: subject (updated by `run_started`), `attempt n/max`, one verdict badge per config step with `verdicts:` set, scrolling event log. `run_finished` banners success/failure. CDN unreachable → page still shows the event log as text (script `onerror` fallback), not a blank page.
 
-- [ ]**Step 1: Failing tests** (real server on port 0): `/` 200 + contains mermaid container + topic placeholder; `/topology` JSON round-trip; SSE: connect, `bus.publish`, assert a `data:` frame with the event arrives over the real socket; backlog: publish before connecting, assert replay.
-- [ ]**Step 2: Implement server + page; green.**
-- [ ]**Step 3: Failing test** — binding a second server to the same port raises the loud `--viz-port` error.
-- [ ]**Step 4: Implement + green + refactor.**
+- [x]**Step 1: Failing tests** (real server on port 0): `/` 200 + contains mermaid container + topic placeholder; `/topology` JSON round-trip; SSE: connect, `bus.publish`, assert a `data:` frame with the event arrives over the real socket; backlog: publish before connecting, assert replay.
+- [x]**Step 2: Implement server + page; green.**
+- [x]**Step 3: Failing test** — binding a second server to the same port raises the loud `--viz-port` error.
+- [x]**Step 4: Implement + green + refactor.**
 
 ### Task 4: Wire into `run_pipeline` + CLI
 
@@ -113,18 +113,22 @@ Whitelist for `state` events: `attempt, step_verdicts, outcome, failed`. (`docs`
   - `args.viz` only (CLI path, bus created inside): additionally `topology = graph.get_graph().draw_mermaid()`; `serve_viz(bus, topology, subject, args.viz_port)`; `webbrowser.open(f"http://127.0.0.1:{port}")` + print URL. After the run returns, keep the process alive via `viz.wait_for_interrupt()` (thin `threading.Event().wait()` wrapper catching `KeyboardInterrupt`) so the final graph stays inspectable; without `--viz`, exit exactly as today. Programmatic callers passing `viz_bus=` get no server and no keep-alive — bus-only.
 - `_core_parser()`: `--viz` (store_true), `--viz-port` (int, default 8321) — core flags, so they exist for every pipeline (they're loader-independent).
 
-- [ ]**Step 1: Failing tests** — `run_pipeline` with a real bus + `fake_agents` publishes the translated sequence and returns the same `(success, attempts)` as the invoke path's; `viz_bus=None` path still invokes (existing suite is the pin); **resume via `stream(None, config)`** continues from the checkpoint (mirrors `TestResume::test_resume_from_crash` through the stream path — guards the documented-but-unverified assumption).
-- [ ]**Step 2: Implement the stream path in `run_pipeline`; green.**
-- [ ]**Step 3: Failing tests** — `build_parser(...).parse_args(["--viz", "--viz-port", "9"])`; `--viz` appears in `--help` output (extend the existing `TestHelp` assertions); full `main(["pipeline.yaml", "--plan", "plan.md", "--viz"])` with `fake_agents`: monkeypatch `viz.serve_viz` (capture the topology arg), `webbrowser.open`, and `viz.wait_for_interrupt` (→ raise `KeyboardInterrupt`); assert `main` returns the pipeline's exit code, topology mermaid contains the pipeline's step names, and the bus saw `run_started`/`run_finished`.
-- [ ]**Step 4: Implement `_core_parser` flags + lifecycle wiring; green + refactor.**
+- [x]**Step 1: Failing tests** — `run_pipeline` with a real bus + `fake_agents` publishes the translated sequence and returns the same `(success, attempts)` as the invoke path's; `viz_bus=None` path still invokes (existing suite is the pin); **resume via `stream(None, config)`** continues from the checkpoint (mirrors `TestResume::test_resume_from_crash` through the stream path — guards the documented-but-unverified assumption).
+- [x]**Step 2: Implement the stream path in `run_pipeline`; green.**
+- [x]**Step 3: Failing tests** — `build_parser(...).parse_args(["--viz", "--viz-port", "9"])`; `--viz` appears in `--help` output (extend the existing `TestHelp` assertions); full `main(["pipeline.yaml", "--plan", "plan.md", "--viz"])` with `fake_agents`: monkeypatch `viz.serve_viz` (capture the topology arg), `webbrowser.open`, and `viz.wait_for_interrupt` (→ raise `KeyboardInterrupt`); assert `main` returns the pipeline's exit code, topology mermaid contains the pipeline's step names, and the bus saw `run_started`/`run_finished`.
+- [x]**Step 4: Implement `_core_parser` flags + lifecycle wiring; green + refactor.**
 
 ### Task 5: Docs
 
-- [ ] `README.md`: one line in the Quick start / CLI section (`--viz` serves a live graph view on localhost, auto-opens the browser).
-- [ ] CLI `--help` text for the two flags (part of `_core_parser`).
+- [x] `README.md`: one line in the Quick start / CLI section (`--viz` serves a live graph view on localhost, auto-opens the browser).
+- [x] CLI `--help` text for the two flags (part of `_core_parser`).
 
 ## Verification
 
 1. `.venv/bin/python -m pytest tests/ -q` green.
 2. Manual smoke: tiny-graph script with `--viz` — page renders, nodes light up in order, verdict badges populate.
 3. Real `agent-engine examples/self/pipeline.yaml --plan <doc> --viz` run — **user triggers** (makes LLM calls).
+
+## Amendments
+
+- 2026-08-27: activation flipped from opt-in `--viz` to **on by default**, suppressed with `--no-viz` — the live graph view is now the primary run surface (`--viz-port` unchanged). The Task 4/5 text above describes the original opt-in wiring. Programmatic `viz_bus=` semantics are unchanged; Namespaces without a `no_viz` attribute get no server.

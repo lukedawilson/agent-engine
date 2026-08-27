@@ -107,7 +107,7 @@ class TestHelp:
         out = capsys.readouterr().out
         assert "--resume" in out
         assert "--max-attempts" in out
-        assert "--viz" in out
+        assert "--no-viz" in out
         assert "--viz-port" in out
         assert "--plan" in out  # built-in plan loader is always present
 
@@ -133,20 +133,20 @@ class TestHelp:
 class TestRun:
     def test_success_returns_zero(self, repo, fake_agents):
         fake_agents.set("dev", [("write", "implementation-summary.md", "done")])
-        assert main(["pipeline.yaml", "--plan", "plan.md"]) == 0
+        assert main(["pipeline.yaml", "--plan", "plan.md", "--no-viz"]) == 0
 
     def test_failure_returns_one(self, repo, fake_agents):
         write_pipeline(repo, "retry.yaml", RETRY_YAML)
         fake_agents.set("dev", [("write", "implementation-summary.md", "done")])
         fake_agents.set("checks", [("write", "ci-fix.md", "VERDICT: FAIL")])
-        assert main(["retry.yaml", "--plan", "plan.md"]) == 1
+        assert main(["retry.yaml", "--plan", "plan.md", "--no-viz"]) == 1
 
     def test_max_attempts_overrides_config(self, repo, fake_agents):
         write_pipeline(repo, "retry.yaml", RETRY_YAML)  # YAML says max_attempts: 1
         fake_agents.set("dev", [("write", "implementation-summary.md", "done")])
         fake_agents.set("checks", [("write", "ci-fix.md", "VERDICT: FAIL")])
         assert main(["retry.yaml", "--plan", "plan.md",
-                     "--max-attempts", "2"]) == 1
+                     "--max-attempts", "2", "--no-viz"]) == 1
         assert fake_agents.agents_called().count("dev") == 2
 
     def test_resume_threads_through(self, repo, fake_agents):
@@ -157,24 +157,28 @@ class TestRun:
             ("write", "ci-fix.md", "VERDICT: PASS"),
         ])
         with pytest.raises(KeyboardInterrupt):
-            main(["resume.yaml", "--plan", "plan.md"])
+            main(["resume.yaml", "--plan", "plan.md", "--no-viz"])
 
         db = repo / ".pr" / "loop-checkpoints.sqlite"
         with sqlite3.connect(db) as conn:
             (tid,) = conn.execute(
                 "SELECT DISTINCT thread_id FROM checkpoints").fetchone()
 
-        assert main(["resume.yaml", "--resume", tid]) == 0
+        assert main(["resume.yaml", "--resume", tid, "--no-viz"]) == 0
         # dev completed before the crash — only checks re-ran on resume
         assert fake_agents.agents_called() == ["dev", "checks", "checks"]
 
 
 class TestViz:
-    def test_viz_flags_parse(self, repo):
+    def test_no_viz_flags_parse(self, repo):
         args = build_parser("pipeline.yaml").parse_args(
-            ["pipeline.yaml", "--viz", "--viz-port", "9"])
-        assert args.viz is True
+            ["pipeline.yaml", "--no-viz", "--viz-port", "9"])
+        assert args.no_viz is True
         assert args.viz_port == 9
+
+    def test_viz_on_by_default(self, repo):
+        args = build_parser("pipeline.yaml").parse_args(["pipeline.yaml"])
+        assert args.no_viz is False
 
     def test_lifecycle_serves_and_keeps_alive(self, repo, fake_agents, monkeypatch):
         import queue
@@ -182,11 +186,12 @@ class TestViz:
         fake_agents.set("dev", [("write", "implementation-summary.md", "done")])
         captured = {}
 
-        def fake_serve_viz(bus, topology, subject, port):
+        def fake_serve_viz(bus, topology, subject, port, nodes=()):
             captured["bus"] = bus
             captured["topology"] = topology
             captured["subject"] = subject
             captured["port"] = port
+            captured["nodes"] = nodes
             return object(), object()
 
         def interrupt():
@@ -197,10 +202,13 @@ class TestViz:
         monkeypatch.setattr("webbrowser.open", opened.append)
         monkeypatch.setattr("agent_engine.viz.wait_for_interrupt", interrupt)
 
-        code = main(["pipeline.yaml", "--plan", "plan.md", "--viz"])
+        code = main(["pipeline.yaml", "--plan", "plan.md"])  # served by default
         assert code == 0
         assert "dev" in captured["topology"]
         assert "success" in captured["topology"]
+        assert "dev" in captured["nodes"]
+        assert "success" in captured["nodes"]
+        assert "bump" not in captured["nodes"]
         assert captured["subject"] == "plan plan.md"
         assert captured["port"] == 8321
         assert opened == ["http://127.0.0.1:8321"]
@@ -214,3 +222,17 @@ class TestViz:
                 break
         assert any(e["type"] == "run_started" for e in events)
         assert any(e["type"] == "run_finished" for e in events)
+
+    def test_no_viz_suppresses_server(self, repo, fake_agents, monkeypatch):
+        fake_agents.set("dev", [("write", "implementation-summary.md", "done")])
+        called = []
+        monkeypatch.setattr(
+            "agent_engine.viz.serve_viz",
+            lambda *a, **k: called.append("serve") or (object(), object()))
+        monkeypatch.setattr(
+            "agent_engine.viz.wait_for_interrupt",
+            lambda: called.append("keep_alive"))
+
+        code = main(["pipeline.yaml", "--plan", "plan.md", "--no-viz"])
+        assert code == 0
+        assert called == []

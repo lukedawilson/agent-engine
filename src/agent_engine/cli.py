@@ -25,9 +25,9 @@ def _core_parser() -> argparse.ArgumentParser:
                         help="resume a checkpointed run by thread id")
     parser.add_argument("--max-attempts", type=int, default=None,
                         help="override the pipeline's max_attempts")
-    parser.add_argument("--viz", action="store_true",
-                        help="serve a live graph view on localhost and open "
-                             "the browser")
+    parser.add_argument("--no-viz", action="store_true",
+                        help="suppress the live graph view (served by "
+                             "default)")
     parser.add_argument("--viz-port", type=int, default=8321,
                         help="port for the live graph view (default: 8321)")
     return parser

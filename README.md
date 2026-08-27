@@ -32,9 +32,10 @@ agent-engine examples/self/pipeline.yaml --resume <thread-id> --max-attempts 5
 
 Exit code is `0` on pipeline success, `1` otherwise. Each run prints its
 thread id; `--resume` continues the latest checkpoint of a previous thread
-(crash, Ctrl-C, exhaustion) with all accumulated notes intact. Add `--viz`
-to serve a live graph view on localhost and auto-open the browser
-(`--viz-port` overrides the default 8321). To eyeball the viz page without
+(crash, Ctrl-C, exhaustion) with all accumulated notes intact. A live graph
+view is served on localhost by default (browser auto-opens; `--viz-port`
+overrides the default 8321) — pass `--no-viz` to suppress it. To eyeball the
+viz page without
 running a pipeline, `.venv/bin/python viz_demo.py` serves the real topology
 and replays a scripted run (every node state, verdict badges, retry cycle).
 
@@ -120,7 +121,7 @@ steps:
 
   - name: port_sweep
     action: kill_listeners            # built-in action
-    params: {port: 8321, match: "agent-engine"}  # sweep an orphaned --viz server
+    params: {port: 8321, match: "agent-engine"}  # sweep an orphaned viz server
     on_pass: qa
 
   - name: qa

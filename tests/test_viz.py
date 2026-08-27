@@ -12,13 +12,16 @@ import operator
 import queue
 import socket
 import threading
+from pathlib import Path
 from typing import Annotated, TypedDict
 
 import pytest
 
-from agent_engine.viz import PAGE, VizBus, serve_viz, translate
+from agent_engine.config import PipelineConfig, load_config
+from agent_engine.viz import PAGE, VizBus, serve_viz, topology_mermaid, translate
 
 MERMAID = "graph TD;\n\tdev(dev)\n\tchecks(checks)\n"
+SELF_PIPELINE = Path(__file__).parent.parent / "examples" / "self" / "pipeline.yaml"
 
 
 def tasks_start(name):
@@ -104,6 +107,60 @@ class TestTranslate:
             {"type": "state"},
             {"type": "node_finished", "node": "b", "ok": True},
         ]
+
+
+class TestTopologyMermaid:
+    def _pipeline(self, steps: list[dict]) -> PipelineConfig:
+        return PipelineConfig.model_validate({
+            "name": "viz-topology",
+            "llm": {"model": "m", "api_key_env": "K"},
+            "agents_dir": "sdk_agents",
+            "steps": steps,
+        })
+
+    def test_shipped_self_loop_topology(self):
+        cfg = load_config(SELF_PIPELINE)
+        source, nodes = topology_mermaid(cfg)
+
+        chain = ["dev", "checks", "review", "port_sweep", "qa", "commit",
+                 "success"]
+        for src, dst in zip(chain, chain[1:]):
+            assert f"{src} --> {dst};" in source
+
+        assert "checks -. &nbsp;FAIL&nbsp; .-> dev;" in source
+        assert "review -. &nbsp;NEEDS CHANGES&nbsp; .-> dev;" in source
+        assert "qa -. &nbsp;FAIL&nbsp; .-> dev;" in source
+
+        assert "__start__" not in source
+        assert "__end__" not in source
+        assert "bump" not in source
+        assert "(dev)" not in source
+
+        assert nodes == chain
+
+    def test_route_on_pass_and_nonretry_fail(self):
+        cfg = self._pipeline([{
+            "name": "dev",
+            "agent": "dev",
+            "on_pass": {"goto": "success"},
+            "on_fail": "failure",
+        }])
+        source, nodes = topology_mermaid(cfg)
+
+        assert "dev --> success;" in source
+        assert "dev -.-> failure;" in source
+        assert nodes == ["dev", "success", "failure"]
+
+    def test_retry_without_verdicts_falls_back_to_retry(self):
+        cfg = self._pipeline([{
+            "name": "dev",
+            "agent": "dev",
+            "on_pass": "success",
+            "on_fail": {"goto": "dev", "retry": True},
+        }])
+        source, _nodes = topology_mermaid(cfg)
+
+        assert "dev -. &nbsp;retry&nbsp; .-> dev;" in source
 
 
 class TestVizBus:
@@ -221,7 +278,23 @@ class TestServer:
         _bus, _httpd, _thread, port = server
         status, body = http_get(port, "/topology")
         assert status == 200
-        assert json.loads(body) == {"mermaid": MERMAID, "subject": "plan plan.md"}
+        assert json.loads(body) == {"mermaid": MERMAID, "subject": "plan plan.md",
+                                    "nodes": []}
+
+    def test_topology_round_trip_includes_nodes(self):
+        bus = VizBus()
+        httpd, thread = serve_viz(bus, MERMAID, "subject", 0,
+                                  ["dev", "success"])
+        port = httpd.server_address[1]
+        try:
+            status, body = http_get(port, "/topology")
+            assert status == 200
+            assert json.loads(body) == {"mermaid": MERMAID, "subject": "subject",
+                                        "nodes": ["dev", "success"]}
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+            thread.join(timeout=5)
 
     def test_sse_streams_published_events(self, server):
         bus, _httpd, _thread, port = server
@@ -249,3 +322,7 @@ class TestServer:
     def test_page_constant_has_fallback_hook(self):
         assert "onerror" in PAGE
         assert "mermaid" in PAGE
+
+    def test_page_constant_has_nodes_filter_hook(self):
+        assert "nodeIds" in PAGE
+        assert "nodeIds.has(n)" in PAGE

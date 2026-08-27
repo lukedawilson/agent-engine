@@ -32,7 +32,7 @@ def git_worktree_clean(path: Path) -> bool:
 def _listening_pids(port: int, match: str | None) -> list[str]:
     """PIDs of processes listening on `port`, optionally only those whose
     command line contains `match`. The current process is always excluded — a
-    pipeline must never sweep its own listener (e.g. a live --viz server),
+    pipeline must never sweep its own listener (e.g. the live viz server),
     only orphaned listeners left behind by earlier runs or agent subprocesses."""
     out = subprocess.run(
         ["lsof", "-nP", "-ti", f"tcp:{port}", "-sTCP:LISTEN"],

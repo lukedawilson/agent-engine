@@ -83,7 +83,7 @@ class TestHistoricalFixtures:
         _passing_scripts(fake_agents, checks=[
             ("write", "ci-fix.md",
              "## CI analysis\n\nEverything is fine.\n\n**VERDICT: PASS**\n")])
-        rc = main([str(consumer_repo / "examples" / "self" / "pipeline.yaml"), "--plan", "plan.md"])
+        rc = main([str(consumer_repo / "examples" / "self" / "pipeline.yaml"), "--plan", "plan.md", "--no-viz"])
         assert rc == 0
         assert fake_agents.agents_called() == ["dev", "checks", "review", "qa"]
         assert "feat: construct plan plan.md (agent dev loop)" in _log(
@@ -100,7 +100,7 @@ class TestHistoricalFixtures:
             ("ok",),  # attempt 2 writes nothing
             ("write", "ci-fix.md", "Fixed.\n\nVERDICT: PASS\n"),
         ])
-        rc = main([str(consumer_repo / "examples" / "self" / "pipeline.yaml"), "--plan", "plan.md"])
+        rc = main([str(consumer_repo / "examples" / "self" / "pipeline.yaml"), "--plan", "plan.md", "--no-viz"])
         assert rc == 0
         attempt3_checks = fake_agents.messages_for("checks")[-1]
         assert ("checks agent did not write `examples/self/.pr/ci-fix.md` "
@@ -115,7 +115,7 @@ class TestHistoricalFixtures:
         _passing_scripts(fake_agents, qa=[
             ("write_truncated", "qa-report.md",
              "Partial QA findings, cut short.\n\nVERDICT: PASS\n")])
-        rc = main([str(consumer_repo / "examples" / "self" / "pipeline.yaml"), "--plan", "plan.md"])
+        rc = main([str(consumer_repo / "examples" / "self" / "pipeline.yaml"), "--plan", "plan.md", "--no-viz"])
         assert rc == 0
         assert fake_agents.agents_called().count("qa") == 1
         assert "(agent dev loop)" in _log(consumer_repo)
@@ -131,7 +131,7 @@ class TestHistoricalFixtures:
              "Line two of findings.\n"),
             ("write", "ci-fix.md", "Decided.\n\nVERDICT: PASS\n"),
         ])
-        rc = main([str(consumer_repo / "examples" / "self" / "pipeline.yaml"), "--plan", "plan.md"])
+        rc = main([str(consumer_repo / "examples" / "self" / "pipeline.yaml"), "--plan", "plan.md", "--no-viz"])
         assert rc == 0
         attempt2_dev = fake_agents.messages_for("dev")[1]
         assert "unparseable" in attempt2_dev
@@ -144,7 +144,7 @@ class TestHistoricalFixtures:
         a dirty-at-start run still succeeds, it just doesn't commit."""
         (consumer_repo / "plan.md").write_text("# Plan\n\nEdited by a human.\n")
         _passing_scripts(fake_agents)
-        rc = main([str(consumer_repo / "examples" / "self" / "pipeline.yaml"), "--plan", "plan.md"])
+        rc = main([str(consumer_repo / "examples" / "self" / "pipeline.yaml"), "--plan", "plan.md", "--no-viz"])
         assert rc == 0
         assert "(agent dev loop)" not in _log(consumer_repo)
 
@@ -155,7 +155,7 @@ class TestHistoricalFixtures:
          / "unit-99").mkdir(parents=True)
         with pytest.raises(RuntimeError, match="yielded no docs"):
             main([str(consumer_repo / "examples" / "self" / "pipeline.yaml"),
-                  "--ai-dlc-unit", "U99"])
+                  "--ai-dlc-unit", "U99", "--no-viz"])
         assert fake_agents.calls == []
 
 

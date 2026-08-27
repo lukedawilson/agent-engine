@@ -1,10 +1,13 @@
 """Live graph visualization: StreamPart translation, a thread-safe event
-bus, and a stdlib-only HTTP/SSE server serving an embedded Mermaid page.
+bus, a config-driven topology renderer, and a stdlib-only HTTP/SSE server
+serving an embedded Mermaid page.
 
 The graph itself is untouched — every live update is derived from LangGraph's
-``tasks``/``updates`` stream modes. The viz surface is opt-in (``--viz``); the
-only dependencies are the Python standard library and Mermaid.js v11 served
-from a CDN by the browser.
+``tasks``/``updates`` stream modes. The viz surface is served by default
+(suppressed with ``--no-viz``); the
+server is stdlib-only and the page loads Mermaid.js v11 from a CDN. The
+topology is rendered by LangChain's own ``graph_mermaid`` renderer (a core
+dependency already pulled in by LangGraph).
 """
 
 from __future__ import annotations
@@ -13,9 +16,51 @@ import json
 import queue
 import threading
 from collections import deque
+from collections.abc import Iterable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+from langchain_core.runnables.graph import Edge
+from langchain_core.runnables.graph_mermaid import draw_mermaid
+
+from .config import PipelineConfig, Route, route_target
+
 STATE_WHITELIST = ("attempt", "step_verdicts", "outcome", "failed")
+
+
+def topology_mermaid(cfg: PipelineConfig) -> tuple[str, list[str]]:
+    """Build a single vertical flowchart for the configured steps.
+
+    Returns ``(mermaid_source, node_ids)``. The happy path is one solid
+    ``-->`` chain following each step's ``on_pass``; retries render as dotted
+    ``-. label .->`` loop-backs, and a non-retry ``on_fail`` as an unlabeled
+    dotted edge. LangChain's renderer is reused with ``nodes={}`` so nodes
+    auto-render as plain rectangles (no stadium declarations, no terminals).
+    """
+    chain: list[Edge] = []
+    back_edges: list[Edge] = []
+    referenced: set[str] = set()
+    for step in cfg.steps:
+        target = route_target(step.on_pass)
+        if target is not None:
+            chain.append(Edge(step.name, target))
+            referenced.add(target)
+        if isinstance(step.on_fail, Route) and step.on_fail.retry:
+            label = step.verdicts.fail if step.verdicts is not None else "retry"
+            back_edges.append(Edge(step.name, step.on_fail.goto, data=label,
+                                   conditional=True))
+            referenced.add(step.on_fail.goto)
+        else:
+            target = route_target(step.on_fail)
+            if target is not None:
+                back_edges.append(Edge(step.name, target, conditional=True))
+                referenced.add(target)
+    node_ids = [step.name for step in cfg.steps]
+    for terminal in ("success", "failure"):
+        if terminal in referenced:
+            node_ids.append(terminal)
+    source = draw_mermaid(nodes={}, edges=chain + back_edges, first_node=None,
+                          last_node=None, with_styles=False)
+    return source, node_ids
 
 
 def translate(part: dict) -> list[dict]:
@@ -84,12 +129,13 @@ class VizBus:
 
 
 def _handler_class(bus: VizBus, topology_mermaid: str,
-                   subject: str) -> type[BaseHTTPRequestHandler]:
+                   subject: str, nodes: Iterable[str]) -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
         viz_bus = bus
         viz_topology = topology_mermaid
         viz_subject = subject
+        viz_nodes = list(nodes)
 
         def log_message(self, *_args) -> None:  # keep test output quiet
             pass
@@ -99,7 +145,8 @@ def _handler_class(bus: VizBus, topology_mermaid: str,
                 self._send(200, "text/html; charset=utf-8", PAGE)
             elif self.path == "/topology":
                 body = json.dumps({"mermaid": self.viz_topology,
-                                   "subject": self.viz_subject})
+                                   "subject": self.viz_subject,
+                                   "nodes": self.viz_nodes})
                 self._send(200, "application/json", body)
             elif self.path == "/events":
                 self._events()
@@ -141,11 +188,11 @@ def _handler_class(bus: VizBus, topology_mermaid: str,
 
 
 def serve_viz(bus: VizBus, topology_mermaid: str, subject: str,
-              port: int) -> tuple[ThreadingHTTPServer, threading.Thread]:
+              port: int, nodes: Iterable[str] = ()) -> tuple[ThreadingHTTPServer, threading.Thread]:
     """Bind a loopback HTTP server on ``port`` and serve it on a daemon
     thread. Returns ``(httpd, thread)``. Bind failure is loud and names
     ``--viz-port`` — the caller must never fall back to another port."""
-    handler = _handler_class(bus, topology_mermaid, subject)
+    handler = _handler_class(bus, topology_mermaid, subject, nodes)
     try:
         httpd = ThreadingHTTPServer(("127.0.0.1", port), handler)
     except OSError as exc:
@@ -219,6 +266,7 @@ PAGE = """<!doctype html>
 (function () {
   var nodeStatus = {};
   var verdictSteps = new Set();
+  var nodeIds = new Set();
   var currentVerdicts = {};
   var maxAttempts = null;
   var attempt = null;
@@ -270,7 +318,9 @@ PAGE = """<!doctype html>
       "classDef failed fill:#c62828,stroke:#c62828,color:#fff",
       "classDef pending fill:#f2f0ff,stroke:#555,color:#000"
     ];
-    var classLines = Object.keys(nodeStatus).map(function (n) {
+    var classLines = Object.keys(nodeStatus).filter(function (n) {
+      return nodeIds.has(n);
+    }).map(function (n) {
       return "class " + n + " " + (nodeStatus[n] || "pending") + ";";
     });
     var src = mermaidSource + "\\n" + classDefs.join("\\n") + "\\n" + classLines.join("\\n");
@@ -325,6 +375,7 @@ PAGE = """<!doctype html>
   fetch("/topology").then(function (r) { return r.json(); }).then(function (d) {
     el("subject").textContent = d.subject;
     mermaidSource = d.mermaid;
+    (d.nodes || []).forEach(function (n) { nodeIds.add(n); });
     if (!mermaidFailed && typeof mermaid !== "undefined") {
       mermaid.initialize({ startOnLoad: false, securityLevel: "loose" });
     }

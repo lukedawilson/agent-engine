@@ -160,7 +160,7 @@ class TestKillListenersOnPort:
     @lsof_required
     def test_never_sweeps_own_listener(self):
         """A pipeline's own process may be listening on the swept port (the
-        live --viz server). It must never be swept — only orphaned listeners
+        live viz server). It must never be swept — only orphaned listeners
         from other processes (previous runs / agent subprocesses)."""
         port = free_port()
         s = socket.socket()
