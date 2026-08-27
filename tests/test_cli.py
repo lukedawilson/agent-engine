@@ -222,6 +222,8 @@ class TestViz:
                 break
         assert any(e["type"] == "run_started" for e in events)
         assert any(e["type"] == "run_finished" for e in events)
+        run_started = next(e for e in events if e["type"] == "run_started")
+        assert run_started["attempt"] == 1
 
     def test_no_viz_suppresses_server(self, repo, fake_agents, monkeypatch):
         fake_agents.set("dev", [("write", "implementation-summary.md", "done")])

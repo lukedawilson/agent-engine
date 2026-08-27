@@ -182,6 +182,7 @@ def run_pipeline(cfg_path, args, *, viz_bus=None) -> tuple[bool, int]:
                 "subject": start_state["subject"],
                 "max_attempts": start_state["max_attempts"],
                 "thread_id": thread_id,
+                "attempt": start_state["attempt"],
             })
             final = None
             try:

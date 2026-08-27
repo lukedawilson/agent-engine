@@ -56,7 +56,7 @@ def run_scenario(bus: viz.VizBus, scenario: str) -> None:
     bump retries to dev, everything passes on attempt 2. `failure`: the
     checks node itself hard-fails on attempt 1 (red node, failure banner)."""
     bus.publish({"type": "run_started", "subject": SUBJECT,
-                 "max_attempts": 3, "thread_id": "viz-demo"})
+                 "max_attempts": 3, "thread_id": "viz-demo", "attempt": 1})
     time.sleep(NODE_GAP)
 
     emit_node(bus, "dev", {"attempt": 1})

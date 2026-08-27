@@ -247,6 +247,10 @@ PAGE = """<!doctype html>
   #log li { padding: 2px 0; border-bottom: 1px solid #f3f3f3; }
   .running > * { animation: pulse 1.2s ease-in-out infinite; }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+  @media (max-width: 768px) {
+    body { flex-direction: column; height: auto; }
+    #sidebar { flex: 0 0 auto; border-left: 0; border-top: 1px solid #e0e0e0; }
+  }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"
         onerror="window.__mermaidFailed=true"></script>
@@ -258,7 +262,7 @@ PAGE = """<!doctype html>
   </div>
   <aside id="sidebar">
     <h2 id="subject">agent-engine pipeline</h2>
-    <div id="attempt">attempt –/–</div>
+    <div id="attempt">attempt ?/?</div>
     <div id="verdicts"></div>
     <ul id="log"></ul>
   </aside>
@@ -268,11 +272,14 @@ PAGE = """<!doctype html>
   var verdictSteps = new Set();
   var nodeIds = new Set();
   var currentVerdicts = {};
+  var verdictFail = new Set();
+  var verdictPass = new Set();
   var maxAttempts = null;
   var attempt = null;
   var mermaidSource = null;
   var renderCount = 0;
   var mermaidFailed = !!window.__mermaidFailed;
+  var pendingCompletion = null;
 
   function el(id) { return document.getElementById(id); }
 
@@ -286,8 +293,25 @@ PAGE = """<!doctype html>
 
   function updateAttempt() {
     el("attempt").textContent = attempt === null
-      ? "attempt \u2013/\u2013"
+      ? "attempt ?/" + (maxAttempts === null ? "?" : maxAttempts)
       : "attempt " + attempt + "/" + (maxAttempts === null ? "?" : maxAttempts);
+  }
+
+  function flushPending() {
+    if (pendingCompletion === null) { return; }
+    var p = pendingCompletion;
+    pendingCompletion = null;
+    var verdict = currentVerdicts[p.node];
+    var suffix = verdict === "pass" ? " (verdict: PASS)"
+      : verdict === "fail" ? " (verdict: FAIL)" : "";
+    logLine(p.line + suffix);
+  }
+
+  function statusOf(n) {
+    if (nodeStatus[n] === "running") { return "running"; }
+    if (verdictFail.has(n)) { return "fail"; }
+    if (verdictPass.has(n)) { return "pass"; }
+    return nodeStatus[n] || "pending";
   }
 
   function updateBadges() {
@@ -314,14 +338,14 @@ PAGE = """<!doctype html>
     }
     var classDefs = [
       "classDef running fill:#ffb300,stroke:#ffb300,color:#fff",
-      "classDef passed fill:#2e7d32,stroke:#2e7d32,color:#fff",
-      "classDef failed fill:#c62828,stroke:#c62828,color:#fff",
+      "classDef pass fill:#2e7d32,stroke:#2e7d32,color:#fff",
+      "classDef fail fill:#c62828,stroke:#c62828,color:#fff",
       "classDef pending fill:#f2f0ff,stroke:#555,color:#000"
     ];
     var classLines = Object.keys(nodeStatus).filter(function (n) {
       return nodeIds.has(n);
     }).map(function (n) {
-      return "class " + n + " " + (nodeStatus[n] || "pending") + ";";
+      return "class " + n + " " + statusOf(n) + ";";
     });
     var src = mermaidSource + "\\n" + classDefs.join("\\n") + "\\n" + classLines.join("\\n");
     mermaid.render("graph-" + (renderCount++), src).then(function (res) {
@@ -336,33 +360,53 @@ PAGE = """<!doctype html>
   function handle(ev) {
     switch (ev.type) {
       case "run_started":
+        flushPending();
+        if (ev.attempt !== undefined) { attempt = ev.attempt; }
         maxAttempts = ev.max_attempts;
         el("subject").textContent = ev.subject;
         logLine("run started: " + ev.subject + " (thread " + ev.thread_id + ")");
         updateAttempt();
         break;
       case "node_started":
+        flushPending();
+        if (!nodeIds.has(ev.node)) { break; }
         nodeStatus[ev.node] = "running";
         logLine("\u25b6 " + ev.node + " running");
         renderGraph();
         break;
       case "node_finished":
-        nodeStatus[ev.node] = ev.ok ? "passed" : "failed";
-        logLine((ev.ok ? "\u2714 " : "\u2718 ") + ev.node
-          + (ev.ok ? " passed" : " failed"));
+        if (!nodeIds.has(ev.node)) { break; }
+        nodeStatus[ev.node] = ev.ok ? "pass" : "fail";
+        pendingCompletion = {
+          node: ev.node,
+          line: (ev.ok ? "\u2714 " : "\u2718 ") + ev.node
+            + (ev.ok ? " completed" : " errored")
+        };
         renderGraph();
         break;
       case "state":
         if (ev.attempt !== undefined) { attempt = ev.attempt; }
         if (ev.step_verdicts !== undefined) {
-          Object.keys(ev.step_verdicts).forEach(function (k) { verdictSteps.add(k); });
+          Object.keys(ev.step_verdicts).forEach(function (k) {
+            verdictSteps.add(k);
+            var v = ev.step_verdicts[k];
+            if (v === "pass") { verdictPass.add(k); verdictFail.delete(k); }
+            else if (v === "fail") { verdictFail.add(k); verdictPass.delete(k); }
+            else { verdictPass.delete(k); verdictFail.delete(k); }
+          });
           currentVerdicts = ev.step_verdicts;
           updateBadges();
+          if (pendingCompletion !== null
+              && (pendingCompletion.node in ev.step_verdicts)) {
+            flushPending();
+          }
+          renderGraph();
         }
         if (ev.failed) { logLine("state: failed"); }
         updateAttempt();
         break;
       case "run_finished":
+        flushPending();
         logLine("run finished: " + (ev.success ? "success" : "failure"));
         var banner = el("run-banner");
         banner.textContent = ev.success ? "\u2713 SUCCESS" : "\u2718 FAILURE";

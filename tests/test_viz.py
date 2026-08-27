@@ -326,3 +326,41 @@ class TestServer:
     def test_page_constant_has_nodes_filter_hook(self):
         assert "nodeIds" in PAGE
         assert "nodeIds.has(n)" in PAGE
+
+    def test_page_constant_has_mobile_media_query(self):
+        assert "@media" in PAGE
+        assert "max-width: 768px" in PAGE
+        assert "flex-direction: column" in PAGE
+
+    def test_page_constant_attempt_fallback_has_no_em_dash(self):
+        assert "attempt ?/" in PAGE
+        assert "\u2013/\u2013" not in PAGE
+
+    def test_page_constant_logs_only_drawn_nodes(self):
+        assert "nodeIds.has(ev.node)" in PAGE
+
+    def test_page_constant_completion_wording(self):
+        assert "completed" in PAGE
+        assert "errored" in PAGE
+        assert "verdict" in PAGE
+        assert " passed" not in PAGE
+
+    def test_page_constant_verdict_status_precedence(self):
+        assert "statusOf" in PAGE
+        assert "verdictFail" in PAGE
+        assert "verdictPass" in PAGE
+
+
+class TestDemo:
+    def test_run_started_carries_attempt(self, monkeypatch):
+        import viz_demo
+
+        monkeypatch.setattr(viz_demo.time, "sleep", lambda *_a: None)
+        bus = VizBus()
+        viz_demo.run_scenario(bus, "success")
+        q = bus.subscribe()
+        events = []
+        while not q.empty():
+            events.append(q.get_nowait())
+        run_started = next(e for e in events if e["type"] == "run_started")
+        assert run_started["attempt"] == 1
