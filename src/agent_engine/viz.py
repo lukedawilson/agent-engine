@@ -351,6 +351,8 @@ PAGE = """<!doctype html>
   var renderCount = 0;
   var mermaidFailed = !!window.__mermaidFailed;
   var pendingCompletion = null;
+  var topologyReady = false;
+  var pendingEvents = [];
 
   function el(id) { return document.getElementById(id); }
 
@@ -514,12 +516,33 @@ PAGE = """<!doctype html>
     if (!mermaidFailed && typeof mermaid !== "undefined") {
       mermaid.initialize({ startOnLoad: false, securityLevel: "loose" });
     }
+    topologyReady = true;
+    pendingEvents.forEach(handle);
+    pendingEvents = [];
     renderGraph();
-  }).catch(function () { logLine("failed to load topology"); });
+  }).catch(function () {
+    logLine("failed to load topology");
+    topologyReady = true;
+    pendingEvents.forEach(handle);
+    pendingEvents = [];
+  });
+
+  setTimeout(function () {
+    if (!topologyReady) {
+      topologyReady = true;
+      logLine("topology load timed out \u2014 event log only");
+      pendingEvents.forEach(handle);
+      pendingEvents = [];
+    }
+  }, 5000);
 
   var es = new EventSource("/events");
   es.onmessage = function (e) {
-    try { handle(JSON.parse(e.data)); }
+    var ev;
+    try { ev = JSON.parse(e.data); }
+    catch (err) { logLine("bad event: " + e.data); return; }
+    if (!topologyReady) { pendingEvents.push(ev); return; }
+    try { handle(ev); }
     catch (err) { logLine("bad event: " + e.data); }
   };
   es.onerror = function () { logLine("event stream interrupted"); };

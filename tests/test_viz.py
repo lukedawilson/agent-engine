@@ -482,6 +482,17 @@ class TestServer:
         assert "clearElapsed" in PAGE
         assert 'id="elapsed"' in PAGE
 
+    def test_page_constant_buffers_sse_until_topology_ready(self):
+        assert "topologyReady" in PAGE
+        assert "pendingEvents" in PAGE
+        assert "pendingEvents.push(ev)" in PAGE
+        assert "pendingEvents.forEach(handle)" in PAGE
+
+    def test_page_constant_flushes_on_topology_failure_and_timeout(self):
+        assert "failed to load topology" in PAGE
+        assert "topology load timed out" in PAGE
+        assert "5000" in PAGE
+
 
 class TestDemo:
     def test_run_started_carries_attempt(self, monkeypatch):
