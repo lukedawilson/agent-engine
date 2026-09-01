@@ -7,18 +7,24 @@ webbrowser.open) are stubbed, and only in test_cli.py's main() lifecycle tests.
 """
 
 import http.client
+import io
 import json
 import operator
 import queue
 import socket
+import struct
 import threading
+import time
 from pathlib import Path
 from typing import Annotated, TypedDict
 
 import pytest
 
+from agent_engine import viz
 from agent_engine.config import PipelineConfig, load_config
-from agent_engine.viz import PAGE, VizBus, serve_viz, topology_mermaid, translate
+from agent_engine.viz import (PAGE, HeartbeatThread, NodeWatch, VizBus,
+                              _handler_class, serve_viz, topology_mermaid,
+                              translate)
 
 MERMAID = "graph TD;\n\tdev(dev)\n\tchecks(checks)\n"
 SELF_PIPELINE = Path(__file__).parent.parent / "examples" / "self" / "pipeline.yaml"
@@ -222,6 +228,107 @@ class TestVizBus:
         assert {e["i"] for e in received} == set(range(threads * per_thread))
 
 
+class TestHandleOneRequest:
+    def _handler(self):
+        return _handler_class(VizBus(), MERMAID, "subject", [])
+
+    def test_swallows_connection_reset(self):
+        cls = self._handler()
+        handler = cls.__new__(cls)
+
+        class FakeRfile:
+            def readline(self, _limit=-1):
+                raise ConnectionResetError
+
+        handler.rfile = FakeRfile()
+        assert handler.handle_one_request() is None
+
+    def test_propagates_other_errors(self):
+        cls = self._handler()
+        handler = cls.__new__(cls)
+
+        class FakeRfile:
+            def readline(self, _limit=-1):
+                raise ValueError("boom")
+
+        handler.rfile = FakeRfile()
+        with pytest.raises(ValueError):
+            handler.handle_one_request()
+
+
+class TestNodeWatch:
+    def test_idle_before_start(self):
+        watch = NodeWatch()
+        assert watch.current() is None
+        assert watch.elapsed_seconds() is None
+
+    def test_start_then_finish(self):
+        watch = NodeWatch()
+        watch.start("dev")
+        assert watch.current() == "dev"
+        assert isinstance(watch.elapsed_seconds(), int)
+        watch.finish("dev")
+        assert watch.current() is None
+        assert watch.elapsed_seconds() is None
+
+    def test_elapsed_grows(self, monkeypatch):
+        clock = [0.0]
+        monkeypatch.setattr(viz.time, "monotonic", lambda: clock[0])
+        watch = NodeWatch()
+        watch.start("dev")
+        assert watch.elapsed_seconds() == 0
+        clock[0] = 26.0
+        assert watch.elapsed_seconds() == 26
+
+    def test_finish_only_clears_matching_node(self):
+        watch = NodeWatch()
+        watch.start("dev")
+        watch.finish("checks")
+        assert watch.current() == "dev"
+        watch.finish("dev")
+        assert watch.current() is None
+
+
+class TestHeartbeatThread:
+    class StubWatch:
+        def __init__(self, node="dev", elapsed=7):
+            self._node = node
+            self._elapsed = elapsed
+
+        def current(self):
+            return self._node
+
+        def elapsed_seconds(self):
+            return self._elapsed
+
+    def test_publishes_while_running_and_stops(self):
+        bus = VizBus()
+        thread = HeartbeatThread(self.StubWatch(), bus, interval=0.01)
+        q = bus.subscribe()
+        thread.start()
+        deadline = time.monotonic() + 0.2
+        events = []
+        while time.monotonic() < deadline:
+            try:
+                events.append(q.get(timeout=0.05))
+            except queue.Empty:
+                pass
+        thread.stop()
+        thread.join(timeout=1)
+        assert not thread.is_alive()
+
+        heartbeats = [e for e in events if e["type"] == "heartbeat"]
+        assert len(heartbeats) >= 2
+        assert heartbeats[0] == {"type": "heartbeat", "node": "dev",
+                                 "elapsed_seconds": 7}
+        assert all(e == heartbeats[0] for e in heartbeats)
+
+        while not q.empty():
+            q.get_nowait()
+        time.sleep(0.05)
+        assert q.empty()
+
+
 @pytest.fixture
 def server():
     bus = VizBus()
@@ -319,6 +426,22 @@ class TestServer:
         with pytest.raises(OSError, match="--viz-port"):
             serve_viz(VizBus(), MERMAID, "subject", port)
 
+    def test_connection_reset_on_request_path_is_silent(self, server, monkeypatch):
+        _bus, _httpd, _thread, port = server
+        captured = io.StringIO()
+        monkeypatch.setattr("sys.stderr", captured)
+        sock = socket.create_connection(("127.0.0.1", port), timeout=5)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER,
+                        struct.pack("ii", 1, 0))
+        sock.close()
+        for _ in range(20):
+            if "Exception occurred during processing" in captured.getvalue():
+                break
+            time.sleep(0.05)
+        status, _body = http_get(port, "/topology")
+        assert status == 200
+        assert "Exception occurred during processing" not in captured.getvalue()
+
     def test_page_constant_has_fallback_hook(self):
         assert "onerror" in PAGE
         assert "mermaid" in PAGE
@@ -350,6 +473,15 @@ class TestServer:
         assert "verdictFail" in PAGE
         assert "verdictPass" in PAGE
 
+    def test_page_constant_has_heartbeat(self):
+        assert "heartbeat" in PAGE
+        assert "elapsed_seconds" in PAGE
+        assert "elapsed" in PAGE
+
+    def test_page_constant_clears_elapsed(self):
+        assert "clearElapsed" in PAGE
+        assert 'id="elapsed"' in PAGE
+
 
 class TestDemo:
     def test_run_started_carries_attempt(self, monkeypatch):
@@ -364,3 +496,18 @@ class TestDemo:
             events.append(q.get_nowait())
         run_started = next(e for e in events if e["type"] == "run_started")
         assert run_started["attempt"] == 1
+
+    def test_demo_emits_heartbeats(self, monkeypatch):
+        import viz_demo
+
+        monkeypatch.setattr(viz_demo.time, "sleep", lambda *_a: None)
+        bus = VizBus()
+        viz_demo.run_scenario(bus, "success")
+        q = bus.subscribe()
+        events = []
+        while not q.empty():
+            events.append(q.get_nowait())
+        heartbeats = [e for e in events if e["type"] == "heartbeat"]
+        assert heartbeats
+        assert all("node" in e and "elapsed_seconds" in e for e in heartbeats)
+

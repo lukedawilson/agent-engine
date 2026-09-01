@@ -42,11 +42,17 @@ def real_topology() -> tuple[str, list[str]]:
 
 def emit_node(bus: viz.VizBus, name: str, state: dict | None = None,
               ok: bool = True) -> None:
-    """One node's real event cadence: started → state → finished."""
+    """One node's real event cadence: started → heartbeat → state →
+    heartbeat → finished, so the elapsed line is eyeballable without an LLM."""
+    started = time.monotonic()
     bus.publish({"type": "node_started", "node": name})
+    bus.publish({"type": "heartbeat", "node": name,
+                 "elapsed_seconds": int(time.monotonic() - started)})
     time.sleep(EVENT_GAP)
     bus.publish({"type": "state", **(state or {})})
     time.sleep(EVENT_GAP)
+    bus.publish({"type": "heartbeat", "node": name,
+                 "elapsed_seconds": int(time.monotonic() - started)})
     bus.publish({"type": "node_finished", "node": name, "ok": ok})
     time.sleep(NODE_GAP)
 

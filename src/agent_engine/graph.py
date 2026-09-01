@@ -184,15 +184,24 @@ def run_pipeline(cfg_path, args, *, viz_bus=None) -> tuple[bool, int]:
                 "thread_id": thread_id,
                 "attempt": start_state["attempt"],
             })
+            watch = viz.NodeWatch()
+            heartbeat = viz.HeartbeatThread(watch, bus)
+            heartbeat.start()
             final = None
             try:
                 for part in graph.stream(initial, config,
                                          stream_mode=["tasks", "updates"],
                                          version="v2"):
                     for event in viz.translate(part):
+                        if event["type"] == "node_started":
+                            watch.start(event["node"])
+                        elif event["type"] == "node_finished":
+                            watch.finish(event["node"])
                         bus.publish(event)
                 final = graph.get_state(config).values
             finally:
+                heartbeat.stop()
+                heartbeat.join()
                 if final is None:
                     try:
                         final = graph.get_state(config).values

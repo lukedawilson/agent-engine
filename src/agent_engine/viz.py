@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import queue
 import threading
+import time
 from collections import deque
 from collections.abc import Iterable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -128,6 +129,68 @@ class VizBus:
             self._subscribers.discard(sub)
 
 
+class NodeWatch:
+    """Current running node + start time.
+
+    Written by the stream-consumer thread as it publishes ``node_started`` /
+    ``node_finished`` events; read by the heartbeat thread. ``start`` and
+    ``finish`` are lock-protected; ``finish`` clears only its own node so a
+    stale finish can never clobber a newer running node.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._node: str | None = None
+        self._started: float | None = None
+
+    def start(self, node: str) -> None:
+        with self._lock:
+            self._node = node
+            self._started = time.monotonic()
+
+    def finish(self, node: str) -> None:
+        with self._lock:
+            if self._node == node:
+                self._node = None
+                self._started = None
+
+    def current(self) -> str | None:
+        with self._lock:
+            return self._node
+
+    def elapsed_seconds(self) -> int | None:
+        with self._lock:
+            if self._started is None:
+                return None
+            return int(time.monotonic() - self._started)
+
+
+class HeartbeatThread(threading.Thread):
+    """Daemon thread publishing a liveness heartbeat while a node runs."""
+
+    def __init__(self, watch: NodeWatch, bus: VizBus,
+                 interval: float = 2.0) -> None:
+        super().__init__(daemon=True)
+        self._watch = watch
+        self._bus = bus
+        self._interval = interval
+        self._stop = threading.Event()
+
+    def stop(self) -> None:
+        self._stop.set()
+
+    def run(self) -> None:
+        while not self._stop.is_set():
+            node = self._watch.current()
+            if node is not None:
+                self._bus.publish({
+                    "type": "heartbeat",
+                    "node": node,
+                    "elapsed_seconds": self._watch.elapsed_seconds(),
+                })
+            self._stop.wait(self._interval)
+
+
 def _handler_class(bus: VizBus, topology_mermaid: str,
                    subject: str, nodes: Iterable[str]) -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
@@ -139,6 +202,12 @@ def _handler_class(bus: VizBus, topology_mermaid: str,
 
         def log_message(self, *_args) -> None:  # keep test output quiet
             pass
+
+        def handle_one_request(self) -> None:
+            try:
+                super().handle_one_request()
+            except (ConnectionResetError, BrokenPipeError):
+                return
 
         def do_GET(self) -> None:
             if self.path == "/":
@@ -236,6 +305,7 @@ PAGE = """<!doctype html>
              display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
   #subject { margin: 0; font-size: 16px; word-break: break-word; }
   #attempt { font-size: 14px; color: #555; }
+  #elapsed { font-size: 14px; color: #c62828; display: none; }
   #verdicts { display: flex; flex-wrap: wrap; gap: 6px; }
   .badge { font-size: 12px; padding: 3px 8px; border-radius: 10px;
            background: #f0f0f0; color: #333; }
@@ -263,6 +333,7 @@ PAGE = """<!doctype html>
   <aside id="sidebar">
     <h2 id="subject">agent-engine pipeline</h2>
     <div id="attempt">attempt ?/?</div>
+    <div id="elapsed"></div>
     <div id="verdicts"></div>
     <ul id="log"></ul>
   </aside>
@@ -295,6 +366,18 @@ PAGE = """<!doctype html>
     el("attempt").textContent = attempt === null
       ? "attempt ?/" + (maxAttempts === null ? "?" : maxAttempts)
       : "attempt " + attempt + "/" + (maxAttempts === null ? "?" : maxAttempts);
+  }
+
+  function mmss(totalSeconds) {
+    var s = totalSeconds % 60;
+    var m = Math.floor(totalSeconds / 60);
+    return m + ":" + (s < 10 ? "0" : "") + s;
+  }
+
+  function clearElapsed() {
+    var line = el("elapsed");
+    line.textContent = "";
+    line.style.display = "none";
   }
 
   function flushPending() {
@@ -375,6 +458,7 @@ PAGE = """<!doctype html>
         renderGraph();
         break;
       case "node_finished":
+        clearElapsed();
         if (!nodeIds.has(ev.node)) { break; }
         nodeStatus[ev.node] = ev.ok ? "pass" : "fail";
         pendingCompletion = {
@@ -383,6 +467,12 @@ PAGE = """<!doctype html>
             + (ev.ok ? " completed" : " errored")
         };
         renderGraph();
+        break;
+      case "heartbeat":
+        if (nodeStatus[ev.node] === "running") {
+          el("elapsed").textContent = ev.node + " running \u2014 " + mmss(ev.elapsed_seconds) + " elapsed";
+          el("elapsed").style.display = "block";
+        }
         break;
       case "state":
         if (ev.attempt !== undefined) { attempt = ev.attempt; }
@@ -406,6 +496,7 @@ PAGE = """<!doctype html>
         updateAttempt();
         break;
       case "run_finished":
+        clearElapsed();
         flushPending();
         logLine("run finished: " + (ev.success ? "success" : "failure"));
         var banner = el("run-banner");
