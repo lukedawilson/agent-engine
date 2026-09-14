@@ -3,6 +3,8 @@
 from unittest.mock import patch
 
 import pytest
+from openhands.sdk.llm.message import Message, TextContent
+from openhands.sdk.llm.utils.model_features import get_features
 
 from agent_engine.config import LlmConfig
 from agent_engine.llm import build_llm
@@ -42,3 +44,24 @@ class TestBuildLlm:
             build_llm(_cfg(timeout=30))
 
         assert mock_cls.call_args.kwargs["timeout"] == 30
+
+
+class TestReasoningContentShim:
+    """DeepSeek thinking mode 400s on multi-turn requests unless prior
+    reasoning_content is echoed back — but OpenHands SDK gates that passback
+    on a closed model-name list (SEND_REASONING_CONTENT_MODELS) that does not
+    know deepseek-v4-pro. agent_engine.llm must register it (import-time
+    shim, removable once the SDK lists the model or adds an override)."""
+
+    def test_deepseek_v4_pro_registered_for_reasoning_passback(self):
+        assert get_features("openai/deepseek-v4-pro").send_reasoning_content is True
+
+    def test_format_messages_preserves_reasoning_content(self, monkeypatch):
+        monkeypatch.setenv(KEY, "sk-test")
+        llm = build_llm(_cfg())
+        msg = Message(role="assistant", content=[TextContent(text="391")],
+                      reasoning_content="17*23 = 17*20 + 17*3")
+
+        (out,) = llm.format_messages_for_llm([msg])
+
+        assert out["reasoning_content"] == "17*23 = 17*20 + 17*3"
