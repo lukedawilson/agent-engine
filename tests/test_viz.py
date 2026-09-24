@@ -473,6 +473,15 @@ class TestServer:
         assert "verdictFail" in PAGE
         assert "verdictPass" in PAGE
 
+    def test_page_constant_color_palette(self):
+        assert 'classDef running fill:#1976d2' in PAGE
+        assert 'classDef fail fill:#ffb300' in PAGE
+        assert 'classDef fatal fill:#c62828' in PAGE
+
+    def test_page_constant_terminal_failure_marking(self):
+        assert "fatalNodes" in PAGE
+        assert "ev.failed" in PAGE
+
     def test_page_constant_has_heartbeat(self):
         assert "heartbeat" in PAGE
         assert "elapsed_seconds" in PAGE

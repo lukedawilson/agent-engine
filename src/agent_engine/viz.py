@@ -305,7 +305,7 @@ PAGE = """<!doctype html>
              display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
   #subject { margin: 0; font-size: 16px; word-break: break-word; }
   #attempt { font-size: 14px; color: #555; }
-  #elapsed { font-size: 14px; color: #c62828; display: none; }
+  #elapsed { font-size: 14px; color: #1976d2; display: none; }
   #verdicts { display: flex; flex-wrap: wrap; gap: 6px; }
   .badge { font-size: 12px; padding: 3px 8px; border-radius: 10px;
            background: #f0f0f0; color: #333; }
@@ -345,6 +345,7 @@ PAGE = """<!doctype html>
   var currentVerdicts = {};
   var verdictFail = new Set();
   var verdictPass = new Set();
+  var fatalNodes = new Set();
   var maxAttempts = null;
   var attempt = null;
   var mermaidSource = null;
@@ -394,6 +395,8 @@ PAGE = """<!doctype html>
 
   function statusOf(n) {
     if (nodeStatus[n] === "running") { return "running"; }
+    if (fatalNodes.has(n)) { return "fatal"; }
+    if (nodeStatus[n] === "fatal") { return "fatal"; }
     if (verdictFail.has(n)) { return "fail"; }
     if (verdictPass.has(n)) { return "pass"; }
     return nodeStatus[n] || "pending";
@@ -409,7 +412,7 @@ PAGE = """<!doctype html>
       if (v === "pass") b.className += " badge-pass";
       else if (v === "fail") b.className += " badge-fail";
       else b.className += " badge-unclear";
-      b.textContent = step + ": " + (v === null || v === undefined ? "unclear" : v);
+      b.textContent = step + ": " + (v === null || v === undefined ? "no verdict" : v);
       box.appendChild(b);
     });
   }
@@ -422,9 +425,10 @@ PAGE = """<!doctype html>
       return;
     }
     var classDefs = [
-      "classDef running fill:#ffb300,stroke:#ffb300,color:#fff",
+      "classDef running fill:#1976d2,stroke:#1976d2,color:#fff",
       "classDef pass fill:#2e7d32,stroke:#2e7d32,color:#fff",
-      "classDef fail fill:#c62828,stroke:#c62828,color:#fff",
+      "classDef fail fill:#ffb300,stroke:#ffb300,color:#fff",
+      "classDef fatal fill:#c62828,stroke:#c62828,color:#fff",
       "classDef pending fill:#f2f0ff,stroke:#555,color:#000"
     ];
     var classLines = Object.keys(nodeStatus).filter(function (n) {
@@ -462,7 +466,9 @@ PAGE = """<!doctype html>
       case "node_finished":
         clearElapsed();
         if (!nodeIds.has(ev.node)) { break; }
-        nodeStatus[ev.node] = ev.ok ? "pass" : "fail";
+        if (!fatalNodes.has(ev.node)) {
+          nodeStatus[ev.node] = ev.ok ? "pass" : "fail";
+        }
         pendingCompletion = {
           node: ev.node,
           line: (ev.ok ? "\u2714 " : "\u2718 ") + ev.node
@@ -494,12 +500,25 @@ PAGE = """<!doctype html>
           }
           renderGraph();
         }
-        if (ev.failed) { logLine("state: failed"); }
+        if (ev.failed) {
+          Object.keys(nodeStatus).forEach(function (n) {
+            if (nodeStatus[n] === "running") { fatalNodes.add(n); }
+          });
+          logLine("state: failed");
+          renderGraph();
+        }
         updateAttempt();
         break;
       case "run_finished":
         clearElapsed();
         flushPending();
+        if (!ev.success) {
+          Object.keys(nodeStatus).forEach(function (n) {
+            var s = statusOf(n);
+            if (s === "fail" || s === "running") { nodeStatus[n] = "fatal"; }
+          });
+          renderGraph();
+        }
         logLine("run finished: " + (ev.success ? "success" : "failure"));
         var banner = el("run-banner");
         banner.textContent = ev.success ? "\u2713 SUCCESS" : "\u2718 FAILURE";
