@@ -180,7 +180,7 @@ class TestViz:
         args = build_parser("pipeline.yaml").parse_args(["pipeline.yaml"])
         assert args.no_viz is False
 
-    def test_lifecycle_serves_and_keeps_alive(self, repo, fake_agents, monkeypatch):
+    def test_lifecycle_serves_and_exits(self, repo, fake_agents, monkeypatch):
         import queue
 
         fake_agents.set("dev", [("write", "implementation-summary.md", "done")])
@@ -194,16 +194,12 @@ class TestViz:
             captured["nodes"] = nodes
             return object(), object()
 
-        def interrupt():
-            raise KeyboardInterrupt
-
         monkeypatch.setattr("agent_engine.viz.serve_viz", fake_serve_viz)
         opened = []
         monkeypatch.setattr("webbrowser.open", opened.append)
-        monkeypatch.setattr("agent_engine.viz.wait_for_interrupt", interrupt)
 
         code = main(["pipeline.yaml", "--plan", "plan.md"])  # served by default
-        assert code == 0
+        assert code == 0  # main returns only when the loop completes — no keep-alive
         assert "dev" in captured["topology"]
         assert "success" in captured["topology"]
         assert "dev" in captured["nodes"]
@@ -231,9 +227,6 @@ class TestViz:
         monkeypatch.setattr(
             "agent_engine.viz.serve_viz",
             lambda *a, **k: called.append("serve") or (object(), object()))
-        monkeypatch.setattr(
-            "agent_engine.viz.wait_for_interrupt",
-            lambda: called.append("keep_alive"))
 
         code = main(["pipeline.yaml", "--plan", "plan.md", "--no-viz"])
         assert code == 0

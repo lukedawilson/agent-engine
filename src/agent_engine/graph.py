@@ -105,8 +105,8 @@ def run_pipeline(cfg_path, args, *, viz_bus=None) -> tuple[bool, int]:
     With ``viz_bus=None`` and viz suppressed, the graph runs via
     ``graph.invoke`` exactly as before. A passed-in ``viz_bus`` (programmatic)
     or a default-on CLI run switches to ``graph.stream`` and publishes live
-    events; the CLI path additionally serves the HTTP page, opens the browser,
-    and keeps the process alive so the final graph stays inspectable.
+    events; the CLI path additionally serves the HTTP page and opens the
+    browser, and the process exits as soon as the loop completes.
     Programmatic Namespaces without a ``no_viz`` attribute get no server —
     default-on is a CLI-layer concern."""
     cfg_path = Path(cfg_path)
@@ -154,7 +154,6 @@ def run_pipeline(cfg_path, args, *, viz_bus=None) -> tuple[bool, int]:
             "thread_id": thread_id,
         }
     bus = viz_bus
-    keep_alive = False
     with SqliteSaver.from_conn_string(db) as saver:
         if resume and saver.get_tuple(config) is None:
             raise ValueError(
@@ -172,7 +171,6 @@ def run_pipeline(cfg_path, args, *, viz_bus=None) -> tuple[bool, int]:
             url = f"http://127.0.0.1:{args.viz_port}"
             print(f"Live graph viz: {url}", flush=True)
             webbrowser.open(url)
-            keep_alive = True
 
         if bus is not None:
             start_state = initial if initial is not None \
@@ -223,9 +221,4 @@ def run_pipeline(cfg_path, args, *, viz_bus=None) -> tuple[bool, int]:
     if not success and not final["failed"]:
         print(f"[{final['subject']}] FAILED after {final['attempt']} attempt(s).",
               flush=True)
-    if keep_alive:
-        try:
-            viz.wait_for_interrupt()
-        except KeyboardInterrupt:
-            pass
     return success, attempts

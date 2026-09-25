@@ -174,13 +174,13 @@ class HeartbeatThread(threading.Thread):
         self._watch = watch
         self._bus = bus
         self._interval = interval
-        self._stop = threading.Event()
+        self._stop_event = threading.Event()
 
     def stop(self) -> None:
-        self._stop.set()
+        self._stop_event.set()
 
     def run(self) -> None:
-        while not self._stop.is_set():
+        while not self._stop_event.is_set():
             node = self._watch.current()
             if node is not None:
                 self._bus.publish({
@@ -188,7 +188,7 @@ class HeartbeatThread(threading.Thread):
                     "node": node,
                     "elapsed_seconds": self._watch.elapsed_seconds(),
                 })
-            self._stop.wait(self._interval)
+            self._stop_event.wait(self._interval)
 
 
 def _handler_class(bus: VizBus, topology_mermaid: str,
@@ -271,15 +271,6 @@ def serve_viz(bus: VizBus, topology_mermaid: str, subject: str,
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
     return httpd, thread
-
-
-def wait_for_interrupt() -> None:
-    """Block until Ctrl-C, then return — keeps the viz server alive after the
-    pipeline finishes so the final graph stays inspectable."""
-    try:
-        threading.Event().wait()
-    except KeyboardInterrupt:
-        pass
 
 
 PAGE = """<!doctype html>

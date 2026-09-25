@@ -2,8 +2,8 @@
 
 Everything here runs real: translation is exercised against a real tiny
 StateGraph + MemorySaver, and HTTP/SSE over a real socket on port 0. Only the
-three CLI-lifecycle seams (viz.serve_viz / viz.wait_for_interrupt /
-webbrowser.open) are stubbed, and only in test_cli.py's main() lifecycle tests.
+two CLI-lifecycle seams (viz.serve_viz / webbrowser.open) are stubbed, and
+only in test_cli.py's main() lifecycle tests.
 """
 
 import http.client

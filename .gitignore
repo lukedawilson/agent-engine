@@ -5,3 +5,6 @@ __pycache__/
 .pytest_cache/
 dist/
 build/
+.claude-local/
+uv.lock
+

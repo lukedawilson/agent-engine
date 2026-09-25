@@ -11,8 +11,9 @@ Usage:
     .venv/bin/python viz_demo.py [--port 8321] [--scenario success|failure]
                                  [--no-browser]
 
-Ctrl-C to stop. No agents run, no LLM calls, no checkpoints — the events are
-fabricated here; only viz.py's server/page code is exercised.
+The process exits when the scripted run finishes. No agents run, no LLM
+calls, no checkpoints — the events are fabricated here; only viz.py's
+server/page code is exercised.
 """
 
 from __future__ import annotations
@@ -108,13 +109,8 @@ def main() -> int:
     if not args.no_browser:
         webbrowser.open(url)
 
-    try:
-        run_scenario(bus, args.scenario)
-        print("Run finished — page keeps its final state. Ctrl-C to stop.",
-              flush=True)
-        viz.wait_for_interrupt()
-    except KeyboardInterrupt:
-        pass
+    run_scenario(bus, args.scenario)
+    print("Run finished — process exiting.", flush=True)
     return 0
 
 
