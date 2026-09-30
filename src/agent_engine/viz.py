@@ -296,6 +296,10 @@ PAGE = """<!doctype html>
              display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
   #subject { margin: 0; font-size: 16px; word-break: break-word; }
   #attempt { font-size: 14px; color: #555; }
+  #thread { font-size: 14px; color: #555; }
+  #thread code { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+                 background: #f5f5f5; padding: 2px 6px; border-radius: 4px;
+                 cursor: pointer; user-select: all; }
   #elapsed { font-size: 14px; color: #1976d2; display: none; }
   #verdicts { display: flex; flex-wrap: wrap; gap: 6px; }
   .badge { font-size: 12px; padding: 3px 8px; border-radius: 10px;
@@ -324,6 +328,7 @@ PAGE = """<!doctype html>
   <aside id="sidebar">
     <h2 id="subject">agent-engine pipeline</h2>
     <div id="attempt">attempt ?/?</div>
+    <div id="thread">thread id: <code id="thread-id" title="click to select">\u2014</code></div>
     <div id="elapsed"></div>
     <div id="verdicts"></div>
     <ul id="log"></ul>
@@ -444,6 +449,9 @@ PAGE = """<!doctype html>
         if (ev.attempt !== undefined) { attempt = ev.attempt; }
         maxAttempts = ev.max_attempts;
         el("subject").textContent = ev.subject;
+        if (ev.thread_id !== undefined) {
+          el("thread-id").textContent = ev.thread_id;
+        }
         logLine("run started: " + ev.subject + " (thread " + ev.thread_id + ")");
         updateAttempt();
         break;
