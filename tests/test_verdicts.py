@@ -92,6 +92,66 @@ class TestVerdictParsing:
         assert parse_verdict("VERDICT: FAIL.", TEST_VERDICTS) == "fail"
         assert parse_verdict("VERDICT: NEEDS CHANGES.", REVIEW_VERDICTS) == "needs_changes"
 
-    def test_parse_verdict_period_then_prose_still_rejected(self):
-        """Tolerance for a trailing period must not reopen the prose door."""
-        assert parse_verdict("VERDICT: PASS. More discussion.", TEST_VERDICTS) is None
+    def test_parse_verdict_period_then_prose_is_caveat(self):
+        """A period introducing more prose reads as a decision with caveats,
+        not as discussion."""
+        assert parse_verdict("VERDICT: PASS. More discussion.", TEST_VERDICTS) == "pass"
+        assert parse_verdict("VERDICT: NEEDS CHANGES. See the notes.", REVIEW_VERDICTS) == "needs_changes"
+
+    def test_caveat_prose_after_em_dash(self):
+        assert parse_verdict("VERDICT: APPROVED — pending the divider split",
+                             REVIEW_VERDICTS) == "approved"
+        assert parse_verdict("VERDICT: NEEDS CHANGES — see issues below",
+                             REVIEW_VERDICTS) == "needs_changes"
+        assert parse_verdict("VERDICT: FAIL — 3 tests broke", TEST_VERDICTS) == "fail"
+
+    def test_caveat_prose_after_comma(self):
+        assert parse_verdict("VERDICT: APPROVED, but fix the README bullet",
+                             REVIEW_VERDICTS) == "approved"
+        assert parse_verdict("VERDICT: PASS, with lint nits noted", TEST_VERDICTS) == "pass"
+
+    def test_caveat_prose_after_semicolon_or_colon(self):
+        assert parse_verdict("VERDICT: APPROVED; see notes", REVIEW_VERDICTS) == "approved"
+        assert parse_verdict("VERDICT: NEEDS CHANGES: see issues below",
+                             REVIEW_VERDICTS) == "needs_changes"
+
+    def test_caveat_prose_after_hyphen(self):
+        assert parse_verdict("VERDICT: APPROVED - pending", REVIEW_VERDICTS) == "approved"
+
+    def test_decoration_between_verdict_and_colon(self):
+        assert parse_verdict("**VERDICT**: APPROVED", REVIEW_VERDICTS) == "approved"
+        assert parse_verdict("VERDICT : APPROVED", REVIEW_VERDICTS) == "approved"
+
+    def test_bare_prose_still_rejected(self):
+        """No delimiter before the prose means discussion, not a decision."""
+        assert parse_verdict("VERDICT: PASS was considered", TEST_VERDICTS) is None
+        assert parse_verdict("VERDICT: APPROVED with nits", REVIEW_VERDICTS) is None
+
+    def test_question_mark_rejected(self):
+        assert parse_verdict("VERDICT: APPROVED?", REVIEW_VERDICTS) is None
+
+    def test_bang_alone_allowed_but_not_with_prose(self):
+        assert parse_verdict("VERDICT: FAIL!", TEST_VERDICTS) == "fail"
+        assert parse_verdict("VERDICT: FAIL! The build broke.", TEST_VERDICTS) is None
+
+    def test_not_keyword_inverts_on_two_key_sets(self):
+        assert parse_verdict("VERDICT: NOT APPROVED", REVIEW_VERDICTS) == "needs_changes"
+        assert parse_verdict("VERDICT: NOT NEEDS CHANGES", REVIEW_VERDICTS) == "approved"
+        assert parse_verdict("VERDICT: NOT PASS", TEST_VERDICTS) == "fail"
+
+    def test_not_keyword_with_decoration_prose_and_tenses(self):
+        assert parse_verdict("VERDICT: NOT **APPROVED**", REVIEW_VERDICTS) == "needs_changes"
+        assert parse_verdict("VERDICT: NOT APPROVED — pending the divider split",
+                             REVIEW_VERDICTS) == "needs_changes"
+        assert parse_verdict("VERDICT: DID NOT PASS", TEST_VERDICTS) == "fail"
+        assert parse_verdict("VERDICT: DOES NOT PASS", TEST_VERDICTS) == "fail"
+
+    def test_negated_discussion_still_rejected(self):
+        assert parse_verdict("VERDICT: NOT PASS was considered", TEST_VERDICTS) is None
+
+    def test_negation_ambiguous_on_multi_key_sets(self):
+        many = {"A": "a", "B": "b", "C": "c"}
+        assert parse_verdict("VERDICT: NOT A", many) is None
+
+    def test_not_unknown_keyword_rejected(self):
+        assert parse_verdict("VERDICT: NOT MAYBE", REVIEW_VERDICTS) is None
