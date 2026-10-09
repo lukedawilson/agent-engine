@@ -132,3 +132,4 @@ Whitelist for `state` events: `attempt, step_verdicts, outcome, failed`. (`docs`
 ## Amendments
 
 - 2026-08-27: activation flipped from opt-in `--viz` to **on by default**, suppressed with `--no-viz` — the live graph view is now the primary run surface (`--viz-port` unchanged). The Task 4/5 text above describes the original opt-in wiring. Programmatic `viz_bus=` semantics are unchanged; Namespaces without a `no_viz` attribute get no server.
+- 2026-10-09: the locked "fail fast, never silently degrade" port decision (line 17) is superseded by plan 009 — sweep best-effort at startup, bind the preferred port, fall back to an OS-assigned port on EADDRINUSE with a printed notice (never silent); `test_bind_failure_is_loud` replaced by the fallback/preferred-honored tests.

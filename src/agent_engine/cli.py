@@ -29,7 +29,9 @@ def _core_parser() -> argparse.ArgumentParser:
                         help="suppress the live graph view (served by "
                              "default)")
     parser.add_argument("--viz-port", type=int, default=8321,
-                        help="port for the live graph view (default: 8321)")
+                        help="preferred port for the live graph view "
+                             "(default: 8321; falls back to a free port when "
+                             "busy)")
     return parser
 
 

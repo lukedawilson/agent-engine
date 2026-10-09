@@ -17,7 +17,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 
 from . import viz
-from .actions import git_worktree_clean
+from .actions import git_worktree_clean, kill_listeners_on_port
 from .config import load_config
 from .llm import build_llm
 from .loaders import select_loader
@@ -166,9 +166,16 @@ def run_pipeline(cfg_path, args, *, viz_bus=None) -> tuple[bool, int]:
                 else graph.get_state(config).values
             topology, nodes = viz.topology_mermaid(cfg)
             bus = viz.VizBus()
-            viz.serve_viz(bus, topology, start_state["subject"], args.viz_port,
-                          nodes)
-            url = f"http://127.0.0.1:{args.viz_port}"
+            if args.viz_port:
+                kill_listeners_on_port(args.viz_port, match="agent-engine",
+                                       cwd=runtime.workspace)
+            httpd, _thread = viz.serve_viz(
+                bus, topology, start_state["subject"], args.viz_port, nodes)
+            bound = httpd.server_address[1]
+            url = f"http://127.0.0.1:{bound}"
+            if args.viz_port and bound != args.viz_port:
+                print(f"viz port {args.viz_port} busy — serving on {url}",
+                      flush=True)
             print(f"Live graph viz: {url}", flush=True)
             webbrowser.open(url)
 

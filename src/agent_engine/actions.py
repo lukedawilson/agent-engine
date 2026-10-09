@@ -29,11 +29,43 @@ def git_worktree_clean(path: Path) -> bool:
     return result.returncode == 0 and not result.stdout.strip()
 
 
-def _listening_pids(port: int, match: str | None) -> list[str]:
+def _parse_cwd_output(out: str) -> str | None:
+    """The cwd path from `lsof -a -p PID -d cwd -Fn` output, or None when the
+    payload doesn't carry one. The format is `p<PID>` / `fcwd` / `n<path>` —
+    the path is the `n` line immediately after `fcwd`."""
+    lines = out.splitlines()
+    for i, line in enumerate(lines):
+        if line == "fcwd" and i + 1 < len(lines):
+            nxt = lines[i + 1]
+            if nxt.startswith("n"):
+                return nxt[1:]
+    return None
+
+
+def _pid_cwd(pid: str) -> str | None:
+    """The working directory of `pid`, or None on any failure (lsof missing,
+    the process gone, or an unreadable cwd). Positive-only attribution: a pid
+    whose cwd can't be determined is spared by the caller, never killed."""
+    try:
+        out = subprocess.run(
+            ["lsof", "-a", "-p", pid, "-d", "cwd", "-Fn"],
+            capture_output=True, text=True, check=False).stdout
+    except FileNotFoundError:
+        return None
+    return _parse_cwd_output(out)
+
+
+def _listening_pids(port: int, match: str | None = None,
+                    cwd: Path | str | None = None) -> list[str]:
     """PIDs of processes listening on `port`, optionally only those whose
-    command line contains `match`. The current process is always excluded — a
-    pipeline must never sweep its own listener (e.g. the live viz server),
-    only orphaned listeners left behind by earlier runs or agent subprocesses."""
+    command line contains `match` and whose working directory resolves to
+    `cwd`. The current process is always excluded — a pipeline must never
+    sweep its own listener (e.g. the live viz server), only orphaned
+    listeners left behind by earlier runs or agent subprocesses.
+
+    `cwd` is positive-only: a pid whose cwd can't be determined is spared,
+    so a multi-instance setup (two agent-engine runs from different
+    workspaces) never kills the other run's server."""
     out = subprocess.run(
         ["lsof", "-nP", "-ti", f"tcp:{port}", "-sTCP:LISTEN"],
         capture_output=True, text=True, check=False).stdout
@@ -48,23 +80,29 @@ def _listening_pids(port: int, match: str | None) -> list[str]:
                 capture_output=True, text=True, check=False).stdout
             if match not in cmd:
                 continue
+        if cwd is not None:
+            pid_cwd = _pid_cwd(pid)
+            if pid_cwd is None or Path(pid_cwd).resolve() != Path(cwd).resolve():
+                continue
         pids.append(pid)
     return pids
 
 
 def kill_listeners_on_port(port: int, match: str | None = None,
-                           term_timeout: float = 3.0) -> None:
+                           term_timeout: float = 3.0,
+                           cwd: Path | str | None = None) -> None:
     """Kill processes listening on `port`, optionally only those whose command
-    line contains `match`. A stage that was cut short can orphan its server;
-    the next attempt's server would fail to bind and probes would hit the
-    stale process serving a previous attempt's build.
+    line contains `match` and whose working directory resolves to `cwd`. A
+    stage that was cut short can orphan its server; the next attempt's server
+    would fail to bind and probes would hit the stale process serving a
+    previous attempt's build.
 
     SIGTERM first, then SIGKILL whatever still holds the port after
     `term_timeout` — a server that ignores TERM must not hold the port
     indefinitely. Port freedom is judged by re-running lsof, so zombies
     (dead, unreaped children) never look like survivors."""
     try:
-        pids = _listening_pids(port, match)
+        pids = _listening_pids(port, match, cwd)
     except FileNotFoundError:
         print(f"WARNING: lsof not found — cannot sweep orphaned listeners on "
               f"port {port}.", file=sys.stderr, flush=True)
@@ -74,7 +112,7 @@ def kill_listeners_on_port(port: int, match: str | None = None,
     survivors = pids
     deadline = time.monotonic() + term_timeout
     while survivors and time.monotonic() < deadline:
-        survivors = _listening_pids(port, match)
+        survivors = _listening_pids(port, match, cwd)
         if survivors:
             time.sleep(0.05)
     for pid in survivors:

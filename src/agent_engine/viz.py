@@ -12,6 +12,7 @@ dependency already pulled in by LangGraph).
 
 from __future__ import annotations
 
+import errno
 import json
 import queue
 import sys
@@ -359,15 +360,23 @@ def _handler_class(bus: VizBus, topology_mermaid: str,
 def serve_viz(bus: VizBus, topology_mermaid: str, subject: str,
               port: int, nodes: Iterable[str] = ()) -> tuple[ThreadingHTTPServer, threading.Thread]:
     """Bind a loopback HTTP server on ``port`` and serve it on a daemon
-    thread. Returns ``(httpd, thread)``. Bind failure is loud and names
-    ``--viz-port`` — the caller must never fall back to another port."""
+    thread. Returns ``(httpd, thread)`` — the caller reads the real bound
+    port from ``httpd.server_address[1]``.
+
+    ``port`` is preferred, not fixed: when it is already in use
+    (``errno.EADDRINUSE``) the server rebinds port 0 and lets the OS pick a
+    free port. Any other bind error (e.g. ``EACCES`` on a privileged port)
+    still fails loud, naming ``--viz-port``."""
     handler = _handler_class(bus, topology_mermaid, subject, nodes)
     try:
         httpd = ThreadingHTTPServer(("127.0.0.1", port), handler)
     except OSError as exc:
-        raise OSError(
-            f"Could not bind the viz server to 127.0.0.1:{port} — the "
-            f"--viz-port may already be in use. ({exc})") from exc
+        if exc.errno == errno.EADDRINUSE and port != 0:
+            httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        else:
+            raise OSError(
+                f"Could not bind the viz server to 127.0.0.1:{port} — the "
+                f"--viz-port may already be in use. ({exc})") from exc
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
     return httpd, thread

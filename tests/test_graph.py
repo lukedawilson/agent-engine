@@ -264,6 +264,15 @@ def drain_events(bus: VizBus) -> list[dict]:
 
 
 class TestVizStream:
+    def test_programmatic_bus_never_sweeps(self, repo, fake_agents, monkeypatch):
+        script_all_pass(fake_agents)
+        swept = []
+        monkeypatch.setattr("agent_engine.graph.kill_listeners_on_port",
+                            lambda *a, **k: swept.append(a))
+        ok, attempts = run_pipeline("pipeline.yaml", args(), viz_bus=VizBus())
+        assert (ok, attempts) == (True, 1)
+        assert swept == []
+
     def test_stream_path_matches_invoke(self, repo, fake_agents):
         script_all_pass(fake_agents)
         bus = VizBus()

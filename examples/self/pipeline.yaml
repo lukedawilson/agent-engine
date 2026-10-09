@@ -28,13 +28,8 @@ steps:
     agent: review
     artifact: review-findings.md
     verdicts: { pass: APPROVED, fail: NEEDS CHANGES }
-    on_pass: port_sweep
-    on_fail: { goto: dev, retry: true }
-
-  - name: port_sweep
-    action: kill_listeners
-    params: { port: 8321, match: agent-engine }  # sweep an orphaned --viz server
     on_pass: qa
+    on_fail: { goto: dev, retry: true }
 
   - name: qa
     agent: qa

@@ -6,6 +6,7 @@ stubs only the SDK network boundary."""
 import sqlite3
 import subprocess
 import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -186,6 +187,12 @@ class TestViz:
 
         fake_agents.set("dev", [("write", "implementation-summary.md", "done")])
         captured = {}
+        order = []
+        sweep_calls = []
+
+        def fake_sweep(port, match=None, term_timeout=3.0, cwd=None):
+            sweep_calls.append((port, match, cwd))
+            order.append("sweep")
 
         def fake_serve_viz(bus, topology, subject, port, nodes=()):
             captured["bus"] = bus
@@ -193,8 +200,12 @@ class TestViz:
             captured["subject"] = subject
             captured["port"] = port
             captured["nodes"] = nodes
-            return object(), object()
+            order.append("serve")
+            return types.SimpleNamespace(server_address=("127.0.0.1", port)), \
+                object()
 
+        monkeypatch.setattr("agent_engine.graph.kill_listeners_on_port",
+                            fake_sweep)
         monkeypatch.setattr("agent_engine.viz.serve_viz", fake_serve_viz)
         opened = []
         monkeypatch.setattr("webbrowser.open", opened.append)
@@ -213,6 +224,8 @@ class TestViz:
         assert captured["subject"] == "plan plan.md"
         assert captured["port"] == 8321
         assert opened == ["http://127.0.0.1:8321"]
+        assert sweep_calls == [(8321, "agent-engine", repo.resolve())]
+        assert order == ["sweep", "serve"]
 
         events = []
         q = captured["bus"].subscribe()
@@ -226,13 +239,54 @@ class TestViz:
         run_started = next(e for e in events if e["type"] == "run_started")
         assert run_started["attempt"] == 1
 
+    def test_busy_preferred_port_falls_back_and_notices(self, repo, fake_agents,
+                                                        monkeypatch, capsys):
+        fake_agents.set("dev", [("write", "implementation-summary.md", "done")])
+        monkeypatch.setattr("agent_engine.graph.kill_listeners_on_port",
+                            lambda *a, **k: None)
+        monkeypatch.setattr(
+            "agent_engine.viz.serve_viz",
+            lambda *a, **k: (types.SimpleNamespace(
+                server_address=("127.0.0.1", 45123)), object()))
+        opened = []
+        monkeypatch.setattr("webbrowser.open", opened.append)
+
+        code = main(["pipeline.yaml", "--plan", "plan.md"])
+        assert code == 0
+        assert opened == ["http://127.0.0.1:45123"]
+        assert ("viz port 8321 busy — serving on http://127.0.0.1:45123"
+                in capsys.readouterr().out)
+
+    def test_viz_port_zero_means_any_port_no_notice(self, repo, fake_agents,
+                                                    monkeypatch, capsys):
+        fake_agents.set("dev", [("write", "implementation-summary.md", "done")])
+        swept = []
+        monkeypatch.setattr("agent_engine.graph.kill_listeners_on_port",
+                            lambda *a, **k: swept.append(a))
+        monkeypatch.setattr(
+            "agent_engine.viz.serve_viz",
+            lambda *a, **k: (types.SimpleNamespace(
+                server_address=("127.0.0.1", 45123)), object()))
+        opened = []
+        monkeypatch.setattr("webbrowser.open", opened.append)
+
+        code = main(["pipeline.yaml", "--plan", "plan.md", "--viz-port", "0"])
+        assert code == 0
+        assert opened == ["http://127.0.0.1:45123"]
+        assert swept == []
+        assert "busy" not in capsys.readouterr().out
+
     def test_no_viz_suppresses_server(self, repo, fake_agents, monkeypatch):
         fake_agents.set("dev", [("write", "implementation-summary.md", "done")])
         called = []
+        swept = []
         monkeypatch.setattr(
             "agent_engine.viz.serve_viz",
             lambda *a, **k: called.append("serve") or (object(), object()))
+        monkeypatch.setattr("agent_engine.graph.kill_listeners_on_port",
+                            lambda *a, **k: swept.append(a))
 
         code = main(["pipeline.yaml", "--plan", "plan.md", "--no-viz"])
         assert code == 0
         assert called == []
+        assert swept == []

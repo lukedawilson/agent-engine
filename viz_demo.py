@@ -93,7 +93,6 @@ def run_scenario(bus: viz.VizBus, scenario: str, flood: int = 0) -> None:
 
     emit_node(bus, "dev", {"attempt": 1}, flood=flood)
     emit_node(bus, "review", {"step_verdicts": {"review": "pass"}})
-    emit_node(bus, "port_sweep")
     if scenario == "failure":
         emit_node(bus, "qa", ok=False)
         bus.publish({"type": "run_finished", "success": False, "attempts": 1})
@@ -103,7 +102,6 @@ def run_scenario(bus: viz.VizBus, scenario: str, flood: int = 0) -> None:
     emit_node(bus, "bump", {"attempt": 2, "step_verdicts": {}})
     emit_node(bus, "dev")
     emit_node(bus, "review", {"step_verdicts": {"review": "pass"}})
-    emit_node(bus, "port_sweep")
     emit_node(bus, "qa", {"step_verdicts": {"review": "pass", "qa": "pass"}})
     emit_node(bus, "commit")
     emit_node(bus, "success", {"outcome": "success"})
@@ -126,12 +124,12 @@ def main() -> int:
     bus = viz.VizBus()
     topology, nodes = real_topology()
     try:
-        viz.serve_viz(bus, topology, SUBJECT, args.port, nodes)
+        httpd, _thread = viz.serve_viz(bus, topology, SUBJECT, args.port, nodes)
     except OSError as exc:
         print(f"{exc}\nPick another port with --port.", file=sys.stderr)
         return 1
 
-    url = f"http://127.0.0.1:{args.port}"
+    url = f"http://127.0.0.1:{httpd.server_address[1]}"
     print(f"Viz demo ({args.scenario}): {url}", flush=True)
     if not args.no_browser:
         webbrowser.open(url)

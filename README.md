@@ -34,7 +34,10 @@ Exit code is `0` on pipeline success, `1` otherwise. Each run prints its
 thread id; `--resume` continues the latest checkpoint of a previous thread
 (crash, Ctrl-C, exhaustion) with all accumulated notes intact. A live graph
 view is served on localhost by default (browser auto-opens; `--viz-port`
-overrides the default 8321) — pass `--no-viz` to suppress it. The sidebar
+sets a preferred port, default 8321) — pass `--no-viz` to suppress it. A
+stale viz server from a crashed run of the same repo is swept automatically
+at startup; if another repo's run holds the port, the engine prints a notice
+and serves on a free port. The sidebar
 nests each stage's console output (ANSI colours preserved) under a
 collapsible section: completed stages auto-collapse, the running stage stays
 expanded and live-tails its console. To eyeball the viz page without
@@ -52,10 +55,10 @@ The shipped self-loop example (`examples/self/`, launched from the repo root
 so the pipeline constructs this library itself) is:
 
 ```
-dev ──▶ review ──▶ port_sweep ──▶ qa ──▶ commit
-▲          │             │
-└──────────┴─────────────┘   fail verdicts retry to dev
-                             (attempt-bounded)
+dev ──▶ review ──▶ qa ──▶ commit
+▲          │        │
+└──────────┴────────┘   fail verdicts retry to dev
+                       (attempt-bounded)
 ```
 
 1. **dev** runs the `dev` agent with full context (selected docs +
@@ -68,12 +71,10 @@ dev ──▶ review ──▶ port_sweep ──▶ qa ──▶ commit
    decides routing. `pass` follows `on_pass`, `fail` follows `on_fail` —
    here `{goto: dev, retry: true}`, which consumes an attempt and feeds the
    artifact back to the dev agent as a retry note.
-3. **port_sweep** is a built-in action (kill listeners on a port) — no agent,
-   no verdict.
-4. **commit** is the single commit point: `git add -A` + templated message,
+3. **commit** is the single commit point: `git add -A` + templated message,
    but only when the worktree was clean at run start (your in-progress edits
    are never swept into a loop commit).
-5. Attempts are bounded by `max_attempts` (YAML or `--max-attempts`).
+4. Attempts are bounded by `max_attempts` (YAML or `--max-attempts`).
    Exhaustion or a `failure` route ends the run; `success` commits and exits.
 
 Every stage boundary is checkpointed to `<state_dir>/loop-checkpoints.sqlite`
@@ -113,13 +114,8 @@ steps:
     agent: review
     artifact: review-findings.md
     verdicts: {pass: APPROVED, fail: NEEDS CHANGES}
-    on_pass: port_sweep
-    on_fail: {goto: dev, retry: true}
-
-  - name: port_sweep
-    action: kill_listeners            # built-in action
-    params: {port: 8321, match: "agent-engine"}  # sweep an orphaned viz server
     on_pass: qa
+    on_fail: {goto: dev, retry: true}
 
   - name: qa
     agent: qa
@@ -209,7 +205,8 @@ Duplicate CLI option strings across loaders are a load-time error naming both.
   action no-ops rather than sweep up your unrelated edits.
 - **Unclear verdicts are never routable** — always an attempt-bounded retry.
 - **Port sweeps are explicit actions** with required `port`, optional
-  `match` substring filter.
+  `match` substring filter — the startup sweep of the engine's own viz
+  server (cwd-scoped, best-effort) is the one built-in exception.
 - **No client-side LLM timeout by default** (`timeout: null`) — agent runs
   are long; set `timeout` if your provider needs one.
 - **Crash-safe resume** — every stage boundary is a checkpoint.

@@ -1,7 +1,6 @@
 # 010 — Viz console panel: feedback backlog
 
-> Status: **backlog note** — deferred for a more urgent issue. Not a plan yet;
-> promote to a plan (or fold into plan 008's implementation) when we return.
+> **Status: COMPLETED**
 
 ## Context
 

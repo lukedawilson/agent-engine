@@ -10,6 +10,7 @@ import http.client
 import io
 import json
 import operator
+import os
 import queue
 import socket
 import struct
@@ -129,7 +130,7 @@ class TestTopologyMermaid:
         cfg = load_config(SELF_PIPELINE)
         source, nodes = topology_mermaid(cfg)
 
-        chain = ["dev", "review", "port_sweep", "qa", "commit", "success"]
+        chain = ["dev", "review", "qa", "commit", "success"]
         for src, dst in zip(chain, chain[1:]):
             assert f"{src} --> {dst};" in source
 
@@ -508,6 +509,12 @@ def server():
     thread.join(timeout=5)
 
 
+def free_port():
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
 def http_get(port, path):
     conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
     conn.request("GET", path)
@@ -589,10 +596,35 @@ class TestServer:
         assert json.loads(frame.decode().split("data: ", 1)[1].strip()) == \
             {"type": "node_started", "node": "test"}
 
-    def test_bind_failure_is_loud(self, server):
+    def test_preferred_port_honored_when_free(self):
+        port = free_port()
+        bus = VizBus()
+        httpd, thread = serve_viz(bus, MERMAID, "subject", port)
+        try:
+            assert httpd.server_address[1] == port
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+            thread.join(timeout=5)
+
+    def test_busy_port_falls_back_to_os_assigned(self, server):
         _bus, _httpd, _thread, port = server
+        bus = VizBus()
+        httpd, thread = serve_viz(bus, MERMAID, "subject", port)
+        try:
+            assert httpd.server_address[1] != port
+            status, _body = http_get(httpd.server_address[1], "/")
+            assert status == 200
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+            thread.join(timeout=5)
+
+    def test_privileged_port_still_loud(self):
+        if os.geteuid() == 0:
+            pytest.skip("privileged port is not EACCES when running as root")
         with pytest.raises(OSError, match="--viz-port"):
-            serve_viz(VizBus(), MERMAID, "subject", port)
+            serve_viz(VizBus(), MERMAID, "subject", 1)
 
     def test_connection_reset_on_request_path_is_silent(self, server, monkeypatch):
         _bus, _httpd, _thread, port = server

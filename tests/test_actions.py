@@ -13,8 +13,9 @@ from pathlib import Path
 
 import pytest
 
-from agent_engine.actions import (_listening_pids, commit, git_worktree_clean,
-                                  kill_listeners, kill_listeners_on_port)
+from agent_engine.actions import (_listening_pids, _parse_cwd_output, commit,
+                                  git_worktree_clean, kill_listeners,
+                                  kill_listeners_on_port)
 
 lsof_required = pytest.mark.skipif(
     shutil.which("lsof") is None, reason="lsof required")
@@ -26,7 +27,7 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
-def spawn_listener(port: int) -> subprocess.Popen:
+def spawn_listener(port: int, cwd: Path | None = None) -> subprocess.Popen:
     """Spawn a real process listening on 127.0.0.1:port — stands in for an
     orphaned app server. Its command line contains 'socket' (from the -c code)."""
     code = (
@@ -37,7 +38,7 @@ def spawn_listener(port: int) -> subprocess.Popen:
         "s.listen();"
         "time.sleep(120)"
     )
-    return subprocess.Popen([sys.executable, "-c", code])
+    return subprocess.Popen([sys.executable, "-c", code], cwd=cwd)
 
 
 def wait_listening(port: int, timeout: float = 5.0) -> None:
@@ -171,6 +172,59 @@ class TestKillListenersOnPort:
             assert str(os.getpid()) not in _listening_pids(port, None)
         finally:
             s.close()
+
+    @lsof_required
+    def test_cwd_filter_kills_matching_cwd(self, tmp_path):
+        port = free_port()
+        proc = spawn_listener(port, cwd=tmp_path)
+        try:
+            wait_listening(port)
+            kill_listeners_on_port(port, cwd=tmp_path)
+            proc.wait(timeout=5)
+            assert proc.poll() is not None
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+
+    @lsof_required
+    def test_cwd_filter_spares_other_directory(self, tmp_path):
+        other = tmp_path / "elsewhere"
+        other.mkdir()
+        port = free_port()
+        proc = spawn_listener(port, cwd=tmp_path)
+        try:
+            wait_listening(port)
+            kill_listeners_on_port(port, cwd=other)
+            assert proc.poll() is None  # still alive — cwd differs
+        finally:
+            proc.kill()
+
+    @lsof_required
+    def test_cwd_with_nonmatching_match_spares(self, tmp_path):
+        port = free_port()
+        proc = spawn_listener(port, cwd=tmp_path)
+        try:
+            wait_listening(port)
+            kill_listeners_on_port(port, match="no-such-process-name",
+                                   cwd=tmp_path)
+            assert proc.poll() is None  # cwd matched but command line didn't
+        finally:
+            proc.kill()
+
+
+class TestPidCwd:
+    def test_parses_path_after_fcwd(self):
+        assert _parse_cwd_output(
+            "p42312\nfcwd\nn/Users/luke/dev/work/agent-engine\n") == \
+            "/Users/luke/dev/work/agent-engine"
+
+    def test_none_when_no_path_line(self):
+        assert _parse_cwd_output("p42312\nfcwd\n") is None
+        assert _parse_cwd_output("p42312\n") is None
+
+    def test_none_for_garbage(self):
+        assert _parse_cwd_output("garbage\n") is None
+        assert _parse_cwd_output("") is None
 
 
 class TestGitWorktreeClean:

@@ -5,10 +5,11 @@ resolve exactly as they would in a consumer's repo.
 
 run_agent is stubbed (the SDK network boundary, via the fake_agents fixture);
 files, git, checkpoints, verdict parsing and routing are all real. The
-example's verbatim port sweep (port 8321, match "agent-engine") is
-neutralized at the OS boundary (_listening_pids) because a contributor's
-real process may be listening on that port — kill behavior itself is covered
-in test_actions.py.
+example no longer has a port_sweep step (the startup viz sweep and the
+`kill_listeners` action are the remaining kill paths), so the
+`_listening_pids` → `[]` patch is defense-in-depth — a contributor's real
+process may be listening on the default viz port. Kill behavior itself is
+covered in test_actions.py.
 """
 
 import shutil
