@@ -1,6 +1,6 @@
 # Per-Stage Console Output in the Sidebar — Implementation Plan
 
-> **Status: PLANNED**
+> **Status: IN PROGRESS**
 
 > **For agentic workers:** Use bite-sized task execution to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -9,6 +9,8 @@
 > "display the console output from the agent engine (including the terminal colours) as part of the sidebar. Output should be nested under the stage (e.g. '> dev running'). Section should be collapsible. Automatically collapse completed stages, expand the current one. Live tail."
 
 Today the engine's `print()` lines (stage banners like `[unit] Running dev agent...`, verdict lines, tracebacks) and the OpenHands SDK's `rich`-formatted output (visualizer panels on stdout, log records via `RichHandler` on stderr) go straight to the real terminal, invisible to the page. This plan captures that stream (with its ANSI colour codes intact), ships it to the page as a new event, and renders each node's console inside its own collapsible stage section.
+
+**Note:** Initial implementation is done - check it before writing any new code.
 
 **Architecture:** Five pieces, all in-repo:
 
@@ -66,8 +68,8 @@ class ConsoleCapture:
 - `_Tee(capture, stream, target)` per stream: `write(s)` accepts `str` (bytes decoded utf-8/replace) and returns `len(s)` (TextIO contract), appends to a buffer, splits on `\n`, strips trailing `\r` per line, publishes each complete line; write-through to `target` with **no auto-flush**. `flush()` → `target.flush()` only (a partial buffer is published only on newline or detach). `isatty()` and `__getattr__` delegate to `target` (encoding/fileno/etc. for rich + `logging.StreamHandler`). Per-proxy `threading.Lock`.
 - Published event: `{"type": "console", "node": self._watch.current(), "stream": <"stdout"|"stderr">, "text": line}` with line truncated to `MAX_LINE` + `…` when over.
 
-- [ ]**Step 1: Failing tests** — `TestConsoleCapture` in `tests/test_viz.py`, built directly on `VizBus()` + `io.StringIO` targets + a stub watch (fixed or None `current()`): complete-line splitting; ANSI preserved verbatim (`"\x1b[32mhi\x1b[0m"` round-trips); write-through to the target; two `write()` calls join into one published line; `\r\n` stripped; node attribution (stub → node, None → null); `attach()`/`detach()` swap and restore `sys.stdout`/`sys.stderr` under `monkeypatch` (assert identity restored); double `attach()` raises `RuntimeError`; 8001-char line truncated to 8000 + `…`; `isatty()` delegates to the target.
-- [ ]**Step 2: Implement; green + refactor.**
+- [x]**Step 1: Failing tests** — `TestConsoleCapture` in `tests/test_viz.py`, built directly on `VizBus()` + `io.StringIO` targets + a stub watch (fixed or None `current()`): complete-line splitting; ANSI preserved verbatim (`"\x1b[32mhi\x1b[0m"` round-trips); write-through to the target; two `write()` calls join into one published line; `\r\n` stripped; node attribution (stub → node, None → null); `attach()`/`detach()` swap and restore `sys.stdout`/`sys.stderr` under `monkeypatch` (assert identity restored); double `attach()` raises `RuntimeError`; 8001-char line truncated to 8000 + `…`; `isatty()` delegates to the target.
+- [x]**Step 2: Implement; green + refactor.**
 
 ### Task 2: `VizBus` replay split
 
@@ -79,8 +81,8 @@ class ConsoleCapture:
 - `VizBus(maxlen=500, console_maxlen=500)` — `maxlen` bounds the retained backlog (every event except `console`/`heartbeat`; events without a `type` key count as retained, so existing bus tests are unaffected); `console_maxlen` bounds the console backlog. Heartbeats are delivered live but never replayed.
 - `publish()` stamps each event with an internal monotonic `_seq` under the bus lock (payload untouched); `subscribe()` replays retained + console backlogs merged in `_seq` order, then registers for live delivery.
 
-- [ ]**Step 1: Failing tests** — console spam beyond `console_maxlen` evicts only older console events: publish `run_started`, 600 console events, `node_started`; a new subscriber receives `run_started`, `node_started`, and exactly the last 500 console events, in publish order. A heartbeat published pre-subscribe is not replayed but IS delivered live post-subscribe. Existing `TestVizBus` tests stay green unchanged.
-- [ ]**Step 2: Implement; green + refactor.**
+- [x]**Step 1: Failing tests** — console spam beyond `console_maxlen` evicts only older console events: publish `run_started`, 600 console events, `node_started`; a new subscriber receives `run_started`, `node_started`, and exactly the last 500 console events, in publish order. A heartbeat published pre-subscribe is not replayed but IS delivered live post-subscribe. Existing `TestVizBus` tests stay green unchanged.
+- [x]**Step 2: Implement; green + refactor.**
 
 ### Task 3: Wire capture into `run_pipeline`
 
@@ -92,8 +94,8 @@ class ConsoleCapture:
 - In the `if bus is not None:` block, after `watch = viz.NodeWatch()`: `capture = viz.ConsoleCapture(bus, watch); capture.attach()`.
 - In the `finally:` — as the last statement, after the `run_finished` publish: `capture.detach()`.
 
-- [ ]**Step 1: Failing tests** — `test_graph.py` stream-path test (existing `viz_bus=VizBus()` + `drain_events()` harness): assert a `console` event exists whose `text` contains the fake stage's `Running dev agent...` print and whose `node == "dev"` (the print runs inside the node, after `watch.start("dev")`). `test_cli.py` lifecycle test: assert `sys.stdout is` and `sys.stderr is` the pre-call streams after `main()` returns; assert the captured `run_started`/`run_finished` are still present (no regression).
-- [ ]**Step 2: Implement; green + refactor.**
+- [x]**Step 1: Failing tests** — `test_graph.py` stream-path test (existing `viz_bus=VizBus()` + `drain_events()` harness): assert a `console` event exists whose `text` contains the fake stage's `Running dev agent...` print and whose `node == "dev"` (the print runs inside the node, after `watch.start("dev")`). `test_cli.py` lifecycle test: assert `sys.stdout is` and `sys.stderr is` the pre-call streams after `main()` returns; assert the captured `run_started`/`run_finished` are still present (no regression).
+- [x]**Step 2: Implement; green + refactor.**
 
 ### Task 4: `PAGE` — stage sections, collapse, live tail
 
@@ -108,8 +110,8 @@ class ConsoleCapture:
 - `node_started(X)`: expand X, collapse others, `scrollIntoView({block: "nearest"})`. `node_finished(X)`: collapse X. `run_finished`: collapse all. `run_started`: clear all consoles + run-log (page shows one run per load).
 - Console append: cap at `MAX_CONSOLE = 500` lines with a top `…N lines omitted` counter row; live-tail iff expanded and near bottom (`< 24`px threshold).
 
-- [ ]**Step 1: Failing tests** — assert in `PAGE`: `"stage-header"`, `"stage-console"`, `"collapsed"`, `"scrollHeight"`, `"scrollTop"`, `"MAX_CONSOLE"`, `"console"`; keep/update existing tokens (`completed`, `errored`, `verdict` present; `" passed"` absent; `nodeIds.has(ev.node)` guard applied to console routing).
-- [ ]**Step 2: Implement; green + refactor.**
+- [x]**Step 1: Failing tests** — assert in `PAGE`: `"stage-header"`, `"stage-console"`, `"collapsed"`, `"scrollHeight"`, `"scrollTop"`, `"MAX_CONSOLE"`, `"console"`; keep/update existing tokens (`completed`, `errored`, `verdict` present; `" passed"` absent; `nodeIds.has(ev.node)` guard applied to console routing).
+- [x]**Step 2: Implement; green + refactor.**
 
 ### Task 5: `PAGE` — `ansiToHtml()`
 
@@ -122,8 +124,8 @@ class ConsoleCapture:
 - Palette — 30–37: `#0c0c0c #c50f1f #13a10e #c19c00 #0037da #881798 #3a96dd #cccccc`; 90–97: `#767676 #e74856 #16c60c #f9f1a5 #3b78ff #b4009e #61d6d6 #f2f2f2`.
 - Console lines (stage consoles and run-log) render through `ansiToHtml`; lifecycle `logLine()` lines stay plain.
 
-- [ ]**Step 1: Failing tests** — assert in `PAGE`: `"ansiToHtml"`, `"\\x1b"`, `"38;5"`, `"38;2"`.
-- [ ]**Step 2: Implement; green + refactor.**
+- [x]**Step 1: Failing tests** — assert in `PAGE`: `"ansiToHtml"`, `"\\x1b"`, `"38;5"`, `"38;2"`.
+- [x]**Step 2: Implement; green + refactor.**
 
 ### Task 6: Demo console events
 
@@ -134,15 +136,15 @@ class ConsoleCapture:
 **Interface:**
 - `emit_node` additionally publishes 2–3 `console` events per node: one plain stdout line (`[subject] Running <name> agent...`), one ANSI-coloured stderr line (`"\x1b[33m[SDK] step 1 — thinking\x1b[0m"`), attributed to the node; plus one node-less console line after `run_started` (exercises `#run-log`).
 
-- [ ]**Step 1: Failing tests** — extend the demo event assertions to include the console events (node attribution + ANSI bytes intact).
-- [ ]**Step 2: Implement; green + refactor.**
+- [x]**Step 1: Failing tests** — extend the demo event assertions to include the console events (node attribution + ANSI bytes intact).
+- [x]**Step 2: Implement; green + refactor.**
 
 ### Task 7: README + manual smoke
 
 **Files:**
 - Modify: `README.md` (extend the viz sentence: per-stage console output with ANSI colours preserved, collapsed when complete, live-tailed while running)
 
-- [ ]**Step 1:** Update README.
+- [x]**Step 1:** Update README.
 - [ ]**Step 2:** `./run-demo.sh --no-browser` — **user eyeballs**: stages appear with their consoles; success scenario dev console fills and auto-scrolls while running, collapses on completion with ` (verdict: …)` on test; ANSI-coloured demo lines render in colour; failure scenario shows `errored` sections.
 - [ ]**Step 3:** Real run `agent-engine examples/self/pipeline.yaml --plan <doc> --viz` — **user triggers** (makes LLM calls): real SDK rich output (coloured) appears under the running stage, live-tailed.
 

@@ -4,7 +4,7 @@
 
 > **For agentic workers:** Use bite-sized task execution to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
-**Goal:** Add an opt-in `--viz` flag to the `agent-engine` CLI that spins up a localhost web page showing the pipeline graph (config-driven — e.g. the shipped self-loop example's `dev→test→review→port_sweep→qa→commit`, plus the `bump`/`success` terminals) with **live** node highlighting — `pending / running / passed / failed` — plus subject, attempt n/max, one verdict badge per verdict step (any step declaring `artifact`+`verdicts`), and an event log. Zero new dependencies, zero behavior change when the flag is absent.
+**Goal:** Add an opt-in `--viz` flag to the `agent-engine` CLI that spins up a localhost web page showing the pipeline graph (config-driven — e.g. the shipped self-loop example's `dev→review→port_sweep→qa→commit`, plus the `bump`/`success` terminals) with **live** node highlighting — `pending / running / passed / failed` — plus subject, attempt n/max, one verdict badge per verdict step (any step declaring `artifact`+`verdicts`), and an event log. Zero new dependencies, zero behavior change when the flag is absent.
 
 **Architecture:** New module `src/agent_engine/viz.py` (stream-part translation, event bus, stdlib SSE/HTTP server, embedded HTML page using Mermaid.js from CDN) wired into `graph.run_pipeline` (invoke→stream when a bus is present; server/browser/keep-alive lifecycle when `args.viz` is set) and `cli._core_parser` (`--viz`/`--viz-port` flags). Tests in new `tests/test_viz.py` plus wiring tests in `tests/test_graph.py` and `tests/test_cli.py`. Stage nodes untouched — all live data comes from LangGraph's `tasks`/`updates` stream modes.
 
