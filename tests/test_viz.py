@@ -703,6 +703,14 @@ class TestServer:
         assert "nearBottom" in PAGE
         assert "requestAnimationFrame" in PAGE
 
+    def test_page_constant_has_resizable_divider(self):
+        assert '"divider"' in PAGE
+        assert "col-resize" in PAGE
+        assert "mousedown" in PAGE
+        assert "mousemove" in PAGE
+        assert "mouseup" in PAGE
+        assert "dragging" in PAGE
+
 
 class TestDemo:
     def test_run_started_carries_attempt(self, monkeypatch):

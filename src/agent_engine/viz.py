@@ -394,6 +394,8 @@ PAGE = """<!doctype html>
                 border-radius: 6px; margin-top: 10px; display: none; }
   .banner-success { background: #e8f5e9; color: #2e7d32; }
   .banner-failure { background: #ffebee; color: #c62828; }
+  #divider { flex: 0 0 6px; cursor: col-resize; background: #e0e0e0; }
+  #divider:hover, #divider.dragging { background: #9e9e9e; }
   #sidebar { flex: 0 0 320px; border-left: 1px solid #e0e0e0; padding: 16px;
              display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
   #subject { margin: 0; font-size: 16px; word-break: break-word; }
@@ -437,6 +439,7 @@ PAGE = """<!doctype html>
   #run-log li { padding: 2px 0; border-bottom: 1px solid #f3f3f3; }
   @media (max-width: 768px) {
     body { flex-direction: column; height: auto; }
+    #divider { display: none; }
     #sidebar { flex: 0 0 auto; border-left: 0; border-top: 1px solid #e0e0e0; }
   }
 </style>
@@ -448,6 +451,7 @@ PAGE = """<!doctype html>
     <div id="mermaid-container"><p>Loading graph…</p></div>
     <div id="run-banner"></div>
   </div>
+  <div id="divider"></div>
   <aside id="sidebar">
     <h2 id="subject">agent-engine pipeline</h2>
     <div id="attempt">attempt ?/?</div>
@@ -985,6 +989,31 @@ PAGE = """<!doctype html>
     catch (err) { logLine("bad event: " + e.data); }
   };
   es.onerror = function () { logLine("event stream interrupted"); };
+
+  // Grab-handle between the graph and the sidebar: drag to resize the
+  // sidebar (and with it the console panels, which stretch with its width).
+  (function initDivider() {
+    var divider = el("divider");
+    var sidebar = el("sidebar");
+    var dragging = false;
+    divider.addEventListener("mousedown", function (e) {
+      dragging = true;
+      divider.classList.add("dragging");
+      document.body.style.userSelect = "none";
+      e.preventDefault();
+    });
+    window.addEventListener("mousemove", function (e) {
+      if (!dragging) { return; }
+      var width = window.innerWidth - e.clientX - divider.offsetWidth / 2;
+      width = Math.max(240, Math.min(width, window.innerWidth * 0.8));
+      sidebar.style.flex = "0 0 " + width + "px";
+    });
+    window.addEventListener("mouseup", function () {
+      dragging = false;
+      divider.classList.remove("dragging");
+      document.body.style.userSelect = "";
+    });
+  })();
 })();
 </script>
 </body>
