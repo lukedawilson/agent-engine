@@ -103,8 +103,8 @@ Design choices:
 
 ## Open questions for the user
 
-1. **Default timeout** — 600s. The engine has no LLM timeout default today; 600s is a judgment call for pytest-class suites. Veto if you want no-timeout-by-default or another number.
-2. **Test-step placement** — `dev → test → review → qa → commit` (gate before the review stages). Alternatives: after `qa`, or retry `dev` vs a dedicated fixer — say the word if you want different wiring.
+1. **Default timeout** — 600s. The engine has no LLM timeout default today; 600s is a judgment call for pytest-class suites. ~~Veto if you want no-timeout-by-default or another number.~~ **Resolved 2026-10-09: user confirmed 600s — locked.**
+2. **Test-step placement** — `dev → test → review → qa → commit` (gate before the review stages). ~~Alternatives: after `qa`, or retry `dev` vs a dedicated fixer — say the word if you want different wiring.~~ **Resolved 2026-10-09: user confirmed `dev → test → review` — locked.**
 
 ---
 
@@ -201,4 +201,4 @@ Design choices:
 
 ## Amendments
 
-(none yet)
+- **2026-10-09** — Both open questions resolved by user: default timeout **600s** locked; test-step placement **`dev → test → review`** locked (mechanical gate runs after the dev agent, before the review agent; failure rewinds to `dev` with the output tail in the retry note). No plan changes beyond confirming the already-specified values.
