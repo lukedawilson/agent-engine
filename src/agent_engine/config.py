@@ -38,11 +38,13 @@ class StepConfig(BaseModel):
     name: str
     agent: str | None = None
     action: str | None = None
+    command: str | None = None  # mechanical step: exit code is the verdict
     params: dict[str, Any] = {}
     produces: list[str] = []  # hygiene-tracked, no verdict parsing
     artifact: str | None = None  # hygiene-tracked AND verdict-parsed
     verdicts: VerdictSpec | None = None
     max_iterations: int | None = None
+    timeout: float | None = Field(default=None, gt=0)  # seconds, command steps only
     on_pass: RouteTarget | None = None
     on_fail: RouteTarget | None = None
 
@@ -53,10 +55,19 @@ class StepConfig(BaseModel):
 
     @model_validator(mode="after")
     def _check_shape(self) -> "StepConfig":
-        if (self.agent is None) == (self.action is None):
+        if sum(k is not None for k in (self.agent, self.action, self.command)) != 1:
             raise ValueError(
-                f"step {self.name!r}: exactly one of 'agent' or 'action' is required"
+                f"step {self.name!r}: exactly one of 'agent', 'action', or "
+                "'command' is required"
             )
+        if self.command is not None:
+            for field, empty in (("artifact", None), ("verdicts", None),
+                                 ("produces", []), ("params", {}),
+                                 ("max_iterations", None)):
+                if getattr(self, field) != empty:
+                    raise ValueError(
+                        f"step {self.name!r}: 'command' steps cannot set {field!r}"
+                    )
         if (self.artifact is None) != (self.verdicts is None):
             raise ValueError(
                 f"step {self.name!r}: 'artifact' and 'verdicts' must appear together"
@@ -64,6 +75,10 @@ class StepConfig(BaseModel):
         if self.artifact is not None and self.produces:
             raise ValueError(
                 f"step {self.name!r}: 'produces' and 'artifact' are mutually exclusive"
+            )
+        if self.timeout is not None and self.command is None:
+            raise ValueError(
+                f"step {self.name!r}: 'timeout' requires 'command'"
             )
         return self
 

@@ -22,7 +22,13 @@ steps:
   - name: dev
     agent: dev
     produces: implementation-summary.md   # hygiene-tracked, no verdict
+    on_pass: test
+
+  - name: test
+    command: .venv/bin/python -m pytest tests/ -q   # mechanical: exit code is the verdict
+    timeout: 600                                     # seconds; SIGKILLs the process group
     on_pass: review
+    on_fail: { goto: dev, retry: true }
 
   - name: review
     agent: review

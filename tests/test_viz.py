@@ -130,10 +130,11 @@ class TestTopologyMermaid:
         cfg = load_config(SELF_PIPELINE)
         source, nodes = topology_mermaid(cfg)
 
-        chain = ["dev", "review", "qa", "commit", "success"]
+        chain = ["dev", "test", "review", "qa", "commit", "success"]
         for src, dst in zip(chain, chain[1:]):
             assert f"{src} --> {dst};" in source
 
+        assert "test -. &nbsp;fail&nbsp; .-> dev;" in source
         assert "review -. &nbsp;NEEDS CHANGES&nbsp; .-> dev;" in source
         assert "qa -. &nbsp;FAIL&nbsp; .-> dev;" in source
 
@@ -167,6 +168,16 @@ class TestTopologyMermaid:
         source, _nodes = topology_mermaid(cfg)
 
         assert "dev -. &nbsp;retry&nbsp; .-> dev;" in source
+
+    def test_command_retry_edge_label_is_fail(self):
+        cfg = self._pipeline([
+            {"name": "dev", "agent": "dev", "on_pass": "success"},
+            {"name": "test", "command": "true", "on_pass": "success",
+             "on_fail": {"goto": "dev", "retry": True}},
+        ])
+        source, _nodes = topology_mermaid(cfg)
+
+        assert "test -. &nbsp;fail&nbsp; .-> dev;" in source
 
 
 class TestVizBus:

@@ -24,7 +24,7 @@ from .loaders import select_loader
 from .registry import Registry, default_registry, load_extensions
 from .stages import (Runtime, build_context, clear_attempt_artifacts,
                      make_action_node, make_agent_node, make_bump_node,
-                     make_router, success_node)
+                     make_command_node, make_router, success_node)
 
 CHECKPOINT_DB = "loop-checkpoints.sqlite"  # under state_dir, one DB per workspace
 
@@ -47,8 +47,8 @@ class LoopState(TypedDict):
 
 
 def build_graph(runtime: Runtime, checkpointer=None):
-    """Compile the pipeline's state graph: one node per step (agent or
-    action), plus the bump retry node and the success terminal. Unknown
+    """Compile the pipeline's state graph: one node per step (agent, command,
+    or action), plus the bump retry node and the success terminal. Unknown
     action names fail here, at build time, not mid-run."""
     for step in runtime.cfg.steps:
         if step.action is not None and step.action not in runtime.registry.actions:
@@ -57,8 +57,12 @@ def build_graph(runtime: Runtime, checkpointer=None):
                 f"(registered: {sorted(runtime.registry.actions)})")
     graph = StateGraph(LoopState)
     for step in runtime.cfg.steps:
-        node = (make_agent_node(runtime, step) if step.agent
-                else make_action_node(runtime, step))
+        if step.agent:
+            node = make_agent_node(runtime, step)
+        elif step.command is not None:
+            node = make_command_node(runtime, step)
+        else:
+            node = make_action_node(runtime, step)
         graph.add_node(step.name, node)
         graph.add_conditional_edges(step.name, make_router(runtime, step))
     graph.add_node("bump", make_bump_node(runtime))

@@ -10,10 +10,16 @@ pipeline config; the fixed policies stay here, not in config:
 - unclear verdict → implicit, attempt-bounded retry with the artifact's
   content surfaced into notes (never routable — policy, not config)
 - notes accumulate across attempts into the next attempt's context
+- command steps are mechanical: the exit code is the verdict (0 ⇒ pass,
+  anything else ⇒ fail), a timeout kills the whole process group, and the
+  output tail rides into the retry note — "unclear" is impossible
 """
 
 from __future__ import annotations
 
+import os
+import signal
+import subprocess
 import sys
 import traceback
 from dataclasses import dataclass
@@ -32,6 +38,7 @@ if TYPE_CHECKING:
     from openhands.sdk import LLM
 
 DEFAULT_MAX_ITERATIONS = 500
+DEFAULT_COMMAND_TIMEOUT = 600.0  # seconds — a pytest-class suite budget
 LAST_ERROR = "last-error.md"
 
 
@@ -99,6 +106,26 @@ def run_agent(agent_name: str, message: str, runtime: Runtime,
     finally:
         if conv is not None:
             conv.close()
+
+
+def _run_command(command: str, workspace: Path,
+                 timeout: float) -> tuple[int | None, str, bool]:
+    """Run a shell command in the workspace, capturing combined stdout/stderr.
+
+    Returns ``(exit_code, output, timed_out)``. ``exit_code`` is None when the
+    command was SIGKILLed for exceeding ``timeout``; the whole process group is
+    killed (``start_new_session=True``) so grandchildren can't outlive the
+    step."""
+    proc = subprocess.Popen(
+        command, cwd=workspace, shell=True, start_new_session=True,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    try:
+        out, _ = proc.communicate(timeout=timeout)
+        return proc.returncode, out.decode("utf-8", "replace"), False
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGKILL)
+        out, _ = proc.communicate()
+        return None, out.decode("utf-8", "replace"), True
 
 
 def build_context(runtime: Runtime, docs: dict[str, str], subject: str,
@@ -225,6 +252,44 @@ def make_agent_node(runtime: Runtime, step: StepConfig):
     return node
 
 
+def make_command_node(runtime: Runtime, step: StepConfig):
+    """Node closure for a mechanical command step. The exit code is the sole
+    verdict: 0 ⇒ pass, anything else (nonzero, signal-killed, not-found, or
+    killed for exceeding timeout) ⇒ fail. Output is printed and its tail rides
+    into the retry note — mirroring the agent FAIL branch, so a retried dev
+    agent sees exactly what the gate emitted."""
+    timeout = step.timeout if step.timeout is not None else DEFAULT_COMMAND_TIMEOUT
+
+    def node(state: dict) -> dict:
+        attempt = state["attempt"]
+        subject = state["subject"]
+        print(f"[{subject}] Running command `{step.command}`...", flush=True)
+        try:
+            exit_code, output, timed_out = _run_command(
+                step.command, runtime.workspace, timeout)
+        except Exception:
+            print(traceback.format_exc()[-4000:], file=sys.stderr, flush=True)
+            return {"failed": True}
+        if output:
+            print(output, end="" if output.endswith("\n") else "\n", flush=True)
+        merged = {**state["step_verdicts"],
+                  step.name: "pass" if exit_code == 0 else "fail"}
+        if exit_code == 0:
+            print(f"[{subject}] {step.name} command passed on attempt {attempt}.",
+                  flush=True)
+            return {"step_verdicts": merged, "failed": False}
+        print(f"[{subject}] {step.name} command failed on attempt {attempt}.",
+              flush=True)
+        label = f"attempt {attempt} — timed out" if timed_out else f"attempt {attempt}"
+        update = {"step_verdicts": merged,
+                  "notes": [f"## {step.name} output ({label})\n\n{output[-4000:]}"]}
+        if isinstance(step.on_fail, Route) and step.on_fail.retry:
+            update["retry_target"] = step.on_fail.goto
+        return update
+
+    return node
+
+
 def make_action_node(runtime: Runtime, step: StepConfig):
     """Node closure for an action step: invoke the registered action with the
     step's params. An action exception fails the run (same as an agent's)."""
@@ -258,7 +323,7 @@ def make_router(runtime: Runtime, step: StepConfig):
     def router(state: dict) -> str:
         if state["failed"]:
             return END
-        if step.verdicts is None:
+        if step.verdicts is None and step.command is None:
             return resolve(step.on_pass)
         verdict = state["step_verdicts"].get(step.name)
         if verdict == "pass":

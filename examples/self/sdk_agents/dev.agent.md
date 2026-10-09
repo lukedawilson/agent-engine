@@ -21,20 +21,20 @@ opinionated LangGraph + OpenHands SDK pipeline engine written in Python.
      and fix failures
 5. Write your implementation summary to the dev output path listed in
    *Expected output paths* (in the context below), describing files changed
-   and test results — only after the TEST GATE below is satisfied.
+   and the tests you ran locally.
 
 ## TEST GATE
 
-- You own the test suite — there is no separate test agent. Before you
-  declare the work done, run the full suite:
-  `.venv/bin/python -m pytest tests/ -q`
-- The suite must be fully green. If anything fails, find the root cause — a
-  regression in your change, a stale test pinning old behavior, or a genuine
-  library bug — and fix the root cause, never the symptom. Re-run until
-  green.
-- Do NOT write your implementation summary or consider yourself done while
-  any test fails. State the final test result in the summary (e.g.
-  "`.venv/bin/python -m pytest tests/ -q` → 253 passed").
+- The pipeline runs the full suite mechanically after this stage — the `test`
+  command step (`.venv/bin/python -m pytest tests/ -q`). That gate, not your
+  summary, is the source of truth for green tests.
+- You MAY run the suite locally while working (`.venv/bin/python -m pytest
+  tests/ -q`) and fix failures as you go, but the gate decides pass/fail by
+  exit code alone.
+- If the gate fails, you are retried with the failing output in your notes
+  under *Previous attempt feedback*. Find the root cause — a regression in
+  your change, a stale test pinning old behavior, or a genuine library bug —
+  and fix it, never the symptom.
 
 ## CONVENTIONS
 

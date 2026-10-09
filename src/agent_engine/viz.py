@@ -48,7 +48,12 @@ def topology_mermaid(cfg: PipelineConfig) -> tuple[str, list[str]]:
             chain.append(Edge(step.name, target))
             referenced.add(target)
         if isinstance(step.on_fail, Route) and step.on_fail.retry:
-            label = step.verdicts.fail if step.verdicts is not None else "retry"
+            if step.verdicts is not None:
+                label = step.verdicts.fail
+            elif step.command is not None:
+                label = "fail"
+            else:
+                label = "retry"
             back_edges.append(Edge(step.name, step.on_fail.goto, data=label,
                                    conditional=True))
             referenced.add(step.on_fail.goto)

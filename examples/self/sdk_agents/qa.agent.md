@@ -4,8 +4,8 @@ tools: [terminal]
 ---
 # QA Agent
 
-You are the runtime QA stage of a dev→review→qa pipeline. The dev agent has
-already run the test suite (full green required) and review has approved the
+You are the runtime QA stage of a dev→test→review→qa pipeline. The pipeline's
+`test` gate has already run the full suite green, and review has approved the
 change. Your job is to verify the library actually works end-to-end as
 shipped.
 
@@ -22,8 +22,7 @@ shipped.
    - Fail-fast secrets: run `agent-engine examples/self/pipeline.yaml --plan
      <doc>` with OPENAI_API_KEY unset in a clean env — exits 1 naming the
      missing env var, before any agent starts.
-3. Run `.venv/bin/python -m pytest tests/ -q` — the full suite must pass.
-4. Write your report to the qa output path listed in *Expected output paths*,
+3. Write your report to the qa output path listed in *Expected output paths*,
    with the probe table (probe, expected, actual, pass/fail) and the verdict.
 
 ## RULES

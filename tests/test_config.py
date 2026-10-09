@@ -7,7 +7,10 @@ from pydantic import ValidationError
 from agent_engine.config import Route, load_config
 
 # The plan's yosk-equivalent reference pipeline (009, YAML schema section),
-# verbatim. This is the canonical pin: the documented schema must load.
+# verbatim except for one substitution: 012 replaced the agent step named
+# `test` (artifact ci-fix.md, PASS/FAIL) with the mechanical command step
+# named `test` — same position, same on_fail wiring. This is the canonical
+# pin: the documented schema must load.
 FULL_YAML = """\
 name: yosk-construction
 
@@ -34,9 +37,8 @@ steps:
     on_pass: test
 
   - name: test
-    agent: test
-    artifact: ci-fix.md
-    verdicts: { pass: PASS, fail: FAIL }
+    command: python -m pytest
+    timeout: 600
     on_pass: review
     on_fail: { goto: dev, retry: true }
 
@@ -106,9 +108,9 @@ def test_full_schema_example_round_trips(tmp_path):
     assert dev.on_pass == "test"
     assert dev.on_fail is None
 
-    assert test.artifact == "ci-fix.md"
-    assert test.verdicts.pass_ == "PASS"
-    assert test.verdicts.fail == "FAIL"
+    assert test.agent is None
+    assert test.command == "python -m pytest"
+    assert test.timeout == 600
     assert test.on_fail == Route(goto="dev", retry=True)
 
     assert review.verdicts.fail == "NEEDS CHANGES"
@@ -131,6 +133,8 @@ def test_minimal_config_applies_defaults(tmp_path):
     assert cfg.max_attempts == 3
     step = cfg.steps[0]
     assert step.action is None
+    assert step.command is None
+    assert step.timeout is None
     assert step.params == {}
     assert step.produces == []
     assert step.artifact is None
@@ -203,14 +207,89 @@ def test_terminal_targets_allowed(tmp_path):
 def test_both_agent_and_action_rejected(tmp_path):
     data = _base()
     data["steps"][0]["action"] = "commit"
-    with pytest.raises(ValidationError, match="exactly one of 'agent' or 'action'"):
+    with pytest.raises(ValidationError,
+                       match="exactly one of 'agent', 'action', or 'command'"):
         _load(tmp_path, data)
 
 
 def test_neither_agent_nor_action_rejected(tmp_path):
     data = _base()
     del data["steps"][0]["agent"]
-    with pytest.raises(ValidationError, match="exactly one of 'agent' or 'action'"):
+    with pytest.raises(ValidationError,
+                       match="exactly one of 'agent', 'action', or 'command'"):
+        _load(tmp_path, data)
+
+
+def test_command_step_round_trips(tmp_path):
+    data = _base()
+    data["steps"] = [{"name": "test", "command": "python -m pytest",
+                      "timeout": 60, "on_pass": "success"}]
+    step = _load(tmp_path, data).steps[0]
+    assert step.command == "python -m pytest"
+    assert step.timeout == 60
+
+
+def test_command_step_defaults_timeout_none(tmp_path):
+    data = _base()
+    data["steps"] = [{"name": "test", "command": "make check",
+                      "on_pass": "success"}]
+    step = _load(tmp_path, data).steps[0]
+    assert step.command == "make check"
+    assert step.timeout is None
+
+
+@pytest.mark.parametrize("timeout", [0, -1])
+def test_command_timeout_must_be_positive(tmp_path, timeout):
+    data = _base()
+    data["steps"] = [{"name": "test", "command": "true", "timeout": timeout}]
+    with pytest.raises(ValidationError, match="greater than 0"):
+        _load(tmp_path, data)
+
+
+def test_command_and_agent_rejected(tmp_path):
+    data = _base()
+    data["steps"][0]["command"] = "true"
+    with pytest.raises(ValidationError,
+                       match="exactly one of 'agent', 'action', or 'command'"):
+        _load(tmp_path, data)
+
+
+def test_command_and_action_rejected(tmp_path):
+    data = _base()
+    data["steps"] = [{"name": "x", "action": "commit", "command": "true"}]
+    with pytest.raises(ValidationError,
+                       match="exactly one of 'agent', 'action', or 'command'"):
+        _load(tmp_path, data)
+
+
+def test_agent_action_command_rejected(tmp_path):
+    data = _base()
+    data["steps"][0]["action"] = "commit"
+    data["steps"][0]["command"] = "true"
+    with pytest.raises(ValidationError,
+                       match="exactly one of 'agent', 'action', or 'command'"):
+        _load(tmp_path, data)
+
+
+def test_timeout_without_command_rejected(tmp_path):
+    data = _base()
+    data["steps"][0]["timeout"] = 60
+    with pytest.raises(ValidationError, match="'timeout' requires 'command'"):
+        _load(tmp_path, data)
+
+
+@pytest.mark.parametrize("field,value", [
+    ("artifact", "a.md"),
+    ("verdicts", {"pass": "P", "fail": "F"}),
+    ("produces", ["a.md"]),
+    ("params", {"x": 1}),
+    ("max_iterations", 200),
+])
+def test_command_step_banned_fields_rejected(tmp_path, field, value):
+    data = _base()
+    data["steps"] = [{"name": "x", "command": "true", field: value}]
+    with pytest.raises(ValidationError,
+                       match=f"'command' steps cannot set '{field}'"):
         _load(tmp_path, data)
 
 

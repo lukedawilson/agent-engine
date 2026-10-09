@@ -2,10 +2,11 @@
 
 An opinionated library for building **stage-gated autonomous dev pipelines**.
 A pipeline is a YAML file of steps; each step runs an OpenHands agent (with a
-file-artifact verdict protocol) or a deterministic Python action; LangGraph
-drives routing, retries, checkpoints and resume. The fixed policies —
-artifact hygiene, attempt-bounded retries, fail-fast on empty context, a
-single gated commit point — are the product.
+file-artifact verdict protocol), a deterministic Python action, or a
+mechanical shell command (exit code = verdict); LangGraph drives routing,
+retries, checkpoints and resume. The fixed policies — artifact hygiene,
+attempt-bounded retries, fail-fast on empty context, a single gated commit
+point — are the product.
 
 Publicly depends on [OpenHands SDK](https://github.com/OpenHands/software-agent-sdk)
 for agent execution and [LangGraph](https://github.com/langchain-ai/langgraph)
@@ -55,26 +56,28 @@ The shipped self-loop example (`examples/self/`, launched from the repo root
 so the pipeline constructs this library itself) is:
 
 ```
-dev ──▶ review ──▶ qa ──▶ commit
-▲          │        │
-└──────────┴────────┘   fail verdicts retry to dev
-                       (attempt-bounded)
+dev ──▶ test ──▶ review ──▶ qa ──▶ commit
+▲          │         │         │
+└──────────┴─────────┴─────────┘   fail verdicts / a failing test gate
+                                   retry to dev (attempt-bounded)
 ```
 
 1. **dev** runs the `dev` agent with full context (selected docs +
    `additional_files:` + auto-generated expected-output paths). Its writes
    are untracked; the pipeline only cares about declared `produces:` files.
-   The dev agent owns the test suite: it must run the full suite and be
-   green before it declares itself done.
-2. **review / qa** are verdict agents: each must write its declared
+2. **test** is a mechanical command step: it runs the suite
+   (`.venv/bin/python -m pytest tests/ -q`) in the workspace shell. Exit 0
+   passes and moves on; anything else (including no exit by `timeout`) fails
+   and rewinds to `dev` with the failing output in the retry note.
+3. **review / qa** are verdict agents: each must write its declared
    artifact (e.g. `.pr/qa-report.md`) whose **last** `VERDICT: <word>` line
    decides routing. `pass` follows `on_pass`, `fail` follows `on_fail` —
    here `{goto: dev, retry: true}`, which consumes an attempt and feeds the
    artifact back to the dev agent as a retry note.
-3. **commit** is the single commit point: `git add -A` + templated message,
+4. **commit** is the single commit point: `git add -A` + templated message,
    but only when the worktree was clean at run start (your in-progress edits
    are never swept into a loop commit).
-4. Attempts are bounded by `max_attempts` (YAML or `--max-attempts`).
+5. Attempts are bounded by `max_attempts` (YAML or `--max-attempts`).
    Exhaustion or a `failure` route ends the run; `success` commits and exits.
 
 Every stage boundary is checkpointed to `<state_dir>/loop-checkpoints.sqlite`
@@ -101,14 +104,20 @@ llm:
   # timeout: null                    # default = no client timeout (long agent runs)
 
 state_dir: .pr                        # artifacts + checkpoints live here
-max_attempts: 3                       # retries across the whole graph
+max_attempts: 10                      # retries across the whole graph
 agents_dir: sdk_agents                # consumer-owned <name>.agent.md files
 
 steps:
   - name: dev
     agent: dev                        # → sdk_agents/dev.agent.md
     produces: implementation-summary.md  # written under state_dir (str or list)
-    on_pass: review                   # explicit; omitted → next step in order
+    on_pass: test                     # explicit; omitted → next step in order
+
+  - name: test
+    command: .venv/bin/python -m pytest tests/ -q   # mechanical: exit code is the verdict
+    timeout: 600                                     # seconds; SIGKILLs the process group
+    on_pass: review
+    on_fail: {goto: dev, retry: true}
 
   - name: review
     agent: review
@@ -134,7 +143,12 @@ steps:
 
 Step semantics:
 
-- `agent` and `action` are mutually exclusive; exactly one is required.
+- `agent`, `action`, and `command` are mutually exclusive; exactly one is
+  required.
+- A `command` step is **mechanical** — the command runs in the workspace
+  shell; exit 0 passes, anything else (including no exit by `timeout`,
+  default 600s) fails and follows `on_fail` with the output tail in the
+  retry note. The kind is the `command:` key, never the step's name.
 - `artifact` + `verdicts` mark a **verdict step**. `on_pass`/`on_fail` may be
   a step name, the terminal `success`/`failure`, or `{goto: X, retry: true}`.
   `on_pass` omitted → next step in list order. `on_fail` omitted → `failure`.
@@ -204,6 +218,8 @@ Duplicate CLI option strings across loaders are a load-time error naming both.
 - **Single commit point**, gated on a clean-at-start worktree; the commit
   action no-ops rather than sweep up your unrelated edits.
 - **Unclear verdicts are never routable** — always an attempt-bounded retry.
+- **Command steps are mechanical** — never an LLM call; the exit code is the
+  verdict; a timeout kills the process group.
 - **Port sweeps are explicit actions** with required `port`, optional
   `match` substring filter — the startup sweep of the engine's own viz
   server (cwd-scoped, best-effort) is the one built-in exception.

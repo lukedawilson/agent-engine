@@ -1,7 +1,7 @@
 """Graph builder + run_pipeline behavioral tests.
 
 The yosk-equivalent YAML below must reproduce the hardcoded loop's behavior:
-dev → test → review → port_sweep → qa → commit, retries to dev, failure on
+dev → check → review → port_sweep → qa → commit, retries to dev, failure on
 exhaustion/exception. run_agent is stubbed (the SDK network boundary);
 everything else — files, git, checkpoints — is real.
 
@@ -12,6 +12,7 @@ import argparse
 import queue
 import sqlite3
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -41,9 +42,9 @@ steps:
   - name: dev
     agent: dev
     produces: implementation-summary.md
-    on_pass: test
-  - name: test
-    agent: test
+    on_pass: check
+  - name: check
+    agent: check
     artifact: ci-fix.md
     verdicts: { pass: PASS, fail: FAIL }
     on_pass: review
@@ -64,6 +65,34 @@ steps:
     verdicts: { pass: PASS, fail: FAIL }
     max_iterations: 200
     on_pass: commit
+  - name: commit
+    action: commit
+    params: { message: "feat: construct {subject} (agent dev loop)" }
+    on_pass: success
+"""
+
+
+# The command step exercises a real subprocess: dev writes `.pr/fix.marker`
+# (the marker), the mechanical `test` gate passes only when it exists, and a
+# missing marker rewinds to dev with the gate's output in the retry note.
+COMMAND_STAGE_YAML = """\
+name: command-stage
+llm:
+  model: openai/deepseek-v4-pro
+  base_url: https://api.deepseek.com
+  api_key_env: TEST_LLM_KEY
+state_dir: .pr
+max_attempts: 3
+agents_dir: sdk_agents
+steps:
+  - name: dev
+    agent: dev
+    produces: implementation-summary.md
+    on_pass: test
+  - name: test
+    command: python -c "import sys; import pathlib; print('test output'); sys.exit(0 if pathlib.Path('.pr/fix.marker').exists() else 1)"
+    on_pass: commit
+    on_fail: { goto: dev, retry: true }
   - name: commit
     action: commit
     params: { message: "feat: construct {subject} (agent dev loop)" }
@@ -102,7 +131,7 @@ def args(**over):
 
 def script_all_pass(fake_agents):
     fake_agents.set("dev", [("write", "implementation-summary.md", "built it")])
-    fake_agents.set("test", [("write", "ci-fix.md", "VERDICT: PASS")])
+    fake_agents.set("check", [("write", "ci-fix.md", "VERDICT: PASS")])
     fake_agents.set("review", [("write", "review-findings.md", "VERDICT: APPROVED")])
     fake_agents.set("qa", [("write", "qa-report.md", "VERDICT: PASS")])
 
@@ -116,7 +145,7 @@ class TestTopology:
                           agents_dir=repo / "sdk_agents", state_dir=repo / ".pr",
                           workspace=repo)
         nodes = set(build_graph(runtime).get_graph().nodes)
-        assert {"dev", "test", "review", "port_sweep", "qa", "commit",
+        assert {"dev", "check", "review", "port_sweep", "qa", "commit",
                 "bump", "success"} <= nodes
 
     def test_unknown_action_fails_at_build(self, repo):
@@ -135,7 +164,7 @@ class TestRunPipeline:
         script_all_pass(fake_agents)
         ok, attempts = run_pipeline("pipeline.yaml", args())
         assert (ok, attempts) == (True, 1)
-        assert fake_agents.agents_called() == ["dev", "test", "review", "qa"]
+        assert fake_agents.agents_called() == ["dev", "check", "review", "qa"]
         assert git(repo, "log", "-1", "--pretty=%s") == \
             "feat: construct plan plan.md (agent dev loop)"
         (dev_msg,) = fake_agents.messages_for("dev")
@@ -144,41 +173,41 @@ class TestRunPipeline:
 
     def test_test_fail_retries_from_dev(self, repo, fake_agents):
         script_all_pass(fake_agents)
-        fake_agents.set("test", [
+        fake_agents.set("check", [
             ("write", "ci-fix.md", "broken build\nVERDICT: FAIL"),
             ("write", "ci-fix.md", "VERDICT: PASS"),
         ])
         ok, attempts = run_pipeline("pipeline.yaml", args())
         assert (ok, attempts) == (True, 2)
         assert fake_agents.agents_called() == \
-            ["dev", "test", "dev", "test", "review", "qa"]
+            ["dev", "check", "dev", "check", "review", "qa"]
         second_dev = fake_agents.messages_for("dev")[1]
         assert "broken build" in second_dev  # fail note reached the next attempt
 
     def test_exhaustion_fails(self, repo, fake_agents):
-        fake_agents.set("test", [("write", "ci-fix.md", "VERDICT: FAIL")])
+        fake_agents.set("check", [("write", "ci-fix.md", "VERDICT: FAIL")])
         ok, attempts = run_pipeline("pipeline.yaml", args())
         assert (ok, attempts) == (False, 3)
-        assert fake_agents.agents_called() == ["dev", "test"] * 3
+        assert fake_agents.agents_called() == ["dev", "check"] * 3
         assert git(repo, "log", "-1", "--pretty=%s") == "init"  # no commit
 
     def test_max_attempts_cli_override(self, repo, fake_agents):
-        fake_agents.set("test", [("write", "ci-fix.md", "VERDICT: FAIL")])
+        fake_agents.set("check", [("write", "ci-fix.md", "VERDICT: FAIL")])
         ok, attempts = run_pipeline("pipeline.yaml", args(max_attempts=1))
         assert (ok, attempts) == (False, 1)
-        assert fake_agents.agents_called() == ["dev", "test"]
+        assert fake_agents.agents_called() == ["dev", "check"]
 
     def test_agent_exception_fails_run(self, repo, fake_agents):
         script_all_pass(fake_agents)
         fake_agents.set("review", [("raise",)])
         ok, attempts = run_pipeline("pipeline.yaml", args())
         assert (ok, attempts) == (False, 1)
-        assert fake_agents.agents_called() == ["dev", "test", "review"]
+        assert fake_agents.agents_called() == ["dev", "check", "review"]
         assert git(repo, "log", "-1", "--pretty=%s") == "init"
 
     def test_unclear_verdict_retries_with_content(self, repo, fake_agents):
         script_all_pass(fake_agents)
-        fake_agents.set("test", [
+        fake_agents.set("check", [
             ("write", "ci-fix.md", "undecided prose"),
             ("write", "ci-fix.md", "VERDICT: PASS"),
         ])
@@ -189,7 +218,7 @@ class TestRunPipeline:
 
     def test_stale_artifact_deleted_between_attempts(self, repo, fake_agents):
         script_all_pass(fake_agents)
-        fake_agents.set("test", [
+        fake_agents.set("check", [
             ("write", "ci-fix.md", "VERDICT: FAIL"),
             ("ok",),  # writes nothing — must be unclear, not a stale FAIL re-read
             ("write", "ci-fix.md", "VERDICT: PASS"),
@@ -222,6 +251,57 @@ class TestRunPipeline:
         assert fake_agents.calls == []
 
 
+class TestCommandStep:
+    def _write(self, repo: Path, text: str) -> None:
+        (repo / "commandstage.yaml").write_text(text)
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "add command stage")
+
+    def test_dev_writes_marker_then_test_passes(self, repo, fake_agents):
+        self._write(repo, COMMAND_STAGE_YAML)
+        fake_agents.set("dev", [("write", "fix.marker", "")])
+        ok, attempts = run_pipeline("commandstage.yaml", args())
+        assert (ok, attempts) == (True, 1)
+        assert fake_agents.agents_called() == ["dev"]
+        assert git(repo, "log", "-1", "--pretty=%s") == \
+            "feat: construct plan plan.md (agent dev loop)"
+
+    def test_test_fail_retries_from_dev(self, repo, fake_agents):
+        self._write(repo, COMMAND_STAGE_YAML)
+        fake_agents.set("dev", [("ok",), ("write", "fix.marker", "")])
+        ok, attempts = run_pipeline("commandstage.yaml", args())
+        assert (ok, attempts) == (True, 2)
+        assert fake_agents.agents_called() == ["dev", "dev"]
+        second_dev = fake_agents.messages_for("dev")[1]
+        assert "test output" in second_dev and "attempt 1" in second_dev
+
+    def test_timeout_exhausts_run_and_kills_process_group(self, repo,
+                                                          fake_agents):
+        yaml = COMMAND_STAGE_YAML.replace(
+            "    command: python -c \"import sys; import pathlib; print('test output'); sys.exit(0 if pathlib.Path('.pr/fix.marker').exists() else 1)\"",
+            "    command: sleep 3\n    timeout: 0.2")
+        self._write(repo, yaml)
+        fake_agents.set("dev", [("write", "fix.marker", "")])
+        start = time.monotonic()
+        ok, attempts = run_pipeline("commandstage.yaml", args())
+        elapsed = time.monotonic() - start
+        assert (ok, attempts) == (False, 3)
+        assert fake_agents.agents_called() == ["dev"] * 3
+        assert all("timed out" in m for m in fake_agents.messages_for("dev")[1:])
+        assert elapsed < 5.0  # killpg cut the 3s sleeps short
+
+    def test_fail_forever_with_cli_max_attempts(self, repo, fake_agents):
+        yaml = COMMAND_STAGE_YAML.replace(
+            "sys.exit(0 if pathlib.Path('.pr/fix.marker').exists() else 1)",
+            "sys.exit(1)")
+        self._write(repo, yaml)
+        fake_agents.set("dev", [("write", "fix.marker", "")])
+        ok, attempts = run_pipeline("commandstage.yaml", args(max_attempts=2))
+        assert (ok, attempts) == (False, 2)
+        assert fake_agents.agents_called() == ["dev"] * 2
+        assert git(repo, "log", "-1", "--pretty=%s") == "add command stage"
+
+
 class TestResume:
     def sole_thread_id(self, repo) -> str:
         db = repo / ".pr" / "loop-checkpoints.sqlite"
@@ -243,7 +323,7 @@ class TestResume:
         assert (ok, attempts) == (True, 1)
         # dev and test completed before the crash — only review onward re-ran
         assert fake_agents.agents_called() == \
-            ["dev", "test", "review", "review", "qa"]
+            ["dev", "check", "review", "review", "qa"]
         assert git(repo, "log", "-1", "--pretty=%s") == \
             "feat: construct plan plan.md (agent dev loop)"
 
@@ -282,7 +362,7 @@ class TestVizStream:
         assert [e["type"] for e in events][0] == "run_started"
         assert [e["type"] for e in events][-1] == "run_finished"
         started = [e["node"] for e in events if e["type"] == "node_started"]
-        assert started == ["dev", "test", "review", "port_sweep", "qa",
+        assert started == ["dev", "check", "review", "port_sweep", "qa",
                            "commit", "success"]
         assert events[0]["subject"] == "plan plan.md"
         assert events[0]["max_attempts"] == 3
@@ -290,7 +370,7 @@ class TestVizStream:
         assert events[-1]["attempts"] == 1
 
     def test_stream_path_failure_returns_same(self, repo, fake_agents):
-        fake_agents.set("test", [("write", "ci-fix.md", "VERDICT: FAIL")])
+        fake_agents.set("check", [("write", "ci-fix.md", "VERDICT: FAIL")])
         bus = VizBus()
         ok, attempts = run_pipeline("pipeline.yaml", args(), viz_bus=bus)
         assert (ok, attempts) == (False, 3)
@@ -329,4 +409,4 @@ class TestVizStream:
             "pipeline.yaml", args(plan=None, resume=tid), viz_bus=VizBus())
         assert (ok, attempts) == (True, 1)
         assert fake_agents.agents_called() == \
-            ["dev", "test", "review", "review", "qa"]
+            ["dev", "check", "review", "review", "qa"]

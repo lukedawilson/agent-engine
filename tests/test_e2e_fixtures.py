@@ -27,6 +27,34 @@ from agent_engine.registry import default_registry
 EXAMPLE = Path(__file__).resolve().parent.parent / "examples" / "self"
 
 
+# Scripted stand-in for the shipped example's mechanical test command. The
+# example runs `.venv/bin/python -m pytest tests/ -q`, which cannot run inside
+# the consumer-repo copy (no .venv, no tests/) — so this fixture scripts the
+# seam locally. The real subprocess path stays covered by test_stages.py and
+# test_graph.py. Behaviors: ("pass",) → (0, "", False); ("fail", output) →
+# (1, output, False); ("timeout", output) → (None, output, True); the last
+# behavior repeats; empty queue → default pass.
+_COMMAND_QUEUE: list[tuple] = []
+
+
+def _fake_run_command(command, workspace, timeout):
+    if not _COMMAND_QUEUE:
+        return 0, "", False
+    behavior = _COMMAND_QUEUE[0]
+    if len(_COMMAND_QUEUE) > 1:
+        _COMMAND_QUEUE.pop(0)
+    kind = behavior[0]
+    if kind == "fail":
+        return 1, behavior[1], False
+    if kind == "timeout":
+        return None, behavior[1], True
+    return 0, "", False
+
+
+def _script_test(*behaviors):
+    _COMMAND_QUEUE[:] = list(behaviors)
+
+
 def _passing_scripts(fake_agents, **overrides):
     scripts = {
         "dev": [("ok",)],
@@ -66,6 +94,9 @@ def consumer_repo(tmp_path, monkeypatch, fake_agents):
     # docstring).
     monkeypatch.setattr("agent_engine.actions._listening_pids",
                         lambda *a, **k: [])
+    # Script the example's mechanical test command (see _fake_run_command).
+    _script_test()
+    monkeypatch.setattr("agent_engine.stages._run_command", _fake_run_command)
     return repo
 
 
@@ -157,6 +188,44 @@ class TestHistoricalFixtures:
             main([str(consumer_repo / "examples" / "self" / "pipeline.yaml"),
                   "--ai-dlc-unit", "U99", "--no-viz"])
         assert fake_agents.calls == []
+
+
+class TestCommandGate:
+    def _run(self, consumer_repo) -> int:
+        return main([str(consumer_repo / "examples" / "self" / "pipeline.yaml"),
+                     "--plan", "plan.md", "--no-viz"])
+
+    def test_gate_passes_through(self, consumer_repo, fake_agents):
+        _passing_scripts(fake_agents)
+        assert self._run(consumer_repo) == 0
+        assert fake_agents.agents_called() == ["dev", "review", "qa"]
+        assert "feat: construct plan plan.md (agent dev loop)" in _log(
+            consumer_repo)
+
+    def test_gate_fail_rewinds_to_dev_with_output(self, consumer_repo,
+                                                  fake_agents):
+        _passing_scripts(fake_agents)
+        _script_test(("fail", "2 failed, 1 passed in 0.05s\n"), ("pass",))
+        assert self._run(consumer_repo) == 0
+        assert fake_agents.agents_called() == ["dev", "dev", "review", "qa"]
+        second_dev = fake_agents.messages_for("dev")[1]
+        assert "2 failed, 1 passed" in second_dev
+        assert "test output (attempt 1)" in second_dev
+
+    def test_gate_timeout_rewinds_with_tail(self, consumer_repo, fake_agents):
+        _passing_scripts(fake_agents)
+        _script_test(("timeout", "collected 250 items\n"), ("pass",))
+        assert self._run(consumer_repo) == 0
+        second_dev = fake_agents.messages_for("dev")[1]
+        assert "timed out" in second_dev
+        assert "collected 250 items" in second_dev
+
+    def test_gate_fail_forever_exhausts(self, consumer_repo, fake_agents):
+        _passing_scripts(fake_agents)
+        _script_test(("fail", "boom\n"))
+        assert self._run(consumer_repo) != 0
+        assert fake_agents.agents_called() == ["dev"] * 10
+        assert "(agent dev loop)" not in _log(consumer_repo)
 
 
 class TestExampleExtensionless:
