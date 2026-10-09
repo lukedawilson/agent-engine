@@ -29,7 +29,7 @@ from agent_engine.viz import (MAX_LINE, PAGE, ConsoleCapture, HeartbeatThread,
                               serve_viz, topology_mermaid, translate)
 
 MERMAID = "graph TD;\n\tdev(dev)\n\ttest(test)\n"
-SELF_PIPELINE = Path(__file__).parent.parent / "examples" / "self" / "pipeline.yaml"
+SELF_PIPELINE = Path(__file__).parent.parent / "agent-engine" / "pipeline.yaml"
 
 
 def tasks_start(name):

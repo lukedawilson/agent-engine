@@ -5,5 +5,5 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 
 cd "$ROOT"
 exec "$ROOT/.venv/bin/agent-engine" \
-  "$ROOT/examples/self/pipeline.yaml" \
+  "$ROOT/agent-engine/pipeline.yaml" \
   "$@"

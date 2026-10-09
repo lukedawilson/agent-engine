@@ -14,12 +14,12 @@ shipped.
 1. Read the dev agent's implementation summary (the dev path in *Expected
    output paths*) to see what was actually built.
 2. Probe the shipped CLI surface (no LLM keys needed for these):
-   - `agent-engine examples/self/pipeline.yaml --help` — exits 0; help shows
+   - `agent-engine agent-engine/pipeline.yaml --help` — exits 0; help shows
      `--resume`, `--max-attempts`, and the pipeline's document-loader flags.
    - Fail-fast config: copy the pipeline to a temp file, break one required
      field, run `agent-engine <copy> --plan <doc>` — exits 1 with an error
      naming the offending field.
-   - Fail-fast secrets: run `agent-engine examples/self/pipeline.yaml --plan
+   - Fail-fast secrets: run `agent-engine agent-engine/pipeline.yaml --plan
      <doc>` with OPENAI_API_KEY unset in a clean env — exits 1 naming the
      missing env var, before any agent starts.
 3. Write your report to the qa output path listed in *Expected output paths*,

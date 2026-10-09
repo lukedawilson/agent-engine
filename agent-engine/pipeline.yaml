@@ -4,7 +4,7 @@ extensions:
   - agent_engine.extensions.aidlc:AidlcExtension   # bundled; loading IS choosing
 
 additional_files:                    # top-level, standalone, optional
-  - ../../README.md                  # resolved relative to the pipeline file's dir;
+  - ../README.md                     # resolved relative to the pipeline file's dir;
                                      # listed-but-missing → fail fast
 
 llm:

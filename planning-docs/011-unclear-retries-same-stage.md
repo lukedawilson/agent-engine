@@ -8,7 +8,7 @@
 
 > "Write a planning doc under planning-docs to fix the retry policy as you suggest"
 
-(the suggestion: "unclear verdicts should retry the failing stage itself instead of rewinding to dev").
+(The suggestion: "unclear verdicts should retry the failing stage itself instead of rewinding to dev").
 
 **Architecture:** One engine change, no graph changes:
 

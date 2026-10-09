@@ -1,7 +1,7 @@
 """Manual smoke harness for the viz page: Storybook-style, minus the pipeline.
 
 Serves the real embedded page + the real self-loop topology (built from
-examples/self/pipeline.yaml, no LLM construction), then publishes a scripted
+agent-engine/pipeline.yaml, no LLM construction), then publishes a scripted
 run to the bus so every visual state can be eyeballed in the browser: pending
 → running → passed/failed nodes, verdict badges (fail on attempt 1, reset on
 bump, pass on attempt 2), the attempt counter, the scrolling event log, and
@@ -34,7 +34,7 @@ from pathlib import Path
 from agent_engine import viz
 from agent_engine.config import load_config
 
-EXAMPLE = Path(__file__).parent / "examples" / "self" / "pipeline.yaml"
+EXAMPLE = Path(__file__).parent / "agent-engine" / "pipeline.yaml"
 SUBJECT = "plan demo.md"
 
 NODE_GAP = 1.0    # between nodes — the pace a watcher sees

@@ -25,9 +25,9 @@ Requires Python ≥ 3.11.
 
 ```bash
 export OPENAI_API_KEY=...   # whatever env var your pipeline's api_key_env names
-agent-engine examples/self/pipeline.yaml --plan plan.md
-agent-engine examples/self/pipeline.yaml --ai-dlc-unit U2
-agent-engine examples/self/pipeline.yaml --resume <thread-id> --max-attempts 5
+agent-engine agent-engine/pipeline.yaml --plan plan.md
+agent-engine agent-engine/pipeline.yaml --ai-dlc-unit U2
+agent-engine agent-engine/pipeline.yaml --resume <thread-id> --max-attempts 5
 ./trigger-agent-engine.sh --plan plan.md   # same thing, from the repo root
 ```
 
@@ -52,7 +52,7 @@ every candidate; pass the full slug to disambiguate.
 
 ## What a run looks like
 
-The shipped self-loop example (`examples/self/`, launched from the repo root
+The shipped self-loop example (`agent-engine/`, launched from the repo root
 so the pipeline constructs this library itself) is:
 
 ```
@@ -85,14 +85,14 @@ Every stage boundary is checkpointed to `<state_dir>/loop-checkpoints.sqlite`
 
 ## pipeline.yaml reference
 
-Verbatim from `examples/self/pipeline.yaml` (comments added):
+Verbatim from `agent-engine/pipeline.yaml` (comments added):
 
 ```yaml
 name: agent-engine-construction
 extensions:
   - agent_engine.extensions.aidlc:AidlcExtension
 additional_files:
-  - ../../README.md                  # shared context for every agent step
+  - ../README.md                     # shared context for every agent step
 
 llm:
   model: openai/deepseek-v4-pro
@@ -229,7 +229,7 @@ Duplicate CLI option strings across loaders are a load-time error naming both.
 
 ## The example consumer
 
-`examples/self/` is a complete, runnable consumer that turns the library on
+`agent-engine/` is a complete, runnable consumer that turns the library on
 its own repo: the pipeline above, its three agent definitions (`sdk_agents/`),
 and this README wired in as shared context. Run it from the repo root with
 `./trigger-agent-engine.sh --plan plan.md`. The e2e suite
