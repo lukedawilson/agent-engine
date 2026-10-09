@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import errno
 import json
+import os
 import queue
 import sys
 import threading
@@ -198,16 +199,27 @@ class _Tee:
 
 class ConsoleCapture:
     """Tees sys.stdout/sys.stderr into the viz bus, line by line, attributed
-    to the node NodeWatch currently reports (None when idle)."""
+    to the node NodeWatch currently reports (None when idle).
+
+    While attached, ``COLUMNS`` is forced to ``MAX_LINE`` so that rich-based
+    writers (e.g. the SDK's conversation visualizer) do not hard-wrap output
+    at a terminal-width fallback: under the capture, stdout is a pipe, so
+    rich would otherwise bake 80-column newlines into the console stream that
+    the browser's ``pre-wrap`` cannot rejoin. The previous value is restored
+    on detach.
+    """
 
     def __init__(self, bus: VizBus, watch: NodeWatch) -> None:
         self._bus = bus
         self._watch = watch
         self._tees: dict[str, _Tee] | None = None
+        self._old_columns: str | None = None
 
     def attach(self) -> None:
         if self._tees is not None:
             raise RuntimeError("ConsoleCapture is already attached")
+        self._old_columns = os.environ.get("COLUMNS")
+        os.environ["COLUMNS"] = str(MAX_LINE)
         self._tees = {
             "stdout": _Tee(self, "stdout", sys.stdout),
             "stderr": _Tee(self, "stderr", sys.stderr),
@@ -223,6 +235,10 @@ class ConsoleCapture:
             tee.flush()
             setattr(sys, stream, tee._target)
         self._tees = None
+        if self._old_columns is None:
+            os.environ.pop("COLUMNS", None)
+        else:
+            os.environ["COLUMNS"] = self._old_columns
 
     def _publish(self, stream: str, line: str) -> None:
         if len(line) > MAX_LINE:

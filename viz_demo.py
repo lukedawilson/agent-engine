@@ -49,19 +49,27 @@ def real_topology() -> tuple[str, list[str]]:
 
 
 def emit_node(bus: viz.VizBus, name: str, state: dict | None = None,
-              ok: bool = True, flood: int = 0) -> None:
+              ok: bool = True, flood: int = 0, kind: str = "agent") -> None:
     """One node's real event cadence: started → heartbeat → state →
     heartbeat → finished, so the elapsed line is eyeballable without an LLM.
 
-    ``flood`` publishes that many extra console lines between the two
-    heartbeats (slow enough to watch the panel tail live), for exercising
-    the tail/eviction paths with a single node."""
+    ``kind="command"`` makes the node look like the pipeline's mechanical
+    test gate (a shell command + its exit output) instead of an agent
+    conversation. ``flood`` publishes that many extra console lines between
+    the two heartbeats (slow enough to watch the panel tail live), for
+    exercising the tail/eviction paths with a single node."""
     started = time.monotonic()
     bus.publish({"type": "node_started", "node": name})
     bus.publish({"type": "console", "node": name, "stream": "stdout",
-                 "text": f"[demo] Running {name} agent..."})
-    bus.publish({"type": "console", "node": name, "stream": "stderr",
-                 "text": "\x1b[33m[SDK] step 1 \u2014 thinking\x1b[0m"})
+                 "text": f"[demo] Running {name} step..."})
+    if kind == "command":
+        bus.publish({"type": "console", "node": name, "stream": "stdout",
+                     "text": "$ .venv/bin/python -m pytest tests/ -q"})
+        bus.publish({"type": "console", "node": name, "stream": "stdout",
+                     "text": "323 passed in 28.0s"})
+    else:
+        bus.publish({"type": "console", "node": name, "stream": "stderr",
+                     "text": "\x1b[33m[SDK] step 1 \u2014 thinking\x1b[0m"})
     bus.publish({"type": "heartbeat", "node": name,
                  "elapsed_seconds": int(time.monotonic() - started)})
     if flood:
@@ -84,7 +92,9 @@ def run_scenario(bus: viz.VizBus, scenario: str, flood: int = 0) -> None:
     """Fabricate one run. `success`: qa fails its verdict on attempt 1,
     bump retries to dev, everything passes on attempt 2. `failure`: the
     qa node itself hard-fails on attempt 1 (red node, failure banner).
-    `flood` lines are emitted by the attempt-1 dev node (see emit_node)."""
+    The mechanical `test` command gate runs between `dev` and `review` on
+    every attempt. `flood` lines are emitted by the attempt-1 dev node
+    (see emit_node)."""
     bus.publish({"type": "run_started", "subject": SUBJECT,
                  "max_attempts": 3, "thread_id": "viz-demo", "attempt": 1})
     bus.publish({"type": "console", "node": None, "stream": "stdout",
@@ -92,6 +102,8 @@ def run_scenario(bus: viz.VizBus, scenario: str, flood: int = 0) -> None:
     time.sleep(NODE_GAP)
 
     emit_node(bus, "dev", {"attempt": 1}, flood=flood)
+    emit_node(bus, "test", {"step_verdicts": {"test": "pass"}},
+              kind="command")
     emit_node(bus, "review", {"step_verdicts": {"review": "pass"}})
     if scenario == "failure":
         emit_node(bus, "qa", ok=False)
@@ -101,6 +113,8 @@ def run_scenario(bus: viz.VizBus, scenario: str, flood: int = 0) -> None:
     emit_node(bus, "qa", {"step_verdicts": {"review": "pass", "qa": "fail"}})
     emit_node(bus, "bump", {"attempt": 2, "step_verdicts": {}})
     emit_node(bus, "dev")
+    emit_node(bus, "test", {"step_verdicts": {"test": "pass"}},
+              kind="command")
     emit_node(bus, "review", {"step_verdicts": {"review": "pass"}})
     emit_node(bus, "qa", {"step_verdicts": {"review": "pass", "qa": "pass"}})
     emit_node(bus, "commit")

@@ -407,6 +407,20 @@ class TestConsoleCapture:
         tee = _Tee(cap, "stdout", TtyTarget())
         assert tee.isatty() is True
 
+    def test_columns_env_wide_during_capture(self, monkeypatch):
+        monkeypatch.delenv("COLUMNS", raising=False)
+        cap, _out, _err = self._attach(VizBus(), StubWatch(None), monkeypatch)
+        assert os.environ["COLUMNS"] == str(MAX_LINE)
+        cap.detach()
+        assert "COLUMNS" not in os.environ
+
+    def test_columns_env_restored_after_capture(self, monkeypatch):
+        monkeypatch.setenv("COLUMNS", "120")
+        cap, _out, _err = self._attach(VizBus(), StubWatch(None), monkeypatch)
+        assert os.environ["COLUMNS"] == str(MAX_LINE)
+        cap.detach()
+        assert os.environ["COLUMNS"] == "120"
+
 
 class TestHandleOneRequest:
     def _handler(self):
@@ -800,9 +814,43 @@ class TestDemo:
         dev_stdout = [e for e in consoles if e["node"] == "dev"
                       and e["stream"] == "stdout"]
         assert dev_stdout
-        assert any("Running dev agent..." in e["text"] for e in dev_stdout)
+        assert any("Running dev step..." in e["text"] for e in dev_stdout)
         ansi = [e for e in consoles if e["stream"] == "stderr"]
         assert ansi
         assert any("\x1b[33m" in e["text"] for e in ansi)
         assert any(e["node"] is None for e in consoles)
+
+    def test_demo_runs_mechanical_test_step(self, monkeypatch):
+        import viz_demo
+
+        monkeypatch.setattr(viz_demo.time, "sleep", lambda *_a: None)
+        bus = VizBus()
+        viz_demo.run_scenario(bus, "success")
+        q = bus.subscribe()
+        events = []
+        while not q.empty():
+            events.append(q.get_nowait())
+
+        started = [e["node"] for e in events if e["type"] == "node_started"]
+        assert started.count("test") == 2  # the gate runs on both attempts
+        assert "test" in started
+        consoles = [e["text"] for e in events if e["type"] == "console"]
+        assert any("pytest" in t for t in consoles)
+
+    def test_demo_failure_scenario_runs_test_step(self, monkeypatch):
+        import viz_demo
+
+        monkeypatch.setattr(viz_demo.time, "sleep", lambda *_a: None)
+        bus = VizBus()
+        viz_demo.run_scenario(bus, "failure")
+        q = bus.subscribe()
+        events = []
+        while not q.empty():
+            events.append(q.get_nowait())
+
+        started = [e["node"] for e in events if e["type"] == "node_started"]
+        assert started == ["dev", "test", "review", "qa"]
+        run_finished = next(e for e in events
+                            if e["type"] == "run_finished")
+        assert run_finished["success"] is False
 
