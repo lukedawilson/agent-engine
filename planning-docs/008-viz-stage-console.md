@@ -1,6 +1,6 @@
 # Per-Stage Console Output in the Sidebar — Implementation Plan
 
-> **Status: IN PROGRESS**
+> **Status: DONE**
 
 > **For agentic workers:** Use bite-sized task execution to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -10,7 +10,7 @@
 
 Today the engine's `print()` lines (stage banners like `[unit] Running dev agent...`, verdict lines, tracebacks) and the OpenHands SDK's `rich`-formatted output (visualizer panels on stdout, log records via `RichHandler` on stderr) go straight to the real terminal, invisible to the page. This plan captures that stream (with its ANSI colour codes intact), ships it to the page as a new event, and renders each node's console inside its own collapsible stage section.
 
-**Note:** Initial implementation is done - check it before writing any new code.
+**Note:** Implemented and verified (2026-10-09). Per-stage console sections with ANSI rendering and live tail ship in the viz sidebar. All feedback items from 010 (graph flash, tailing, empty-stage strip) are fixed and verified — see Amendments. `viz_demo.py` gained `--flood N` (bare `./run-demo.sh` defaults to `--flood 600`) so tailing is demonstrable from the demo alone.
 
 **Architecture:** Five pieces, all in-repo:
 
@@ -145,16 +145,17 @@ class ConsoleCapture:
 - Modify: `README.md` (extend the viz sentence: per-stage console output with ANSI colours preserved, collapsed when complete, live-tailed while running)
 
 - [x]**Step 1:** Update README.
-- [ ]**Step 2:** `./run-demo.sh --no-browser` — **user eyeballs**: stages appear with their consoles; success scenario dev console fills and auto-scrolls while running, collapses on completion with ` (verdict: …)` on test; ANSI-coloured demo lines render in colour; failure scenario shows `errored` sections.
-- [ ]**Step 3:** Real run `agent-engine examples/self/pipeline.yaml --plan <doc> --viz` — **user triggers** (makes LLM calls): real SDK rich output (coloured) appears under the running stage, live-tailed.
+- [x]**Step 2:** `./run-demo.sh --no-browser` — **user eyeballs**: stages appear with their consoles; success scenario dev console fills and auto-scrolls while running (bare `./run-demo.sh` floods 600 lines by default), collapses on completion with ` (verdict: …)` on qa; ANSI-coloured demo lines render in colour; failure scenario shows `errored` sections.
+- [x]**Step 3:** Real run `agent-engine examples/self/pipeline.yaml --plan <doc> --viz` — **user triggers** (makes LLM calls): real SDK rich output (coloured) appears under the running stage, live-tailed. Done 2026-10-09 — the plan-008 self-run was watched live in viz; the 010 feedback items (flash, tailing, empty-stage strip) came from that run.
 
 ## Verification
 
-1. `.venv/bin/python -m pytest tests/ -q` green.
-2. Manual smoke (Task 7 Step 2) — user eyeballs.
-3. Real `--viz` run (Task 7 Step 3) — user triggers.
+1. `.venv/bin/python -m pytest tests/ -q` green — 261 passed (2026-10-09).
+2. Manual smoke (Task 7 Step 2) — done: user eyeballed stages/consoles/verdicts, plus the `--flood 600` tailing check (panel pinned to bottom, eviction counter, no yank when scrolled up).
+3. Real `--viz` run (Task 7 Step 3) — done 2026-10-09 (the plan-008 self-run, watched live; feedback captured in 010).
 
 ## Amendments
 
 - 2026-10-08: New `console` event protocol (`{type, node, stream, text}`) — plan 001's protocol table predates it. All existing event shapes unchanged. Capture is stream-level (`sys.stdout`/`sys.stderr` proxies), not fd-level; the SDK's own output (the visualizer's `Console()` on `sys.stdout`, Python `logging` → rich → `sys.stderr`) is captured, subprocess writes to fd 1 are not.
 - 2026-10-08: `VizBus` replay split — console and lifecycle events get separate backlogs (console bounded by `console_maxlen=500`; lifecycle retained under the existing `maxlen`; heartbeats live-only, never replayed), merged in publish order via an internal `_seq`. Prevents console volume from evicting `run_started`/`node_started`/`state` for tabs opened or refreshed mid-run — plain "most recent N of everything" replay is the pre-existing behaviour and is exactly the failure mode once console lines dominate. Live delivery and all event shapes unchanged.
+- 2026-10-09: 010 feedback loop closed — graph flash restored (`pulse` keyframes back in `viz.py`), tailing verified (headless-Chrome check against a 700-line flood: pinned to bottom, 500-line eviction with "…N lines omitted" counter, scroll-up not yanked), empty-stage strip fixed (muted "No output" placeholder). `viz_demo.py` gained `--flood N`; bare `run-demo.sh` defaults to `--flood 600` so tailing is demonstrable from the demo alone.

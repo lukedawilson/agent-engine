@@ -13,6 +13,7 @@ import operator
 import queue
 import socket
 import struct
+import sys
 import threading
 import time
 from pathlib import Path
@@ -22,9 +23,9 @@ import pytest
 
 from agent_engine import viz
 from agent_engine.config import PipelineConfig, load_config
-from agent_engine.viz import (PAGE, HeartbeatThread, NodeWatch, VizBus,
-                              _handler_class, serve_viz, topology_mermaid,
-                              translate)
+from agent_engine.viz import (MAX_LINE, PAGE, ConsoleCapture, HeartbeatThread,
+                              NodeWatch, VizBus, _Tee, _handler_class,
+                              serve_viz, topology_mermaid, translate)
 
 MERMAID = "graph TD;\n\tdev(dev)\n\ttest(test)\n"
 SELF_PIPELINE = Path(__file__).parent.parent / "examples" / "self" / "pipeline.yaml"
@@ -128,12 +129,10 @@ class TestTopologyMermaid:
         cfg = load_config(SELF_PIPELINE)
         source, nodes = topology_mermaid(cfg)
 
-        chain = ["dev", "test", "review", "port_sweep", "qa", "commit",
-                 "success"]
+        chain = ["dev", "review", "port_sweep", "qa", "commit", "success"]
         for src, dst in zip(chain, chain[1:]):
             assert f"{src} --> {dst};" in source
 
-        assert "test -. &nbsp;FAIL&nbsp; .-> dev;" in source
         assert "review -. &nbsp;NEEDS CHANGES&nbsp; .-> dev;" in source
         assert "qa -. &nbsp;FAIL&nbsp; .-> dev;" in source
 
@@ -226,6 +225,175 @@ class TestVizBus:
             received.append(q.get_nowait())
         assert len(received) == threads * per_thread
         assert {e["i"] for e in received} == set(range(threads * per_thread))
+
+    def test_console_spam_evicts_only_console(self):
+        bus = VizBus()
+        bus.publish({"type": "run_started"})
+        for i in range(600):
+            bus.publish({"type": "console", "text": i})
+        bus.publish({"type": "node_started", "node": "dev"})
+        q = bus.subscribe()
+        events = []
+        while not q.empty():
+            events.append(q.get_nowait())
+        assert [e["type"] for e in events] == \
+            ["run_started"] + ["console"] * 500 + ["node_started"]
+        console_texts = [e["text"] for e in events if e["type"] == "console"]
+        assert console_texts == list(range(100, 600))
+
+    def test_console_maxlen_is_configurable(self):
+        bus = VizBus(console_maxlen=2)
+        for i in range(5):
+            bus.publish({"type": "console", "text": i})
+        q = bus.subscribe()
+        events = []
+        while not q.empty():
+            events.append(q.get_nowait())
+        assert [e["text"] for e in events] == [3, 4]
+
+    def test_heartbeat_live_only_not_replayed(self):
+        bus = VizBus()
+        bus.publish({"type": "heartbeat", "node": "dev", "elapsed_seconds": 1})
+        q = bus.subscribe()
+        assert q.empty()
+        bus.publish({"type": "heartbeat", "node": "dev", "elapsed_seconds": 2})
+        assert q.get(timeout=1) == \
+            {"type": "heartbeat", "node": "dev", "elapsed_seconds": 2}
+
+
+class StubWatch:
+    def __init__(self, node=None):
+        self.node = node
+
+    def current(self):
+        return self.node
+
+
+class TestConsoleCapture:
+    def _attach(self, bus, watch, monkeypatch):
+        out = io.StringIO()
+        err = io.StringIO()
+        monkeypatch.setattr(sys, "stdout", out)
+        monkeypatch.setattr(sys, "stderr", err)
+        cap = ConsoleCapture(bus, watch)
+        cap.attach()
+        return cap, out, err
+
+    def _events(self, bus):
+        q = bus.subscribe()
+        events = []
+        while not q.empty():
+            events.append(q.get_nowait())
+        return events
+
+    def test_complete_lines_split_and_attributed(self, monkeypatch):
+        bus = VizBus()
+        watch = StubWatch("dev")
+        cap, out, _err = self._attach(bus, watch, monkeypatch)
+        sys.stdout.write("hello\nworld\n")
+        cap.detach()
+        assert out.getvalue() == "hello\nworld\n"
+        assert self._events(bus) == [
+            {"type": "console", "node": "dev", "stream": "stdout",
+             "text": "hello"},
+            {"type": "console", "node": "dev", "stream": "stdout",
+             "text": "world"},
+        ]
+
+    def test_ansi_preserved_verbatim(self, monkeypatch):
+        bus = VizBus()
+        cap, _out, _err = self._attach(bus, StubWatch(None), monkeypatch)
+        sys.stdout.write("\x1b[32mhi\x1b[0m\n")
+        cap.detach()
+        assert self._events(bus)[0]["text"] == "\x1b[32mhi\x1b[0m"
+
+    def test_write_through_to_target(self, monkeypatch):
+        bus = VizBus()
+        cap, out, err = self._attach(bus, StubWatch("dev"), monkeypatch)
+        sys.stdout.write("out\n")
+        sys.stderr.write("err\n")
+        cap.detach()
+        assert out.getvalue() == "out\n"
+        assert err.getvalue() == "err\n"
+        events = self._events(bus)
+        assert {e["stream"] for e in events} == {"stdout", "stderr"}
+
+    def test_partial_writes_join_into_one_line(self, monkeypatch):
+        bus = VizBus()
+        cap, _out, _err = self._attach(bus, StubWatch("dev"), monkeypatch)
+        sys.stdout.write("hel")
+        sys.stdout.write("lo\n")
+        cap.detach()
+        assert self._events(bus) == [
+            {"type": "console", "node": "dev", "stream": "stdout",
+             "text": "hello"},
+        ]
+
+    def test_crlf_stripped(self, monkeypatch):
+        bus = VizBus()
+        cap, _out, _err = self._attach(bus, StubWatch("dev"), monkeypatch)
+        sys.stdout.write("hi\r\n")
+        cap.detach()
+        assert self._events(bus)[0]["text"] == "hi"
+
+    def test_node_attribution_none_is_null(self, monkeypatch):
+        bus = VizBus()
+        cap, _out, _err = self._attach(bus, StubWatch(None), monkeypatch)
+        sys.stdout.write("idle\n")
+        cap.detach()
+        assert self._events(bus)[0]["node"] is None
+
+    def test_attach_swap_and_restore(self, monkeypatch):
+        bus = VizBus()
+        out = io.StringIO()
+        err = io.StringIO()
+        monkeypatch.setattr(sys, "stdout", out)
+        monkeypatch.setattr(sys, "stderr", err)
+        cap = ConsoleCapture(bus, StubWatch(None))
+        cap.attach()
+        assert sys.stdout is not out
+        assert sys.stderr is not err
+        cap.detach()
+        assert sys.stdout is out
+        assert sys.stderr is err
+
+    def test_double_attach_raises(self, monkeypatch):
+        bus = VizBus()
+        monkeypatch.setattr(sys, "stdout", io.StringIO())
+        monkeypatch.setattr(sys, "stderr", io.StringIO())
+        cap = ConsoleCapture(bus, StubWatch(None))
+        cap.attach()
+        with pytest.raises(RuntimeError):
+            cap.attach()
+        cap.detach()
+
+    def test_detach_idempotent(self, monkeypatch):
+        bus = VizBus()
+        cap, _out, _err = self._attach(bus, StubWatch(None), monkeypatch)
+        cap.detach()
+        cap.detach()
+
+    def test_long_line_truncated(self, monkeypatch):
+        bus = VizBus()
+        cap, _out, _err = self._attach(bus, StubWatch(None), monkeypatch)
+        sys.stdout.write("x" * (MAX_LINE + 1) + "\n")
+        cap.detach()
+        assert self._events(bus)[0]["text"] == "x" * MAX_LINE + "…"
+
+    def test_isatty_delegates_to_target(self):
+        class TtyTarget:
+            def isatty(self):
+                return True
+
+            def write(self, _s):
+                return 0
+
+            def flush(self):
+                pass
+
+        cap = ConsoleCapture(VizBus(), StubWatch(None))
+        tee = _Tee(cap, "stdout", TtyTarget())
+        assert tee.isatty() is True
 
 
 class TestHandleOneRequest:
@@ -502,6 +670,39 @@ class TestServer:
         assert "topology load timed out" in PAGE
         assert "5000" in PAGE
 
+    def test_page_constant_has_stage_sections(self):
+        assert "stage-header" in PAGE
+        assert "stage-console" in PAGE
+        assert "collapsed" in PAGE
+
+    def test_page_constant_has_console_live_tail(self):
+        assert "scrollHeight" in PAGE
+        assert "scrollTop" in PAGE
+        assert "MAX_CONSOLE" in PAGE
+        assert '"console"' in PAGE
+
+    def test_page_constant_routes_console_through_node_guard(self):
+        assert "nodeIds.has(ev.node)" in PAGE
+
+    def test_page_constant_has_ansi_renderer(self):
+        assert "ansiToHtml" in PAGE
+        assert "\\x1b" in PAGE
+        assert "38;5" in PAGE
+        assert "38;2" in PAGE
+
+    def test_page_constant_restores_running_pulse(self):
+        assert ".running > *" in PAGE
+        assert "animation: pulse" in PAGE
+        assert "@keyframes pulse" in PAGE
+
+    def test_page_constant_stage_placeholder(self):
+        assert "stage-placeholder" in PAGE
+        assert "No output" in PAGE
+
+    def test_page_constant_console_tail_robust(self):
+        assert "nearBottom" in PAGE
+        assert "requestAnimationFrame" in PAGE
+
 
 class TestDemo:
     def test_run_started_carries_attempt(self, monkeypatch):
@@ -522,12 +723,35 @@ class TestDemo:
 
         monkeypatch.setattr(viz_demo.time, "sleep", lambda *_a: None)
         bus = VizBus()
+        q = bus.subscribe()  # heartbeats are live-only, never replayed
         viz_demo.run_scenario(bus, "success")
-        q = bus.subscribe()
         events = []
         while not q.empty():
             events.append(q.get_nowait())
         heartbeats = [e for e in events if e["type"] == "heartbeat"]
         assert heartbeats
         assert all("node" in e and "elapsed_seconds" in e for e in heartbeats)
+
+    def test_demo_emits_node_console(self, monkeypatch):
+        import viz_demo
+
+        monkeypatch.setattr(viz_demo.time, "sleep", lambda *_a: None)
+        bus = VizBus()
+        q = bus.subscribe()
+        viz_demo.run_scenario(bus, "success")
+        events = []
+        while not q.empty():
+            events.append(q.get_nowait())
+
+        consoles = [e for e in events if e["type"] == "console"]
+        assert consoles
+        assert all(e["stream"] in ("stdout", "stderr") for e in consoles)
+        dev_stdout = [e for e in consoles if e["node"] == "dev"
+                      and e["stream"] == "stdout"]
+        assert dev_stdout
+        assert any("Running dev agent..." in e["text"] for e in dev_stdout)
+        ansi = [e for e in consoles if e["stream"] == "stderr"]
+        assert ansi
+        assert any("\x1b[33m" in e["text"] for e in ansi)
+        assert any(e["node"] is None for e in consoles)
 

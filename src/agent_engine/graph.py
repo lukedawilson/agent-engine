@@ -183,6 +183,8 @@ def run_pipeline(cfg_path, args, *, viz_bus=None) -> tuple[bool, int]:
                 "attempt": start_state["attempt"],
             })
             watch = viz.NodeWatch()
+            capture = viz.ConsoleCapture(bus, watch)
+            capture.attach()
             heartbeat = viz.HeartbeatThread(watch, bus)
             heartbeat.start()
             final = None
@@ -213,6 +215,7 @@ def run_pipeline(cfg_path, args, *, viz_bus=None) -> tuple[bool, int]:
                     attempts = 0
                 bus.publish({"type": "run_finished",
                              "success": success, "attempts": attempts})
+                capture.detach()
         else:
             final = graph.invoke(initial, config)
             success = final["outcome"] == "success"

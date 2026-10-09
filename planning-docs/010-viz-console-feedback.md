@@ -26,68 +26,85 @@ plan 008 — this note must not be swept into unrelated commits.
 4. For stages that haven't run, when you expand them, there's just a black
    strip — should have some text
 
+## Status (2026-10-09)
+
+All four items are resolved in the working tree and verified:
+
+- **2 — flash:** fixed — `pulse` keyframes restored (`viz.py:391-392`);
+  verified in the demo (running node pulses again).
+- **3 — tailing:** verified working — see below; the demo now floods via
+  `--flood` (bare `./run-demo.sh` defaults to 600 lines).
+- **4 — black strip:** fixed — `addPlaceholder()` (`viz.py:573-578`) renders
+  muted "No output" in every stage console; removed on first append (`:700`),
+  re-added by `clearConsoles` (`:680`). Verified in the demo.
+
 ## Grounded pointers
 
 ### 1. Core functionality — working ✓
 
 No action.
 
-### 2. Graph flash regression (solid colour, no pulse)
+### 2. Graph flash regression — **fixed, verified**
 
-The diff **deleted** the pulse animation and nothing replaced it:
+The diff **deleted** the pulse animation at implementation time; it is now
+restored (`viz.py:391-392`):
 
 ```css
--  .running > * { animation: pulse 1.2s ease-in-out infinite; }
--  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+.running > * { animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
 ```
 
 What *survives* in `viz.py`:
 - mermaid `classDef running fill:#1976d2,stroke:#1976d2,color:#fff` (line 549)
 - `nodeStatus[ev.node] = "running"` on node_started (line 851)
 
-So the current node gets a solid blue fill with no animation — exactly the
-reported symptom. **Fix direction:** restore a pulse keyframe targeted at the
-graph's running node only (`.running` on the mermaid SVG node group), *not* the
-new `.status-running` stage-header class — the old selector `.running > *` was
-scoped to the graph; the new stage UI reuses a similar class name.
+The restored `.running` rule targets the graph's SVG node group only — not
+the new `.status-running` stage-header class, which reuses a similar name and
+must not pulse.
 
-### 3. Terminal panel doesn't tail
+### 3. Terminal panel doesn't tail — **verified working**
 
-Locations (all in `PAGE` JS, `viz.py`): `tailSection(section)`,
-`appendConsole(section, html)`, `expandStage(node)`, and the header-click
-handler in `ensureSection`.
+The code evolved past the original candidates while this note was parked:
 
-Candidate causes to investigate when we pick this up:
+- `tailSection` (`viz.py:691-695`) now unconditionally snaps to bottom; the
+  old 24px guard is gone from it.
+- `appendConsole` (`:697-721`) reads `nearBottom(pre)` (the 24px guard,
+  `:687-689`) *before* mutating, evicts the first `.cline` past
+  `MAX_CONSOLE = 500` (maintaining the "…N lines omitted" counter row), then
+  re-anchors with `pre.scrollTop = pre.scrollHeight` when stuck.
+- Expand tails via `requestAnimationFrame` (header click `:596`,
+  `expandStage` `:659`) — the layout-timing candidate is addressed.
+- Replay merge: `VizBus.subscribe()` takes the backlog snapshot and registers
+  the subscriber under the same lock, so `publish()` either lands entirely
+  before the snapshot (replayed) or entirely after (delivered live) — no
+  gap/dup. `/events` SSE serves post-replay events in order.
 
-- **Eviction breaks bottom-anchoring:** `appendConsole` removes the first
-  `.cline` past `MAX_CONSOLE = 500` but never compensates `scrollTop` for the
-  removed line's height — a panel stuck to the bottom drifts up by one line per
-  eviction, so past 500 lines it stops tailing.
-- **`tailSection` guard**: only scrolls when
-  `pre.scrollHeight - pre.scrollTop - pre.clientHeight < 24`; if the user (or
-  eviction) is just outside that window, new lines never re-anchor.
-- **Expand timing:** `expandStage`/header-click call `tailSection` right after
-  `display:none → block`; `scrollHeight` may not be laid out yet at that
-  moment (content was appended while collapsed).
-- **Replay merge:** `VizBus.subscribe()` now merges lifecycle + console
-  backlogs by `_seq`; verify the `/stream` endpoint still serves post-replay
-  events in order (console events arriving before the subscriber's replay
-  completes could be missed/duplicated).
+Verification performed (2026-10-09):
 
-### 4. Black strip for stages that haven't run
+- **Live SSE**: `viz_demo.py --flood 600` → 600/600 flood lines received in
+  strict publish order, `run_started` first, `run_finished` last.
+- **Late-subscribe replay**: 600 pre-published console events → new subscriber
+  received `run_started` + the last 500 console lines (101..600) +
+  `node_finished`, merged in `_seq` order.
+- **Real browser** (headless Chrome driving the actual PAGE JS): 700-line
+  live flood → stage panel **pinned to bottom** (scroll delta 0), 500
+  `.cline`s, "…N lines omitted" counter, last line = newest; after scrolling
+  up, 10 more lines did **not** yank the panel (scrollTop unchanged).
 
-`ensureSection(node)` creates an empty
-`<pre class="stage-console">` (CSS: `background: #1e1e1e; padding: 8px 10px`)
-for **every** node at topology load. For stages with zero console events,
-expanding shows an empty dark box — the "black strip".
+To eyeball it yourself: `./run-demo.sh` (defaults to `--flood 600`).
 
-**Fix direction:** placeholder text while the console has no `.cline`
-children — e.g. a muted `.omitted`-style div: "This stage hasn't run yet" /
-"No output" — removed on the first `appendConsole`.
+### 4. Black strip for stages that haven't run — **fixed, verified**
+
+`addPlaceholder(pre)` (`viz.py:573-578`) now appends a muted "No output"
+div (`.stage-placeholder`, CSS `:432`) to every stage console at
+`ensureSection` (`:613`) and `clearConsoles` (`:680`); the first
+`appendConsole` removes it (`:700`). Unrun stages expand to a dark panel with
+the muted placeholder instead of an empty black strip. Verified in the demo
+and in the headless-Chrome check (review stage showed "No output").
 
 ## Parking notes
 
-- This note intentionally covers symptoms + pointers only; root-cause
-  confirmation and TDD tasks come when we return to it.
-- Remember the uncommitted plan-008 working-tree state (5 files listed above)
-  when committing anything else in the meantime.
+- All four items are resolved and verified — this note is now a record of the
+  feedback loop, not a backlog.
+- The uncommitted working-tree state (plan-008 implementation + stage
+  deletion + demo flood) was committed separately from anything unrelated.

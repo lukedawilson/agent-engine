@@ -34,8 +34,10 @@ Exit code is `0` on pipeline success, `1` otherwise. Each run prints its
 thread id; `--resume` continues the latest checkpoint of a previous thread
 (crash, Ctrl-C, exhaustion) with all accumulated notes intact. A live graph
 view is served on localhost by default (browser auto-opens; `--viz-port`
-overrides the default 8321) — pass `--no-viz` to suppress it. To eyeball the
-viz page without
+overrides the default 8321) — pass `--no-viz` to suppress it. The sidebar
+nests each stage's console output (ANSI colours preserved) under a
+collapsible section: completed stages auto-collapse, the running stage stays
+expanded and live-tails its console. To eyeball the viz page without
 running a pipeline, `.venv/bin/python viz_demo.py` serves the real topology
 and replays a scripted run (every node state, verdict badges, retry cycle).
 
@@ -50,17 +52,19 @@ The shipped self-loop example (`examples/self/`, launched from the repo root
 so the pipeline constructs this library itself) is:
 
 ```
-dev ──▶ test ──▶ review ──▶ port_sweep ──▶ qa ──▶ commit
-▲          │           │                │
-└──────────┴───────────┴────────────────┘   fail verdicts retry to dev
-                                          (attempt-bounded)
+dev ──▶ review ──▶ port_sweep ──▶ qa ──▶ commit
+▲          │             │
+└──────────┴─────────────┘   fail verdicts retry to dev
+                             (attempt-bounded)
 ```
 
 1. **dev** runs the `dev` agent with full context (selected docs +
    `additional_files:` + auto-generated expected-output paths). Its writes
    are untracked; the pipeline only cares about declared `produces:` files.
-2. **test / review / qa** are verdict agents: each must write its declared
-   artifact (e.g. `.pr/ci-fix.md`) whose **last** `VERDICT: <word>` line
+   The dev agent owns the test suite: it must run the full suite and be
+   green before it declares itself done.
+2. **review / qa** are verdict agents: each must write its declared
+   artifact (e.g. `.pr/qa-report.md`) whose **last** `VERDICT: <word>` line
    decides routing. `pass` follows `on_pass`, `fail` follows `on_fail` —
    here `{goto: dev, retry: true}`, which consumes an attempt and feeds the
    artifact back to the dev agent as a retry note.
@@ -103,14 +107,7 @@ steps:
   - name: dev
     agent: dev                        # → sdk_agents/dev.agent.md
     produces: implementation-summary.md  # written under state_dir (str or list)
-    on_pass: test                   # explicit; omitted → next step in order
-
-  - name: test
-    agent: test
-    artifact: ci-fix.md               # verdict file the agent must write
-    verdicts: {pass: PASS, fail: FAIL}
-    on_pass: review
-    on_fail: {goto: dev, retry: true} # consumes an attempt
+    on_pass: review                   # explicit; omitted → next step in order
 
   - name: review
     agent: review
@@ -220,7 +217,7 @@ Duplicate CLI option strings across loaders are a load-time error naming both.
 ## The example consumer
 
 `examples/self/` is a complete, runnable consumer that turns the library on
-its own repo: the pipeline above, its four agent definitions (`sdk_agents/`),
+its own repo: the pipeline above, its three agent definitions (`sdk_agents/`),
 and this README wired in as shared context. Run it from the repo root with
 `./trigger-agent-engine.sh --plan plan.md`. The e2e suite
 (`tests/test_e2e_fixtures.py`) replays historical failure fixtures against

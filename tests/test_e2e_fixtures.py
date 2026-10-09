@@ -29,7 +29,6 @@ EXAMPLE = Path(__file__).resolve().parent.parent / "examples" / "self"
 def _passing_scripts(fake_agents, **overrides):
     scripts = {
         "dev": [("ok",)],
-        "test": [("write", "ci-fix.md", "All green.\n\nVERDICT: PASS\n")],
         "review": [("write", "review-findings.md",
                     "Looks good.\n\nVERDICT: APPROVED\n")],
         "qa": [("write", "qa-report.md", "All good.\n\nVERDICT: PASS\n")],
@@ -80,12 +79,12 @@ class TestHistoricalFixtures:
         """QA run 004 burned 3 attempts on `**VERDICT: PASS**` — markdown
         decoration around the verdict line. The tolerant parser (LAST
         VERDICT line wins) must route this as a pass, not an unclear retry."""
-        _passing_scripts(fake_agents, test=[
-            ("write", "ci-fix.md",
+        _passing_scripts(fake_agents, qa=[
+            ("write", "qa-report.md",
              "## CI analysis\n\nEverything is fine.\n\n**VERDICT: PASS**\n")])
         rc = main([str(consumer_repo / "examples" / "self" / "pipeline.yaml"), "--plan", "plan.md", "--no-viz"])
         assert rc == 0
-        assert fake_agents.agents_called() == ["dev", "test", "review", "qa"]
+        assert fake_agents.agents_called() == ["dev", "review", "qa"]
         assert "feat: construct plan plan.md (agent dev loop)" in _log(
             consumer_repo)
 
@@ -95,17 +94,17 @@ class TestHistoricalFixtures:
         runs — otherwise the verdict stage re-reads the previous file and the
         loop retries against ghosts. The pin: attempt 2's note must be the
         missing-artifact one, proving the stale FAIL was gone."""
-        _passing_scripts(fake_agents, test=[
-            ("write", "ci-fix.md", "STALE findings\n\nVERDICT: FAIL\n"),
+        _passing_scripts(fake_agents, qa=[
+            ("write", "qa-report.md", "STALE findings\n\nVERDICT: FAIL\n"),
             ("ok",),  # attempt 2 writes nothing
-            ("write", "ci-fix.md", "Fixed.\n\nVERDICT: PASS\n"),
+            ("write", "qa-report.md", "Fixed.\n\nVERDICT: PASS\n"),
         ])
         rc = main([str(consumer_repo / "examples" / "self" / "pipeline.yaml"), "--plan", "plan.md", "--no-viz"])
         assert rc == 0
-        attempt3_test = fake_agents.messages_for("test")[-1]
-        assert ("test agent did not write `examples/self/.pr/ci-fix.md` "
-                "on attempt 2." in attempt3_test)
-        assert "test output (attempt 2)" not in attempt3_test
+        attempt3_qa = fake_agents.messages_for("qa")[-1]
+        assert ("qa agent did not write `examples/self/.pr/qa-report.md` "
+                "on attempt 2." in attempt3_qa)
+        assert "qa output (attempt 2)" not in attempt3_qa
 
     def test_verdict_written_before_turn_cap_still_passes(self, consumer_repo,
                                                           fake_agents):
@@ -125,11 +124,11 @@ class TestHistoricalFixtures:
         """An unparseable verdict forces an attempt-bounded retry, and the
         artifact's content rides into the next attempt's notes — findings
         are never swallowed."""
-        _passing_scripts(fake_agents, test=[
-            ("write", "ci-fix.md",
+        _passing_scripts(fake_agents, qa=[
+            ("write", "qa-report.md",
              "The build looks mostly fine but I cannot decide.\n"
              "Line two of findings.\n"),
-            ("write", "ci-fix.md", "Decided.\n\nVERDICT: PASS\n"),
+            ("write", "qa-report.md", "Decided.\n\nVERDICT: PASS\n"),
         ])
         rc = main([str(consumer_repo / "examples" / "self" / "pipeline.yaml"), "--plan", "plan.md", "--no-viz"])
         assert rc == 0

@@ -290,6 +290,18 @@ class TestVizStream:
         assert events[-1]["success"] is False
         assert events[-1]["attempts"] == 3
 
+    def test_stream_path_captures_node_console(self, repo, fake_agents):
+        script_all_pass(fake_agents)
+        bus = VizBus()
+        ok, attempts = run_pipeline("pipeline.yaml", args(), viz_bus=bus)
+        assert (ok, attempts) == (True, 1)
+        events = drain_events(bus)
+        dev_console = [e for e in events if e["type"] == "console"
+                       and "Running dev agent..." in e["text"]]
+        assert dev_console
+        assert all(e["node"] == "dev" for e in dev_console)
+        assert all(e["stream"] == "stdout" for e in dev_console)
+
     def test_resume_via_stream_continues(self, repo, fake_agents):
         script_all_pass(fake_agents)
         fake_agents.set("review", [

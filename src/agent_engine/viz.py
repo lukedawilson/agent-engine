@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import queue
+import sys
 import threading
 import time
 from collections import deque
@@ -97,21 +98,31 @@ def translate(part: dict) -> list[dict]:
 
 
 class VizBus:
-    """Thread-safe pub/sub with a bounded backlog.
+    """Thread-safe pub/sub with bounded backlogs.
 
     Nodes publish from the pipeline thread; each SSE connection consumes from
-    its own thread. New subscribers first receive the backlog in order, so a
-    browser tab opened mid-run catches up; ``maxlen`` bounds memory.
+    its own thread. New subscribers first receive a replay of retained
+    (lifecycle) and console events merged in publish order, so a browser tab
+    opened mid-run catches up without console volume evicting lifecycle
+    events. Heartbeats are delivered live but never replayed.
     """
 
-    def __init__(self, maxlen: int = 500) -> None:
+    def __init__(self, maxlen: int = 500, console_maxlen: int = 500) -> None:
         self._subscribers: set[queue.Queue] = set()
         self._lock = threading.Lock()
         self._backlog: deque = deque(maxlen=maxlen)
+        self._console_backlog: deque = deque(maxlen=console_maxlen)
+        self._seq = 0
 
     def publish(self, event: dict) -> None:
         with self._lock:
-            self._backlog.append(event)
+            self._seq += 1
+            seq = self._seq
+            etype = event.get("type")
+            if etype == "console":
+                self._console_backlog.append((seq, event))
+            elif etype != "heartbeat":
+                self._backlog.append((seq, event))
             subscribers = list(self._subscribers)
         for sub in subscribers:
             sub.put(event)
@@ -119,7 +130,10 @@ class VizBus:
     def subscribe(self) -> queue.Queue:
         sub: queue.Queue = queue.Queue()
         with self._lock:
-            for event in self._backlog:
+            merged = sorted(
+                list(self._backlog) + list(self._console_backlog),
+                key=lambda item: item[0])
+            for _seq, event in merged:
                 sub.put(event)
             self._subscribers.add(sub)
         return sub
@@ -127,6 +141,92 @@ class VizBus:
     def unsubscribe(self, sub: queue.Queue) -> None:
         with self._lock:
             self._subscribers.discard(sub)
+
+
+MAX_LINE = 8000  # cap per captured console line — SDK state dumps are huge
+
+
+class _Tee:
+    """Write-through proxy for one stream. Forwards every write to ``target``
+    unchanged, buffers to line boundaries, and publishes each complete line
+    (plus any trailing partial line on detach) as a console event attributed
+    to the node NodeWatch currently reports. ANSI escapes pass through
+    verbatim — colour parsing is the frontend's job."""
+
+    def __init__(self, capture: "ConsoleCapture", stream: str, target) -> None:
+        self._capture = capture
+        self._stream = stream
+        self._target = target
+        self._buffer = ""
+        self._lock = threading.Lock()
+
+    def write(self, s) -> int:
+        if isinstance(s, bytes):
+            s = s.decode("utf-8", "replace")
+        with self._lock:
+            self._target.write(s)
+            self._buffer += s
+            self._flush_lines()
+        return len(s)
+
+    def _flush_lines(self) -> None:
+        while "\n" in self._buffer:
+            line, self._buffer = self._buffer.split("\n", 1)
+            self._capture._publish(self._stream, line.rstrip("\r"))
+
+    def _flush_partial(self) -> None:
+        with self._lock:
+            if self._buffer:
+                self._capture._publish(self._stream, self._buffer.rstrip("\r"))
+                self._buffer = ""
+
+    def flush(self) -> None:
+        self._target.flush()
+
+    def isatty(self) -> bool:
+        return self._target.isatty()
+
+    def __getattr__(self, name):
+        return getattr(self._target, name)
+
+
+class ConsoleCapture:
+    """Tees sys.stdout/sys.stderr into the viz bus, line by line, attributed
+    to the node NodeWatch currently reports (None when idle)."""
+
+    def __init__(self, bus: VizBus, watch: NodeWatch) -> None:
+        self._bus = bus
+        self._watch = watch
+        self._tees: dict[str, _Tee] | None = None
+
+    def attach(self) -> None:
+        if self._tees is not None:
+            raise RuntimeError("ConsoleCapture is already attached")
+        self._tees = {
+            "stdout": _Tee(self, "stdout", sys.stdout),
+            "stderr": _Tee(self, "stderr", sys.stderr),
+        }
+        sys.stdout = self._tees["stdout"]
+        sys.stderr = self._tees["stderr"]
+
+    def detach(self) -> None:
+        if self._tees is None:
+            return
+        for stream, tee in self._tees.items():
+            tee._flush_partial()
+            tee.flush()
+            setattr(sys, stream, tee._target)
+        self._tees = None
+
+    def _publish(self, stream: str, line: str) -> None:
+        if len(line) > MAX_LINE:
+            line = line[:MAX_LINE] + "…"
+        self._bus.publish({
+            "type": "console",
+            "node": self._watch.current(),
+            "stream": stream,
+            "text": line,
+        })
 
 
 class NodeWatch:
@@ -288,6 +388,8 @@ PAGE = """<!doctype html>
                  flex-direction: column; }
   #mermaid-container { flex: 1 1 auto; }
   #mermaid-container svg { max-width: 100%; height: auto; }
+  .running > * { animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
   #run-banner { font-size: 18px; font-weight: 700; padding: 10px 14px;
                 border-radius: 6px; margin-top: 10px; display: none; }
   .banner-success { background: #e8f5e9; color: #2e7d32; }
@@ -307,11 +409,32 @@ PAGE = """<!doctype html>
   .badge-pass { background: #e8f5e9; color: #2e7d32; }
   .badge-fail { background: #ffebee; color: #c62828; }
   .badge-unclear { background: #fff8e1; color: #f57f17; }
-  #log { list-style: none; margin: 0; padding: 0; flex: 1 1 auto; overflow-y: auto;
-         font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
-  #log li { padding: 2px 0; border-bottom: 1px solid #f3f3f3; }
-  .running > * { animation: pulse 1.2s ease-in-out infinite; }
-  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+  #stages { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex;
+            flex-direction: column; gap: 8px; }
+  .stage { border: 1px solid #e0e0e0; border-radius: 6px; overflow: hidden; }
+  .stage-header { display: block; width: 100%; text-align: left; cursor: pointer;
+                  font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI",
+                  Roboto, Helvetica, Arial, sans-serif; padding: 6px 10px;
+                  border: 0; background: #f7f7f7; }
+  .stage-glyph { display: inline-block; width: 1.1em; }
+  .stage-status { margin-left: 0.4em; }
+  .status-pending { color: #555; }
+  .status-running { color: #1976d2; }
+  .status-pass { color: #2e7d32; }
+  .status-fail { color: #b26a00; }
+  .status-fatal { color: #c62828; }
+  .stage-console { margin: 0; padding: 8px 10px; background: #1e1e1e;
+                   color: #e0e0e0; font: 12px/1.5 ui-monospace, SFMono-Regular,
+                   Menlo, monospace; white-space: pre-wrap; word-break: break-all;
+                   max-height: 240px; overflow-y: auto; }
+  .stage-console .cline { display: block; min-height: 1em; }
+  .stage-console .omitted { color: #888; font-style: italic; }
+  .stage-console .stage-placeholder { color: #888; font-style: italic; }
+  .stage.collapsed .stage-console { display: none; }
+  #run-log { list-style: none; margin: 0; padding: 8px 0 0; flex: 0 0 auto;
+             max-height: 25%; overflow-y: auto; border-top: 1px solid #e0e0e0;
+             font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  #run-log li { padding: 2px 0; border-bottom: 1px solid #f3f3f3; }
   @media (max-width: 768px) {
     body { flex-direction: column; height: auto; }
     #sidebar { flex: 0 0 auto; border-left: 0; border-top: 1px solid #e0e0e0; }
@@ -331,11 +454,13 @@ PAGE = """<!doctype html>
     <div id="thread">thread id: <code id="thread-id" title="click to select">\u2014</code></div>
     <div id="elapsed"></div>
     <div id="verdicts"></div>
-    <ul id="log"></ul>
+    <div id="stages"></div>
+    <ul id="run-log"></ul>
   </aside>
 <script>
 (function () {
   var nodeStatus = {};
+  var stageWord = {};
   var verdictSteps = new Set();
   var nodeIds = new Set();
   var currentVerdicts = {};
@@ -350,13 +475,26 @@ PAGE = """<!doctype html>
   var pendingCompletion = null;
   var topologyReady = false;
   var pendingEvents = [];
+  var MAX_CONSOLE = 500;
+  var PALETTE = ["#0c0c0c", "#c50f1f", "#13a10e", "#c19c00", "#0037da",
+                 "#881798", "#3a96dd", "#cccccc"];
+  var BRIGHT = ["#767676", "#e74856", "#16c60c", "#f9f1a5", "#3b78ff",
+                "#b4009e", "#61d6d6", "#f2f2f2"];
 
   function el(id) { return document.getElementById(id); }
 
   function logLine(text) {
     var li = document.createElement("li");
     li.textContent = text;
-    var log = el("log");
+    var log = el("run-log");
+    log.appendChild(li);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function logConsole(html) {
+    var li = document.createElement("li");
+    li.innerHTML = html;
+    var log = el("run-log");
     log.appendChild(li);
     log.scrollTop = log.scrollHeight;
   }
@@ -379,16 +517,6 @@ PAGE = """<!doctype html>
     line.style.display = "none";
   }
 
-  function flushPending() {
-    if (pendingCompletion === null) { return; }
-    var p = pendingCompletion;
-    pendingCompletion = null;
-    var verdict = currentVerdicts[p.node];
-    var suffix = verdict === "pass" ? " (verdict: PASS)"
-      : verdict === "fail" ? " (verdict: FAIL)" : "";
-    logLine(p.line + suffix);
-  }
-
   function statusOf(n) {
     if (nodeStatus[n] === "running") { return "running"; }
     if (fatalNodes.has(n)) { return "fatal"; }
@@ -405,9 +533,9 @@ PAGE = """<!doctype html>
       var b = document.createElement("span");
       var v = currentVerdicts[step];
       b.className = "badge";
-      if (v === "pass") b.className += " badge-pass";
-      else if (v === "fail") b.className += " badge-fail";
-      else b.className += " badge-unclear";
+      if (v === "pass") { b.className += " badge-pass"; }
+      else if (v === "fail") { b.className += " badge-fail"; }
+      else { b.className += " badge-unclear"; }
       b.textContent = step + ": " + (v === null || v === undefined ? "no verdict" : v);
       box.appendChild(b);
     });
@@ -442,10 +570,292 @@ PAGE = """<!doctype html>
     });
   }
 
+  function addPlaceholder(pre) {
+    var ph = document.createElement("div");
+    ph.className = "stage-placeholder";
+    ph.textContent = "No output";
+    pre.appendChild(ph);
+  }
+
+  function ensureSection(node) {
+    var existing = document.getElementById("stage-" + node);
+    if (existing) { return existing; }
+    var stages = el("stages");
+    var section = document.createElement("section");
+    section.className = "stage collapsed";
+    section.id = "stage-" + node;
+
+    var header = document.createElement("button");
+    header.className = "stage-header";
+    header.type = "button";
+    header.addEventListener("click", function () {
+      var willCollapse = !section.classList.contains("collapsed");
+      section.classList.toggle("collapsed");
+      renderStageHeader(node);
+      if (!willCollapse) {
+        requestAnimationFrame(function () { tailSection(section); });
+      }
+    });
+
+    var glyph = document.createElement("span");
+    glyph.className = "stage-glyph";
+    var name = document.createElement("span");
+    name.className = "stage-name";
+    var status = document.createElement("span");
+    status.className = "stage-status";
+
+    header.appendChild(glyph);
+    header.appendChild(name);
+    header.appendChild(status);
+
+    var console = document.createElement("pre");
+    console.className = "stage-console";
+    addPlaceholder(console);
+
+    section.appendChild(header);
+    section.appendChild(console);
+    stages.appendChild(section);
+    renderStageHeader(node);
+    return section;
+  }
+
+  function renderStageHeader(node) {
+    var section = ensureSection(node);
+    var header = section.querySelector(".stage-header");
+    var glyph = header.querySelector(".stage-glyph");
+    var name = header.querySelector(".stage-name");
+    var status = header.querySelector(".stage-status");
+    var collapsed = section.classList.contains("collapsed");
+    glyph.textContent = collapsed ? "\u25B8" : "\u25BE";
+    name.textContent = node;
+    var word = stageWord[node] || "";
+    var suffix = "";
+    if (word === "completed") {
+      var v = currentVerdicts[node];
+      if (v === "pass") { suffix = " (verdict: PASS)"; }
+      else if (v === "fail") { suffix = " (verdict: FAIL)"; }
+    }
+    status.textContent = (word ? " " + word : "") + suffix;
+    header.className = "stage-header status-" + statusOf(node);
+  }
+
+  function setStageStatus(node, word) {
+    stageWord[node] = word;
+    renderStageHeader(node);
+  }
+
+  function flushPending() {
+    if (pendingCompletion === null) { return; }
+    var p = pendingCompletion;
+    pendingCompletion = null;
+    setStageStatus(p.node, p.word);
+  }
+
+  function expandStage(node) {
+    var section = ensureSection(node);
+    section.classList.remove("collapsed");
+    renderStageHeader(node);
+    section.scrollIntoView({ block: "nearest" });
+    requestAnimationFrame(function () { tailSection(section); });
+  }
+
+  function collapseStage(node) {
+    ensureSection(node).classList.add("collapsed");
+    renderStageHeader(node);
+  }
+
+  function collapseAll() {
+    Array.from(nodeIds).forEach(function (n) {
+      ensureSection(n).classList.add("collapsed");
+      renderStageHeader(n);
+    });
+  }
+
+  function clearConsoles() {
+    stageWord = {};
+    Array.from(nodeIds).forEach(function (n) {
+      var section = ensureSection(n);
+      var pre = section.querySelector(".stage-console");
+      pre.innerHTML = "";
+      addPlaceholder(pre);
+      section.classList.add("collapsed");
+      renderStageHeader(n);
+    });
+    el("run-log").innerHTML = "";
+  }
+
+  function nearBottom(pre) {
+    return pre.scrollHeight - pre.scrollTop - pre.clientHeight < 24;
+  }
+
+  function tailSection(section) {
+    if (section.classList.contains("collapsed")) { return; }
+    var pre = section.querySelector(".stage-console");
+    pre.scrollTop = pre.scrollHeight;
+  }
+
+  function appendConsole(section, html) {
+    var pre = section.querySelector(".stage-console");
+    var stick = !section.classList.contains("collapsed") && nearBottom(pre);
+    var ph = pre.querySelector(".stage-placeholder");
+    if (ph) { pre.removeChild(ph); }
+    if (pre.querySelectorAll(".cline").length >= MAX_CONSOLE) {
+      var first = pre.querySelector(".cline");
+      if (first) { pre.removeChild(first); }
+      var omitted = pre.querySelector(".omitted");
+      if (!omitted) {
+        omitted = document.createElement("div");
+        omitted.className = "omitted";
+        pre.insertBefore(omitted, pre.firstChild);
+      }
+      var count = parseInt(omitted.getAttribute("data-n") || "0", 10) + 1;
+      omitted.setAttribute("data-n", String(count));
+      omitted.textContent = "\u2026" + count + " line"
+        + (count === 1 ? "" : "s") + " omitted";
+    }
+    var line = document.createElement("span");
+    line.className = "cline";
+    line.innerHTML = html;
+    pre.appendChild(line);
+    if (stick) { pre.scrollTop = pre.scrollHeight; }
+  }
+
+  function handleConsole(ev) {
+    var html = ansiToHtml(ev.text);
+    if (ev.node && nodeIds.has(ev.node)) {
+      appendConsole(ensureSection(ev.node), html);
+    } else {
+      logConsole(html);
+    }
+  }
+
+  function ansiToHtml(text) {
+    var out = "";
+    var i = 0;
+    var ESC = "\\x1b";
+    var cur = { fg: null, bg: null, bold: false, italic: false, underline: false };
+    var open = false;
+
+    function currentStyle() {
+      var parts = [];
+      if (cur.bold) { parts.push("font-weight:bold"); }
+      if (cur.italic) { parts.push("font-style:italic"); }
+      if (cur.underline) { parts.push("text-decoration:underline"); }
+      if (cur.fg !== null) { parts.push("color:" + cur.fg); }
+      if (cur.bg !== null) { parts.push("background-color:" + cur.bg); }
+      return parts.join(";");
+    }
+
+    function closeSpan() {
+      if (open) { out += "</span>"; open = false; }
+    }
+
+    function pushSpan() {
+      closeSpan();
+      var s = currentStyle();
+      if (s) { out += '<span style="' + s + '">'; open = true; }
+    }
+
+    var html = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    var n = html.length;
+    while (i < n) {
+      var idx = html.indexOf(ESC, i);
+      if (idx === -1) {
+        out += html.slice(i);
+        break;
+      }
+      out += html.slice(i, idx);
+      var j = idx + 1;
+      if (j >= n) { i = idx + 1; continue; }
+      var ch = html.charAt(j);
+      if (ch === "[") {
+        var k = j + 1;
+        while (k < n) {
+          var cc = html.charCodeAt(k);
+          if (cc >= 0x40 && cc <= 0x7e) { break; }
+          k++;
+        }
+        if (k >= n) { i = n; break; }
+        var final = html.charAt(k);
+        var params = html.slice(j + 1, k);
+        if (final === "m") {
+          var parts = params.split(";");
+          var codes = [];
+          for (var p = 0; p < parts.length; p++) {
+            codes.push(parts[p] === "" ? 0 : parseInt(parts[p], 10));
+          }
+          var changed = false;
+          for (var c = 0; c < codes.length; c++) {
+            var code = codes[c];
+            if (code === 0) {
+              cur = { fg: null, bg: null, bold: false, italic: false, underline: false };
+              changed = true;
+            } else if (code === 1) { cur.bold = true; changed = true; }
+            else if (code === 22) { cur.bold = false; changed = true; }
+            else if (code === 3) { cur.italic = true; changed = true; }
+            else if (code === 23) { cur.italic = false; changed = true; }
+            else if (code === 4) { cur.underline = true; changed = true; }
+            else if (code === 24) { cur.underline = false; changed = true; }
+            else if (code >= 30 && code <= 37) { cur.fg = PALETTE[code - 30]; changed = true; }
+            else if (code >= 90 && code <= 97) { cur.fg = BRIGHT[code - 90]; changed = true; }
+            else if (code >= 40 && code <= 47) { cur.bg = PALETTE[code - 40]; changed = true; }
+            else if (code >= 100 && code <= 107) { cur.bg = BRIGHT[code - 100]; changed = true; }
+            else if (code === 39) { cur.fg = null; changed = true; }
+            else if (code === 49) { cur.bg = null; changed = true; }
+            else if (code === 38 || code === 48) {
+              // extended colour: 38;5;n (256-colour) or 38;2;r;g;b (truecolor)
+              if (c + 2 < codes.length && codes[c + 1] === 5) {
+                var val = codes[c + 2];
+                var col;
+                if (val < 8) { col = PALETTE[val]; }
+                else if (val < 16) { col = BRIGHT[val - 8]; }
+                else if (val < 232) {
+                  var cube = val - 16;
+                  var levels = [0, 95, 135, 175, 215, 255];
+                  col = "rgb(" + levels[Math.floor(cube / 36)] + ","
+                      + levels[Math.floor((cube % 36) / 6)] + ","
+                      + levels[cube % 6] + ")";
+                } else {
+                  var g = 8 + 10 * (val - 232);
+                  col = "rgb(" + g + "," + g + "," + g + ")";
+                }
+                if (code === 38) { cur.fg = col; } else { cur.bg = col; }
+                c += 2;
+                changed = true;
+              } else if (c + 4 < codes.length && codes[c + 1] === 2) {
+                var rgb = "rgb(" + codes[c + 2] + "," + codes[c + 3] + "," + codes[c + 4] + ")";
+                if (code === 38) { cur.fg = rgb; } else { cur.bg = rgb; }
+                c += 4;
+                changed = true;
+              }
+            }
+          }
+          if (changed) { pushSpan(); }
+        }
+        i = k + 1;
+        continue;
+      }
+      if (ch === "]") {
+        var bel = html.indexOf(String.fromCharCode(7), j);
+        var st = html.indexOf(ESC + String.fromCharCode(92), j);
+        var end = -1;
+        if (bel !== -1) { end = bel + 1; }
+        if (st !== -1 && (end === -1 || st + 2 < end)) { end = st + 2; }
+        if (end === -1) { i = n; break; }
+        i = end;
+        continue;
+      }
+      i = idx + 1;
+    }
+    closeSpan();
+    return out;
+  }
+
   function handle(ev) {
     switch (ev.type) {
       case "run_started":
         flushPending();
+        clearConsoles();
         if (ev.attempt !== undefined) { attempt = ev.attempt; }
         maxAttempts = ev.max_attempts;
         el("subject").textContent = ev.subject;
@@ -459,7 +869,10 @@ PAGE = """<!doctype html>
         flushPending();
         if (!nodeIds.has(ev.node)) { break; }
         nodeStatus[ev.node] = "running";
-        logLine("\u25b6 " + ev.node + " running");
+        stageWord[ev.node] = "running";
+        Array.from(nodeIds).forEach(function (n) {
+          if (n === ev.node) { expandStage(n); } else { collapseStage(n); }
+        });
         renderGraph();
         break;
       case "node_finished":
@@ -470,9 +883,10 @@ PAGE = """<!doctype html>
         }
         pendingCompletion = {
           node: ev.node,
-          line: (ev.ok ? "\u2714 " : "\u2718 ") + ev.node
-            + (ev.ok ? " completed" : " errored")
+          word: ev.ok ? "completed" : "errored"
         };
+        setStageStatus(ev.node, ev.ok ? "completed" : "errored");
+        collapseStage(ev.node);
         renderGraph();
         break;
       case "heartbeat":
@@ -518,11 +932,15 @@ PAGE = """<!doctype html>
           });
           renderGraph();
         }
+        collapseAll();
         logLine("run finished: " + (ev.success ? "success" : "failure"));
         var banner = el("run-banner");
         banner.textContent = ev.success ? "\u2713 SUCCESS" : "\u2718 FAILURE";
         banner.className = ev.success ? "banner-success" : "banner-failure";
         banner.style.display = "block";
+        break;
+      case "console":
+        handleConsole(ev);
         break;
     }
   }
@@ -530,7 +948,10 @@ PAGE = """<!doctype html>
   fetch("/topology").then(function (r) { return r.json(); }).then(function (d) {
     el("subject").textContent = d.subject;
     mermaidSource = d.mermaid;
-    (d.nodes || []).forEach(function (n) { nodeIds.add(n); });
+    (d.nodes || []).forEach(function (n) {
+      nodeIds.add(n);
+      ensureSection(n);
+    });
     if (!mermaidFailed && typeof mermaid !== "undefined") {
       mermaid.initialize({ startOnLoad: false, securityLevel: "loose" });
     }

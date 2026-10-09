@@ -5,6 +5,7 @@ stubs only the SDK network boundary."""
 
 import sqlite3
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -198,8 +199,12 @@ class TestViz:
         opened = []
         monkeypatch.setattr("webbrowser.open", opened.append)
 
+        stdout_before = sys.stdout
+        stderr_before = sys.stderr
         code = main(["pipeline.yaml", "--plan", "plan.md"])  # served by default
         assert code == 0  # main returns only when the loop completes — no keep-alive
+        assert sys.stdout is stdout_before
+        assert sys.stderr is stderr_before
         assert "dev" in captured["topology"]
         assert "success" in captured["topology"]
         assert "dev" in captured["nodes"]
