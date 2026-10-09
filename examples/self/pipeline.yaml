@@ -22,10 +22,10 @@ steps:
   - name: dev
     agent: dev
     produces: implementation-summary.md   # hygiene-tracked, no verdict
-    on_pass: checks
+    on_pass: test
 
-  - name: checks
-    agent: checks
+  - name: test
+    agent: test
     artifact: ci-fix.md
     verdicts: { pass: PASS, fail: FAIL }
     on_pass: review

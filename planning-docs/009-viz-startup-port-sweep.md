@@ -128,7 +128,7 @@ if args.viz_port:
 - [ ] `examples/self/pipeline.yaml`: delete the `port_sweep` step; `review.on_pass: qa`.
 - [ ] `viz_demo.py`: drop `emit_node(bus, "port_sweep")` (line 81); build the URL from `httpd.server_address[1]` instead of `args.port` (line 107); the `try/except OSError` stays for non-EADDRINUSE failures.
 - [ ] `README.md`: diagram (lines 53-56) drops `port_sweep`; delete bullet 3 and renumber (67-72); YAML walkthrough (119-125) drops the step; the viz paragraph (35-40) gains: "a stale viz server from a crashed run of the same repo is swept automatically at startup; if another repo's run holds the port, the engine prints a notice and serves on a free port".
-- [ ] `tests/test_viz.py::test_shipped_self_loop_topology`: chain becomes `["dev", "checks", "review", "qa", "commit", "success"]`; assert `review --> qa;`.
+- [ ] `tests/test_viz.py::test_shipped_self_loop_topology`: chain becomes `["dev", "test", "review", "qa", "commit", "success"]`; assert `review --> qa;`.
 - [ ] `tests/test_e2e_fixtures.py`: update the module docstring's "example's verbatim port sweep" note (the example no longer has the step); the `_listening_pids` → `[]` patch stays as defense-in-depth. Assertions are otherwise unaffected (`port_sweep` was an action, not an agent).
 - [ ] Full suite green.
 

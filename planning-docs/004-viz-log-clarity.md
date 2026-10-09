@@ -8,7 +8,7 @@
 
 1. **Attempt shows `attempt –/–` for the whole first attempt.** The page only learns `attempt` from `state` events, and the initial state's `attempt: 1` is never emitted (initial inputs are not node writes). `bump` is the first node to write `attempt`, at the *end* of attempt 1. Fix: `run_started` carries the attempt; the page renders `attempt 1/10` immediately and **never** renders an em-dash.
 2. **Log shows steps that are not in the graph** (`bump`). The diagram deliberately omits `bump` (plan 002), but its `node_started`/`node_finished` events still become log lines. Fix: the page only logs events for nodes present in the `/topology` `nodes` set it already fetches.
-3. **`✔ checks passed` is misleading** — it means "checks *node* finished without exception", not "verdict PASS" (the first checks run actually failed and retried via bump). Fix: completion lines read `✔ X completed`, with the verdict appended when known — `✔ checks completed (verdict: FAIL)` / `(verdict: PASS)` — and no verdict clause for steps without verdicts (dev, port_sweep, commit, success).
+3. **`✔ test passed` is misleading** — it means "test *node* finished without exception", not "verdict PASS" (the first test run actually failed and retried via bump). Fix: completion lines read `✔ X completed`, with the verdict appended when known — `✔ test completed (verdict: FAIL)` / `(verdict: PASS)` — and no verdict clause for steps without verdicts (dev, port_sweep, commit, success).
 4. **A verdict-failed step turns green** — today node completion (`ok: true`) always paints the node green, even when the step's verdict was FAIL, and the red only lasts until the next render. Fix: a step whose latest verdict is `fail` stays **red on the graph** until that step is re-run (the next `node_started` flips it to amber/running; a later verdict/pass verdict recolors it).
 
 **Architecture:** Two tiny protocol-adjacent changes and one JS-only change, all inside `viz.py`'s `PAGE` plus the `run_started` payloads in `graph.py` and `viz_demo.py`:
@@ -98,7 +98,7 @@
 
 **Files:** none
 
-- [ ]**Step 1:** `./run-demo.sh --no-browser` — fresh page shows `attempt 1/3` immediately; success scenario: `dev completed` (no verdict), `checks completed (verdict: FAIL)` → **checks node turns red and stays red** through bump (bump invisible in log) and the second `dev completed` → checks re-run flips it to running (amber) → `checks completed (verdict: PASS)` turns it green → `review completed (verdict: PASS)` → … → `success completed`; badges still flip with bump; failure scenario: `checks errored` + failure banner.
+- [ ]**Step 1:** `./run-demo.sh --no-browser` — fresh page shows `attempt 1/3` immediately; success scenario: `dev completed` (no verdict), `test completed (verdict: FAIL)` → **test node turns red and stays red** through bump (bump invisible in log) and the second `dev completed` → test re-run flips it to running (amber) → `test completed (verdict: PASS)` turns it green → `review completed (verdict: PASS)` → … → `success completed`; badges still flip with bump; failure scenario: `test errored` + failure banner.
 
 ## Verification
 

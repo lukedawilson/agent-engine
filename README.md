@@ -50,7 +50,7 @@ The shipped self-loop example (`examples/self/`, launched from the repo root
 so the pipeline constructs this library itself) is:
 
 ```
-dev ──▶ checks ──▶ review ──▶ port_sweep ──▶ qa ──▶ commit
+dev ──▶ test ──▶ review ──▶ port_sweep ──▶ qa ──▶ commit
 ▲          │           │                │
 └──────────┴───────────┴────────────────┘   fail verdicts retry to dev
                                           (attempt-bounded)
@@ -59,7 +59,7 @@ dev ──▶ checks ──▶ review ──▶ port_sweep ──▶ qa ──�
 1. **dev** runs the `dev` agent with full context (selected docs +
    `additional_files:` + auto-generated expected-output paths). Its writes
    are untracked; the pipeline only cares about declared `produces:` files.
-2. **checks / review / qa** are verdict agents: each must write its declared
+2. **test / review / qa** are verdict agents: each must write its declared
    artifact (e.g. `.pr/ci-fix.md`) whose **last** `VERDICT: <word>` line
    decides routing. `pass` follows `on_pass`, `fail` follows `on_fail` —
    here `{goto: dev, retry: true}`, which consumes an attempt and feeds the
@@ -103,10 +103,10 @@ steps:
   - name: dev
     agent: dev                        # → sdk_agents/dev.agent.md
     produces: implementation-summary.md  # written under state_dir (str or list)
-    on_pass: checks                   # explicit; omitted → next step in order
+    on_pass: test                   # explicit; omitted → next step in order
 
-  - name: checks
-    agent: checks
+  - name: test
+    agent: test
     artifact: ci-fix.md               # verdict file the agent must write
     verdicts: {pass: PASS, fail: FAIL}
     on_pass: review

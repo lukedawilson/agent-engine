@@ -143,7 +143,7 @@ class ConsoleCapture:
 - Modify: `README.md` (extend the viz sentence: per-stage console output with ANSI colours preserved, collapsed when complete, live-tailed while running)
 
 - [ ]**Step 1:** Update README.
-- [ ]**Step 2:** `./run-demo.sh --no-browser` — **user eyeballs**: stages appear with their consoles; success scenario dev console fills and auto-scrolls while running, collapses on completion with ` (verdict: …)` on checks; ANSI-coloured demo lines render in colour; failure scenario shows `errored` sections.
+- [ ]**Step 2:** `./run-demo.sh --no-browser` — **user eyeballs**: stages appear with their consoles; success scenario dev console fills and auto-scrolls while running, collapses on completion with ` (verdict: …)` on test; ANSI-coloured demo lines render in colour; failure scenario shows `errored` sections.
 - [ ]**Step 3:** Real run `agent-engine examples/self/pipeline.yaml --plan <doc> --viz` — **user triggers** (makes LLM calls): real SDK rich output (coloured) appears under the running stage, live-tailed.
 
 ## Verification

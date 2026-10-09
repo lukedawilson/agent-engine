@@ -1,6 +1,6 @@
 """Stage nodes, routers, context assembly, and the run_agent port.
 
-The yosk hardcoded stages (dev/checks/review/qa + bump) become per-step node
+The yosk hardcoded stages (dev/test/review/qa + bump) become per-step node
 and router closures built from the pipeline config; the fixed policies
 (hygiene, verdict-first truncation, unclear-verdict retry, notes) stay here."""
 
@@ -29,8 +29,8 @@ def make_cfg(steps, **over):
 
 STEPS = [
     {"name": "dev", "agent": "dev", "produces": ["implementation-summary.md"],
-     "on_pass": "checks"},
-    {"name": "checks", "agent": "checks", "artifact": "ci-fix.md",
+     "on_pass": "test"},
+    {"name": "test", "agent": "test", "artifact": "ci-fix.md",
      "verdicts": {"pass": "PASS", "fail": "FAIL"},
      "on_pass": "review", "on_fail": {"goto": "dev", "retry": True}},
     {"name": "review", "agent": "review", "artifact": "review-findings.md",
@@ -67,7 +67,7 @@ class TestBuildContext:
         assert "## std.yaml\n\nSTD" in ctx
         assert "## Expected output paths" in ctx
         assert "dev agent writes: `.pr/implementation-summary.md`" in ctx
-        assert "checks agent writes: `.pr/ci-fix.md`" in ctx
+        assert "test agent writes: `.pr/ci-fix.md`" in ctx
         assert "review agent writes: `.pr/review-findings.md`" in ctx
         assert "Previous attempt feedback" not in ctx
 
@@ -87,7 +87,7 @@ class TestBuildContext:
                      agents_dir=tmp_path / "agents", state_dir=state_dir,
                      workspace=tmp_path)
         ctx = build_context(rt, {}, "s", [])
-        assert "checks agent writes: `agent-engine/.pr/ci-fix.md`" in ctx
+        assert "test agent writes: `agent-engine/.pr/ci-fix.md`" in ctx
 
     def test_output_paths_absolute_when_state_dir_outside_workspace(self, tmp_path):
         state_dir = tmp_path / "state" / ".pr"
@@ -99,34 +99,34 @@ class TestBuildContext:
                      agents_dir=tmp_path / "agents", state_dir=state_dir,
                      workspace=workspace)
         ctx = build_context(rt, {}, "s", [])
-        assert f"checks agent writes: `{state_dir}/ci-fix.md`" in ctx
+        assert f"test agent writes: `{state_dir}/ci-fix.md`" in ctx
 
 
 class TestAgentNode:
     def test_pass_verdict(self, runtime, fake_agents):
-        fake_agents.set("checks", [("write", "ci-fix.md", "all good\nVERDICT: PASS\n")])
+        fake_agents.set("test", [("write", "ci-fix.md", "all good\nVERDICT: PASS\n")])
         update = make_agent_node(runtime, runtime.cfg.steps[1])(make_state())
-        assert update["step_verdicts"] == {"checks": "pass"}
+        assert update["step_verdicts"] == {"test": "pass"}
         assert update["failed"] is False
         assert "notes" not in update
 
     def test_fail_verdict_surfaces_artifact_and_retry_target(self, runtime, fake_agents):
-        fake_agents.set("checks", [("write", "ci-fix.md", "broken build\nVERDICT: FAIL\n")])
+        fake_agents.set("test", [("write", "ci-fix.md", "broken build\nVERDICT: FAIL\n")])
         update = make_agent_node(runtime, runtime.cfg.steps[1])(make_state(attempt=2))
-        assert update["step_verdicts"] == {"checks": "fail"}
+        assert update["step_verdicts"] == {"test": "fail"}
         assert update["retry_target"] == "dev"
         (note,) = update["notes"]
         assert "broken build" in note and "attempt 2" in note
 
     def test_verdicts_merge_with_prior_steps(self, runtime, fake_agents):
-        fake_agents.set("checks", [("write", "ci-fix.md", "VERDICT: PASS")])
+        fake_agents.set("test", [("write", "ci-fix.md", "VERDICT: PASS")])
         state = make_state(step_verdicts={"dev": "pass"})
         update = make_agent_node(runtime, runtime.cfg.steps[1])(state)
-        assert update["step_verdicts"] == {"dev": "pass", "checks": "pass"}
+        assert update["step_verdicts"] == {"dev": "pass", "test": "pass"}
 
     def test_missing_artifact_is_unclear(self, runtime, fake_agents):
         update = make_agent_node(runtime, runtime.cfg.steps[1])(make_state())
-        assert update["step_verdicts"] == {"checks": None}
+        assert update["step_verdicts"] == {"test": None}
         (note,) = update["notes"]
         assert "did not write `.pr/ci-fix.md` on attempt 1" in note
         assert update["retry_target"] == "dev"  # on_fail's goto
@@ -143,7 +143,7 @@ class TestAgentNode:
         assert "did not write `agent-engine/.pr/ci-fix.md` on attempt 1" in note
 
     def test_unparseable_verdict_surfaces_content(self, runtime, fake_agents):
-        fake_agents.set("checks", [("write", "ci-fix.md", "I am undecided")])
+        fake_agents.set("test", [("write", "ci-fix.md", "I am undecided")])
         update = make_agent_node(runtime, runtime.cfg.steps[1])(make_state())
         (note,) = update["notes"]
         assert "unparseable" in note
@@ -156,20 +156,20 @@ class TestAgentNode:
         assert update["retry_target"] == "dev"
 
     def test_verdict_first_truncation_passes(self, runtime, fake_agents):
-        fake_agents.set("checks", [("write_truncated", "ci-fix.md", "VERDICT: PASS")])
+        fake_agents.set("test", [("write_truncated", "ci-fix.md", "VERDICT: PASS")])
         update = make_agent_node(runtime, runtime.cfg.steps[1])(make_state())
-        assert update["step_verdicts"] == {"checks": "pass"}
+        assert update["step_verdicts"] == {"test": "pass"}
         assert "notes" not in update
 
     def test_truncated_without_verdict_notes_cut_short(self, runtime, fake_agents):
-        fake_agents.set("checks", [("write_truncated", "ci-fix.md", "partial findings")])
+        fake_agents.set("test", [("write_truncated", "ci-fix.md", "partial findings")])
         update = make_agent_node(runtime, runtime.cfg.steps[1])(make_state())
-        assert update["step_verdicts"] == {"checks": None}
+        assert update["step_verdicts"] == {"test": None}
         (note,) = update["notes"]
         assert "cut short" in note and "partial findings" in note
 
     def test_agent_failure_sets_failed(self, runtime, fake_agents):
-        fake_agents.set("checks", [("raise",)])
+        fake_agents.set("test", [("raise",)])
         update = make_agent_node(runtime, runtime.cfg.steps[1])(make_state())
         assert update == {"failed": True}
 
@@ -193,24 +193,24 @@ class TestRouter:
 
     def test_plain_step_routes_on_pass(self, runtime):
         router = make_router(runtime, runtime.cfg.steps[0])
-        assert router(make_state()) == "checks"
+        assert router(make_state()) == "test"
 
     def test_pass_routes_on_pass(self, runtime):
         router = make_router(runtime, runtime.cfg.steps[1])
-        assert router(make_state(step_verdicts={"checks": "pass"})) == "review"
+        assert router(make_state(step_verdicts={"test": "pass"})) == "review"
 
     def test_fail_retry_while_attempts_remain(self, runtime):
         router = make_router(runtime, runtime.cfg.steps[1])
-        assert router(make_state(attempt=1, step_verdicts={"checks": "fail"})) == "bump"
+        assert router(make_state(attempt=1, step_verdicts={"test": "fail"})) == "bump"
 
     def test_fail_retry_exhausted_ends(self, runtime):
         router = make_router(runtime, runtime.cfg.steps[1])
-        assert router(make_state(attempt=3, step_verdicts={"checks": "fail"})) == END
+        assert router(make_state(attempt=3, step_verdicts={"test": "fail"})) == END
 
     def test_unclear_retries_then_exhausts(self, runtime):
         router = make_router(runtime, runtime.cfg.steps[1])
-        assert router(make_state(attempt=1, step_verdicts={"checks": None})) == "bump"
-        assert router(make_state(attempt=3, step_verdicts={"checks": None})) == END
+        assert router(make_state(attempt=1, step_verdicts={"test": None})) == "bump"
+        assert router(make_state(attempt=3, step_verdicts={"test": None})) == END
 
     def test_fail_without_route_ends(self, runtime):
         router = make_router(runtime, runtime.cfg.steps[2])  # review: no on_fail
@@ -248,7 +248,7 @@ class TestBumpNode:
         for stale in ("ci-fix.md", "implementation-summary.md", "last-error.md"):
             (runtime.state_dir / stale).write_text("stale")
         state = make_state(attempt=1, notes=["N1"],
-                           step_verdicts={"checks": "fail"})
+                           step_verdicts={"test": "fail"})
         update = make_bump_node(runtime)(state)
         assert update["attempt"] == 2
         assert update["step_verdicts"] == {}

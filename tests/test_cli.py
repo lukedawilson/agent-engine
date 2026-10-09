@@ -36,9 +36,9 @@ steps:
   - name: dev
     agent: dev
     produces: implementation-summary.md
-    on_pass: checks
-  - name: checks
-    agent: checks
+    on_pass: test
+  - name: test
+    agent: test
     artifact: ci-fix.md
     verdicts: { pass: PASS, fail: FAIL }
     on_pass: success
@@ -57,9 +57,9 @@ steps:
   - name: dev
     agent: dev
     produces: implementation-summary.md
-    on_pass: checks
-  - name: checks
-    agent: checks
+    on_pass: test
+  - name: test
+    agent: test
     artifact: ci-fix.md
     verdicts: { pass: PASS, fail: FAIL }
     on_pass: success
@@ -138,13 +138,13 @@ class TestRun:
     def test_failure_returns_one(self, repo, fake_agents):
         write_pipeline(repo, "retry.yaml", RETRY_YAML)
         fake_agents.set("dev", [("write", "implementation-summary.md", "done")])
-        fake_agents.set("checks", [("write", "ci-fix.md", "VERDICT: FAIL")])
+        fake_agents.set("test", [("write", "ci-fix.md", "VERDICT: FAIL")])
         assert main(["retry.yaml", "--plan", "plan.md", "--no-viz"]) == 1
 
     def test_max_attempts_overrides_config(self, repo, fake_agents):
         write_pipeline(repo, "retry.yaml", RETRY_YAML)  # YAML says max_attempts: 1
         fake_agents.set("dev", [("write", "implementation-summary.md", "done")])
-        fake_agents.set("checks", [("write", "ci-fix.md", "VERDICT: FAIL")])
+        fake_agents.set("test", [("write", "ci-fix.md", "VERDICT: FAIL")])
         assert main(["retry.yaml", "--plan", "plan.md",
                      "--max-attempts", "2", "--no-viz"]) == 1
         assert fake_agents.agents_called().count("dev") == 2
@@ -152,7 +152,7 @@ class TestRun:
     def test_resume_threads_through(self, repo, fake_agents):
         write_pipeline(repo, "resume.yaml", RESUME_YAML)
         fake_agents.set("dev", [("write", "implementation-summary.md", "done")])
-        fake_agents.set("checks", [
+        fake_agents.set("test", [
             ("crash",),  # process death mid-run
             ("write", "ci-fix.md", "VERDICT: PASS"),
         ])
@@ -165,8 +165,8 @@ class TestRun:
                 "SELECT DISTINCT thread_id FROM checkpoints").fetchone()
 
         assert main(["resume.yaml", "--resume", tid, "--no-viz"]) == 0
-        # dev completed before the crash — only checks re-ran on resume
-        assert fake_agents.agents_called() == ["dev", "checks", "checks"]
+        # dev completed before the crash — only test re-ran on resume
+        assert fake_agents.agents_called() == ["dev", "test", "test"]
 
 
 class TestViz:

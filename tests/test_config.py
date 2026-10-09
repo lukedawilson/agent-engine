@@ -31,10 +31,10 @@ steps:
   - name: dev
     agent: dev
     produces: implementation-summary.md
-    on_pass: checks
+    on_pass: test
 
-  - name: checks
-    agent: checks
+  - name: test
+    agent: test
     artifact: ci-fix.md
     verdicts: { pass: PASS, fail: FAIL }
     on_pass: review
@@ -100,16 +100,16 @@ def test_full_schema_example_round_trips(tmp_path):
     assert cfg.llm.extra_body == {"chat_template_kwargs": {"thinking": False}}
     assert cfg.llm.timeout is None  # opinionated no-timeout default
 
-    dev, checks, review, port_sweep, qa, commit = cfg.steps
+    dev, test, review, port_sweep, qa, commit = cfg.steps
     assert dev.agent == "dev"
     assert dev.produces == ["implementation-summary.md"]
-    assert dev.on_pass == "checks"
+    assert dev.on_pass == "test"
     assert dev.on_fail is None
 
-    assert checks.artifact == "ci-fix.md"
-    assert checks.verdicts.pass_ == "PASS"
-    assert checks.verdicts.fail == "FAIL"
-    assert checks.on_fail == Route(goto="dev", retry=True)
+    assert test.artifact == "ci-fix.md"
+    assert test.verdicts.pass_ == "PASS"
+    assert test.verdicts.fail == "FAIL"
+    assert test.on_fail == Route(goto="dev", retry=True)
 
     assert review.verdicts.fail == "NEEDS CHANGES"
 

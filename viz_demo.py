@@ -59,27 +59,27 @@ def emit_node(bus: viz.VizBus, name: str, state: dict | None = None,
 
 
 def run_scenario(bus: viz.VizBus, scenario: str) -> None:
-    """Fabricate one run. `success`: checks fails its verdict on attempt 1,
+    """Fabricate one run. `success`: test fails its verdict on attempt 1,
     bump retries to dev, everything passes on attempt 2. `failure`: the
-    checks node itself hard-fails on attempt 1 (red node, failure banner)."""
+    test node itself hard-fails on attempt 1 (red node, failure banner)."""
     bus.publish({"type": "run_started", "subject": SUBJECT,
                  "max_attempts": 3, "thread_id": "viz-demo", "attempt": 1})
     time.sleep(NODE_GAP)
 
     emit_node(bus, "dev", {"attempt": 1})
     if scenario == "failure":
-        emit_node(bus, "checks", ok=False)
+        emit_node(bus, "test", ok=False)
         bus.publish({"type": "run_finished", "success": False, "attempts": 1})
         return
 
-    emit_node(bus, "checks", {"step_verdicts": {"checks": "fail"}})
+    emit_node(bus, "test", {"step_verdicts": {"test": "fail"}})
     emit_node(bus, "bump", {"attempt": 2, "step_verdicts": {}})
     emit_node(bus, "dev")
-    emit_node(bus, "checks", {"step_verdicts": {"checks": "pass"}})
+    emit_node(bus, "test", {"step_verdicts": {"test": "pass"}})
     emit_node(bus, "review",
-              {"step_verdicts": {"checks": "pass", "review": "pass"}})
+              {"step_verdicts": {"test": "pass", "review": "pass"}})
     emit_node(bus, "port_sweep")
-    emit_node(bus, "qa", {"step_verdicts": {"checks": "pass",
+    emit_node(bus, "qa", {"step_verdicts": {"test": "pass",
                                             "review": "pass", "qa": "pass"}})
     emit_node(bus, "commit")
     emit_node(bus, "success", {"outcome": "success"})

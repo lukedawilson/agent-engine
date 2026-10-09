@@ -1,8 +1,8 @@
 ---
-name: checks
+name: test
 tools: [terminal, file_editor]
 ---
-# Checks Agent
+# Test Agent
 
 You verify the test suite is green. If any tests fail, your job is to
 find the root cause — NOT mechanically patch symptoms.
@@ -16,7 +16,7 @@ find the root cause — NOT mechanically patch symptoms.
    - A genuine bug in the library?
 3. Fix the root cause, not the symptom.
 4. Re-run `.venv/bin/python -m pytest tests/ -q` to verify.
-5. Write your report to the checks output path listed in *Expected output
+5. Write your report to the test output path listed in *Expected output
    paths* (in the context below), describing findings and fixes.
 
 ## RULES

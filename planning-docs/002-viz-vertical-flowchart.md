@@ -10,13 +10,13 @@ Target rendering for the shipped self-loop example:
 
 ```
 graph TD;
-	dev --> checks;
-	checks --> review;
+	dev --> test;
+	test --> review;
 	review --> port_sweep;
 	port_sweep --> qa;
 	qa --> commit;
 	commit --> success;
-	checks -. FAIL .-> dev;
+	test -. FAIL .-> dev;
 	review -. NEEDS CHANGES .-> dev;
 	qa -. FAIL .-> dev;
 ```
@@ -104,7 +104,7 @@ graph TD;
 ## Verification
 
 1. `.venv/bin/python -m pytest tests/ -q` green.
-2. Manual smoke: `./run-demo.sh` — single vertical chain of rectangles; `checks -.FAIL.-> dev` arc on attempt 1; badges reset on bump (log only); attempt 2 lights the chain to `success`; banner. **User eyeballs.**
+2. Manual smoke: `./run-demo.sh` — single vertical chain of rectangles; `test -.FAIL.-> dev` arc on attempt 1; badges reset on bump (log only); attempt 2 lights the chain to `success`; banner. **User eyeballs.**
 3. Real `agent-engine examples/self/pipeline.yaml --plan <doc> --viz` run — **user triggers** (makes LLM calls).
 
 ## Amendments

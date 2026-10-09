@@ -26,7 +26,7 @@ from agent_engine.viz import (PAGE, HeartbeatThread, NodeWatch, VizBus,
                               _handler_class, serve_viz, topology_mermaid,
                               translate)
 
-MERMAID = "graph TD;\n\tdev(dev)\n\tchecks(checks)\n"
+MERMAID = "graph TD;\n\tdev(dev)\n\ttest(test)\n"
 SELF_PIPELINE = Path(__file__).parent.parent / "examples" / "self" / "pipeline.yaml"
 
 
@@ -46,16 +46,16 @@ def updates(delta):
 
 class TestTranslate:
     def test_start_part(self):
-        assert translate(tasks_start("checks")) == \
-            [{"type": "node_started", "node": "checks"}]
+        assert translate(tasks_start("test")) == \
+            [{"type": "node_started", "node": "test"}]
 
     def test_finish_ok(self):
-        assert translate(tasks_finish("checks")) == \
-            [{"type": "node_finished", "node": "checks", "ok": True}]
+        assert translate(tasks_finish("test")) == \
+            [{"type": "node_finished", "node": "test", "ok": True}]
 
     def test_finish_error(self):
-        assert translate(tasks_finish("checks", error="boom")) == \
-            [{"type": "node_finished", "node": "checks", "ok": False}]
+        assert translate(tasks_finish("test", error="boom")) == \
+            [{"type": "node_finished", "node": "test", "ok": False}]
 
     def test_updates_drops_non_whitelisted_keys(self):
         delta = {"docs": {"a": "x"}, "context": "long", "notes": ["n"],
@@ -63,11 +63,11 @@ class TestTranslate:
         assert translate(updates(delta)) == [{"type": "state"}]
 
     def test_updates_keeps_whitelisted_keys(self):
-        delta = {"attempt": 2, "step_verdicts": {"checks": "fail"},
+        delta = {"attempt": 2, "step_verdicts": {"test": "fail"},
                  "outcome": None, "failed": False, "docs": {"a": "x"}}
         assert translate(updates(delta)) == [
             {"type": "state", "attempt": 2,
-             "step_verdicts": {"checks": "fail"}, "outcome": None,
+             "step_verdicts": {"test": "fail"}, "outcome": None,
              "failed": False}]
 
     def test_unknown_parts_are_empty(self):
@@ -128,12 +128,12 @@ class TestTopologyMermaid:
         cfg = load_config(SELF_PIPELINE)
         source, nodes = topology_mermaid(cfg)
 
-        chain = ["dev", "checks", "review", "port_sweep", "qa", "commit",
+        chain = ["dev", "test", "review", "port_sweep", "qa", "commit",
                  "success"]
         for src, dst in zip(chain, chain[1:]):
             assert f"{src} --> {dst};" in source
 
-        assert "checks -. &nbsp;FAIL&nbsp; .-> dev;" in source
+        assert "test -. &nbsp;FAIL&nbsp; .-> dev;" in source
         assert "review -. &nbsp;NEEDS CHANGES&nbsp; .-> dev;" in source
         assert "qa -. &nbsp;FAIL&nbsp; .-> dev;" in source
 
@@ -283,7 +283,7 @@ class TestNodeWatch:
     def test_finish_only_clears_matching_node(self):
         watch = NodeWatch()
         watch.start("dev")
-        watch.finish("checks")
+        watch.finish("test")
         assert watch.current() == "dev"
         watch.finish("dev")
         assert watch.current() is None
@@ -414,12 +414,12 @@ class TestServer:
 
     def test_sse_replays_backlog(self, server):
         bus, _httpd, _thread, port = server
-        bus.publish({"type": "node_started", "node": "checks"})
+        bus.publish({"type": "node_started", "node": "test"})
         sock, leftover = connect_sse(port)
         frame = read_frame(sock, leftover)
         sock.close()
         assert json.loads(frame.decode().split("data: ", 1)[1].strip()) == \
-            {"type": "node_started", "node": "checks"}
+            {"type": "node_started", "node": "test"}
 
     def test_bind_failure_is_loud(self, server):
         _bus, _httpd, _thread, port = server
