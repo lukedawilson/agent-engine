@@ -503,6 +503,7 @@ PAGE = """<!doctype html>
   var fatalNodes = new Set();
   var maxAttempts = null;
   var attempt = null;
+  var verdictAttempt = null;
   var mermaidSource = null;
   var renderCount = 0;
   var mermaidFailed = !!window.__mermaidFailed;
@@ -573,6 +574,19 @@ PAGE = """<!doctype html>
       b.textContent = step + ": " + (v === null || v === undefined ? "no verdict" : v);
       box.appendChild(b);
     });
+  }
+
+  function resetVerdicts() {
+    verdictSteps.clear();
+    verdictPass.clear();
+    verdictFail.clear();
+    currentVerdicts = {};
+    nodeStatus = {};
+    stageWord = {};
+    pendingCompletion = null;
+    updateBadges();
+    Array.from(nodeIds).forEach(function (n) { renderStageHeader(n); });
+    renderGraph();
   }
 
   function renderGraph() {
@@ -890,7 +904,11 @@ PAGE = """<!doctype html>
       case "run_started":
         flushPending();
         clearConsoles();
-        if (ev.attempt !== undefined) { attempt = ev.attempt; }
+        resetVerdicts();
+        if (ev.attempt !== undefined) {
+          attempt = ev.attempt;
+          verdictAttempt = ev.attempt;
+        }
         maxAttempts = ev.max_attempts;
         el("subject").textContent = ev.subject;
         if (ev.thread_id !== undefined) {
@@ -930,7 +948,13 @@ PAGE = """<!doctype html>
         }
         break;
       case "state":
-        if (ev.attempt !== undefined) { attempt = ev.attempt; }
+        if (ev.attempt !== undefined) {
+          attempt = ev.attempt;
+          if (verdictAttempt !== null && ev.attempt !== verdictAttempt) {
+            resetVerdicts();
+          }
+          verdictAttempt = ev.attempt;
+        }
         if (ev.step_verdicts !== undefined) {
           Object.keys(ev.step_verdicts).forEach(function (k) {
             verdictSteps.add(k);

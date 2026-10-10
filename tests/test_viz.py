@@ -12,8 +12,11 @@ import json
 import operator
 import os
 import queue
+import re
+import shutil
 import socket
 import struct
+import subprocess
 import sys
 import threading
 import time
@@ -768,6 +771,252 @@ class TestServer:
         assert "mouseup" in PAGE
         assert "dragging" in PAGE
 
+    def test_page_constant_resets_verdicts_on_attempt_change(self):
+        assert "verdictAttempt" in PAGE
+        assert "resetVerdicts" in PAGE
+        assert "ev.attempt !== verdictAttempt" in PAGE
+
+
+# The page script is real browser JS embedded in the PAGE constant. Run it
+# under node (skipped when node is absent) against a minimal DOM shim and feed
+# it real event JSON, so the verdict-badge behaviour is tested by execution
+# rather than by substring assertions.
+class TestPageScriptBehavior:
+    INLINE_SCRIPT = re.compile(r"<script>\n\(function \(\) \{.*?\}\)\(\);\n</script>",
+                               re.S)
+
+    HARNESS = r"""
+var registry = {};
+function El(tag) {
+  this.tag = tag;
+  this.children = [];
+  this._class = "";
+  this.style = {};
+  this.textContent = "";
+  this._html = "";
+  this._attrs = {};
+  this.listeners = {};
+  var self = this;
+  this.classList = {
+    add: function (c) {
+      var cs = _cs();
+      if (cs.indexOf(c) === -1) { cs.push(c); }
+      self._class = cs.join(" ");
+    },
+    remove: function (c) {
+      self._class = _cs().filter(function (x) { return x !== c; }).join(" ");
+    },
+    toggle: function (c) {
+      var cs = _cs();
+      if (cs.indexOf(c) === -1) { cs.push(c); }
+      else { cs = cs.filter(function (x) { return x !== c; }); }
+      self._class = cs.join(" ");
+    },
+    contains: function (c) { return _cs().indexOf(c) !== -1; }
+  };
+  function _cs() { return self._class.split(/\s+/).filter(Boolean); }
+}
+Object.defineProperties(El.prototype, {
+  className: {
+    get: function () { return this._class; },
+    set: function (v) { this._class = String(v); }
+  },
+  innerHTML: {
+    get: function () { return this._html; },
+    set: function (v) { this._html = String(v); this.children = []; }
+  }
+});
+El.prototype.appendChild = function (c) { this.children.push(c); return c; };
+El.prototype.removeChild = function (c) {
+  var i = this.children.indexOf(c);
+  if (i >= 0) { this.children.splice(i, 1); }
+  return c;
+};
+El.prototype.insertBefore = function (c, ref) {
+  var i = ref ? this.children.indexOf(ref) : -1;
+  if (i < 0) { this.children.push(c); } else { this.children.splice(i, 0, c); }
+  return c;
+};
+El.prototype.addEventListener = function (t, fn) { this.listeners[t] = fn; };
+El.prototype.setAttribute = function (k, v) { this._attrs[k] = String(v); };
+El.prototype.getAttribute = function (k) {
+  return Object.prototype.hasOwnProperty.call(this._attrs, k)
+    ? this._attrs[k] : null;
+};
+El.prototype.querySelector = function (sel) {
+  var cls = sel.slice(1);
+  for (var i = 0; i < this.children.length; i++) {
+    var c = this.children[i];
+    if ((" " + c._class + " ").indexOf(" " + cls + " ") !== -1) { return c; }
+  }
+  return null;
+};
+El.prototype.querySelectorAll = function (sel) {
+  var cls = sel.slice(1);
+  var out = [];
+  this.children.forEach(function (c) {
+    if ((" " + c._class + " ").indexOf(" " + cls + " ") !== -1) { out.push(c); }
+  });
+  return out;
+};
+El.prototype.scrollIntoView = function () {};
+
+var STATIC_IDS = ["subject", "attempt", "thread-id", "elapsed", "verdicts",
+                  "stages", "run-log", "mermaid-container", "run-banner",
+                  "divider", "sidebar"];
+STATIC_IDS.forEach(function (id) { registry[id] = new El(id); });
+var elCounter = 0;
+var document = {
+  getElementById: function (id) {
+    if (registry[id]) { return registry[id]; }
+    for (var k in registry) {
+      if (registry[k].id === id) { return registry[k]; }
+    }
+    return null;
+  },
+  createElement: function (tag) {
+    var e = new El(tag);
+    registry["el-" + (++elCounter)] = e;
+    return e;
+  },
+  body: new El("body")
+};
+var window = { __mermaidFailed: false, addEventListener: function () {},
+               innerWidth: 1000 };
+var mermaidCalls = [];
+var esInstance = null;
+
+globalThis.document = document;
+globalThis.window = window;
+globalThis.mermaid = {
+  initialize: function () {},
+  render: function (_id, src) {
+    mermaidCalls.push(src);
+    return Promise.resolve({ svg: "<svg/>", bindFunctions: null });
+  }
+};
+globalThis.fetch = function () {
+  return Promise.resolve({
+    json: function () {
+      return Promise.resolve({
+        subject: "test subject",
+        mermaid: "graph TD;\\ndev(dev)\\ntest(test)\\nreview(review)\\n",
+        nodes: ["dev", "test", "review"]
+      });
+    }
+  });
+};
+globalThis.requestAnimationFrame = function (fn) { fn(); };
+globalThis.setTimeout = function () { return 0; };
+globalThis.EventSource = function (url) {
+  this.url = url;
+  this.onmessage = null;
+  this.onerror = null;
+  esInstance = this;
+};
+
+(0, eval)(PAGE_SCRIPT);
+
+function badges() {
+  var box = document.getElementById("verdicts");
+  return box.children.map(function (c) { return c.textContent; });
+}
+function nodeClasses() {
+  var src = mermaidCalls[mermaidCalls.length - 1];
+  var out = {};
+  var re = /class (\S+) (\S+);/g, m;
+  while ((m = re.exec(src))) { out[m[1]] = m[2]; }
+  return out;
+}
+function fire(ev) { esInstance.onmessage({ data: JSON.stringify(ev) }); }
+
+var snapshots = [];
+async function main() {
+  // let the topology fetch microtask chain resolve so events are handled
+  // live (synchronously inside es.onmessage) instead of buffered
+  await new Promise(function (res) { setImmediate(res); });
+  EVENTS.forEach(function (ev) {
+    fire(ev);
+    if (ev.type === "state") {
+      snapshots.push({ ev: ev, badges: badges(), classes: nodeClasses() });
+    }
+  });
+  console.log(JSON.stringify(snapshots));
+}
+main();
+"""
+
+    @pytest.fixture
+    def node(self):
+        node = shutil.which("node")
+        if node is None:
+            pytest.skip("node is not installed")
+        return node
+
+    def _run_page(self, node, events, tmp_path):
+        match = self.INLINE_SCRIPT.search(PAGE)
+        assert match, "inline page script not found in PAGE"
+        script = match.group(0)[len("<script>\n"):-len("</script>")]
+        js = ("var PAGE_SCRIPT = " + json.dumps(script) + ";\n"
+              + "var EVENTS = " + json.dumps(events) + ";\n"
+              + self.HARNESS)
+        script_file = tmp_path / "page_script_test.js"
+        script_file.write_text(js)
+        proc = subprocess.run([node, str(script_file)], capture_output=True,
+                              text=True, timeout=60)
+        assert proc.returncode == 0, proc.stderr
+        return json.loads(proc.stdout)
+
+    def test_attempt_change_clears_verdict_badges_and_node_colors(self, node,
+                                                                  tmp_path):
+        events = [
+            {"type": "run_started", "subject": "s", "max_attempts": 5,
+             "attempt": 1, "thread_id": "t"},
+            {"type": "node_finished", "node": "test", "ok": True},
+            {"type": "state", "attempt": 1,
+             "step_verdicts": {"test": "pass"}, "failed": False},
+            # the bump node: attempt 2 starts with reset verdict state
+            {"type": "state", "attempt": 2, "step_verdicts": {},
+             "failed": False},
+            {"type": "node_finished", "node": "test", "ok": True},
+            {"type": "state", "attempt": 2,
+             "step_verdicts": {"test": "pass"}, "failed": False},
+        ]
+        snaps = self._run_page(node, events, tmp_path)
+
+        # within attempt 1 the pass badge shows
+        assert snaps[0]["badges"] == ["test: pass"]
+        assert snaps[0]["classes"]["test"] == "pass"
+        # the attempt transition wipes per-attempt display state — the stale
+        # "test: no verdict" badge must be gone, and the node color reset
+        assert snaps[1]["badges"] == []
+        assert snaps[1]["classes"].get("test", "pending") == "pending"
+        # re-running the gate on attempt 2 restores pass
+        assert snaps[2]["badges"] == ["test: pass"]
+        assert snaps[2]["classes"]["test"] == "pass"
+
+    def test_same_attempt_accumulates_badges_without_reset(self, node,
+                                                           tmp_path):
+        events = [
+            {"type": "run_started", "subject": "s", "max_attempts": 5,
+             "attempt": 1, "thread_id": "t"},
+            {"type": "node_finished", "node": "test", "ok": True},
+            {"type": "state", "attempt": 1,
+             "step_verdicts": {"test": "pass"}, "failed": False},
+            {"type": "node_finished", "node": "review", "ok": True},
+            {"type": "state", "attempt": 1,
+             "step_verdicts": {"test": "pass", "review": "fail"},
+             "failed": False},
+        ]
+        snaps = self._run_page(node, events, tmp_path)
+
+        assert snaps[0]["badges"] == ["test: pass"]
+        # a same-attempt state event must NOT reset — the test pass badge
+        # survives and the review fail badge joins it
+        assert snaps[1]["badges"] == ["test: pass", "review: fail"]
+        assert snaps[1]["classes"]["test"] == "pass"
+        assert snaps[1]["classes"]["review"] == "fail"
+
 
 class TestDemo:
     def test_run_started_carries_attempt(self, monkeypatch):
@@ -853,4 +1102,28 @@ class TestDemo:
         run_finished = next(e for e in events
                             if e["type"] == "run_finished")
         assert run_finished["success"] is False
+
+    def test_demo_step_verdicts_are_full_snapshots(self, monkeypatch):
+        import viz_demo
+
+        monkeypatch.setattr(viz_demo.time, "sleep", lambda *_a: None)
+        bus = VizBus()
+        viz_demo.run_scenario(bus, "success")
+        q = bus.subscribe()
+        events = []
+        while not q.empty():
+            events.append(q.get_nowait())
+
+        verdict_states = [e["step_verdicts"] for e in events
+                          if e["type"] == "state"
+                          and "step_verdicts" in e]
+        assert verdict_states == [
+            {"test": "pass"},
+            {"test": "pass", "review": "pass"},
+            {"test": "pass", "review": "pass", "qa": "fail"},
+            {},  # the bump clears the snapshot for attempt 2
+            {"test": "pass"},
+            {"test": "pass", "review": "pass"},
+            {"test": "pass", "review": "pass", "qa": "pass"},
+        ]
 

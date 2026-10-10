@@ -1,0 +1,32 @@
+--- a/viz_demo.py
++++ b/viz_demo.py
+@@ -104,19 +104,25 @@
+     emit_node(bus, "dev", {"attempt": 1}, flood=flood)
+     emit_node(bus, "test", {"step_verdicts": {"test": "pass"}},
+               kind="command")
+-    emit_node(bus, "review", {"step_verdicts": {"review": "pass"}})
++    emit_node(bus, "review", {"step_verdicts": {"test": "pass",
++                                                "review": "pass"}})
+     if scenario == "failure":
+         emit_node(bus, "qa", ok=False)
+         bus.publish({"type": "run_finished", "success": False, "attempts": 1})
+         return
+ 
+-    emit_node(bus, "qa", {"step_verdicts": {"review": "pass", "qa": "fail"}})
++    emit_node(bus, "qa", {"step_verdicts": {"test": "pass",
++                                            "review": "pass",
++                                            "qa": "fail"}})
+     emit_node(bus, "bump", {"attempt": 2, "step_verdicts": {}})
+     emit_node(bus, "dev")
+     emit_node(bus, "test", {"step_verdicts": {"test": "pass"}},
+               kind="command")
+-    emit_node(bus, "review", {"step_verdicts": {"review": "pass"}})
+-    emit_node(bus, "qa", {"step_verdicts": {"review": "pass", "qa": "pass"}})
++    emit_node(bus, "review", {"step_verdicts": {"test": "pass",
++                                                "review": "pass"}})
++    emit_node(bus, "qa", {"step_verdicts": {"test": "pass",
++                                            "review": "pass",
++                                            "qa": "pass"}})
+     emit_node(bus, "commit")
+     emit_node(bus, "success", {"outcome": "success"})
+     bus.publish({"type": "run_finished", "success": True, "attempts": 2})
