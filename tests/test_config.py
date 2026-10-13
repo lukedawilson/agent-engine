@@ -213,6 +213,26 @@ def test_neither_agent_nor_action_rejected(tmp_path):
         _load(tmp_path, data)
 
 
+@pytest.mark.parametrize("field", ["agent", "action", "command"])
+def test_empty_type_value_rejected(tmp_path, field):
+    data = _base()
+    data["steps"][0] = {"name": "x", field: "", "on_pass": "success"}
+    with pytest.raises(ValidationError, match="must be a non-empty string"):
+        _load(tmp_path, data)
+
+
+def test_step_kind_is_explicit_discriminator(tmp_path):
+    """The step type IS the key it carries: agent/command/action."""
+    data = _base()
+    data["steps"] = [
+        {"name": "a", "agent": "dev", "on_pass": "success"},
+        {"name": "c", "command": "true", "on_pass": "success"},
+        {"name": "x", "action": "commit", "on_pass": "success"},
+    ]
+    assert [s.kind for s in _load(tmp_path, data).steps] == \
+        ["agent", "command", "action"]
+
+
 def test_command_step_round_trips(tmp_path):
     data = _base()
     data["steps"] = [{"name": "test", "command": "python -m pytest",

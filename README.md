@@ -141,10 +141,32 @@ steps:
       message: "feat: construct {subject} (agent dev loop)"  # {subject} templated
 ```
 
-Step semantics:
+### Step types
+
+How a step behaves is determined solely by which of three mutually-exclusive
+keys it carries — exactly one of `agent:`, `command:`, or `action:` is
+required, an empty value does not count, and zero or several keys fail to
+load. Graph-building dispatches on this `kind` (see `StepConfig.kind` in
+`config.py`).
+
+- **`agent: <name>`** — an *agent step*: loads `sdk_agents/<name>.agent.md`
+  and runs it via the OpenHands SDK against the accumulated context. May
+  declare `produces:` (hygiene-tracked outputs, no verdict parsing) or
+  `artifact:` + `verdicts:` (verdict-parsed routing). `max_iterations` caps
+  the agent's own loop.
+- **`command: <shell>`** — a *command step*: mechanical, never an LLM call.
+  The command runs in the workspace shell; exit 0 passes, anything else
+  (including no exit by `timeout`) fails. `timeout:` is its only extra field.
+- **`action: <name>`** — an *action step*: invokes a registered node-shaped
+  function `(state, params) -> state update` with the step's `params:`. The
+  built-in is `commit`; extensions register more via `registry.add_action`.
+  Unknown action names fail at graph build time, not mid-run.
 
 - `agent`, `action`, and `command` are mutually exclusive; exactly one is
-  required.
+  required — an empty value does not count.
+
+### Step semantics
+
 - A `command` step is **mechanical** — the command runs in the workspace
   shell; exit 0 passes, anything else (including no exit by `timeout`,
   default 600s) fails and follows `on_fail` with the output tail in the

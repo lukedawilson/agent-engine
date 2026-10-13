@@ -57,9 +57,9 @@ def build_graph(runtime: Runtime, checkpointer=None):
                 f"(registered: {sorted(runtime.registry.actions)})")
     graph = StateGraph(LoopState)
     for step in runtime.cfg.steps:
-        if step.agent:
+        if step.kind == "agent":
             node = make_agent_node(runtime, step)
-        elif step.command is not None:
+        elif step.kind == "command":
             node = make_command_node(runtime, step)
         else:
             node = make_action_node(runtime, step)

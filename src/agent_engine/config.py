@@ -33,6 +33,10 @@ def route_target(route: RouteTarget | None) -> str | None:
 
 
 class StepConfig(BaseModel):
+    """One pipeline step. Its type IS the key it carries: exactly one of
+    `agent`, `action`, or `command` — empty values do not count, anything
+    else fails to load. See the `kind` property (the single discriminator
+    graph-building dispatches on)."""
     model_config = ConfigDict(extra="forbid")
 
     name: str
@@ -48,6 +52,18 @@ class StepConfig(BaseModel):
     on_pass: RouteTarget | None = None
     on_fail: RouteTarget | None = None
 
+    @property
+    def kind(self) -> str:
+        """The step's type: 'agent', 'command', or 'action'. Which of the
+        three keys is set is the ONLY signal; validation has already
+        guaranteed exactly one is set and non-empty by the time any instance
+        exists."""
+        if self.agent is not None:
+            return "agent"
+        if self.command is not None:
+            return "command"
+        return "action"
+
     @field_validator("produces", mode="before")
     @classmethod
     def _coerce_produces(cls, v: Any) -> Any:
@@ -55,6 +71,12 @@ class StepConfig(BaseModel):
 
     @model_validator(mode="after")
     def _check_shape(self) -> "StepConfig":
+        for key in ("agent", "action", "command"):
+            value = getattr(self, key)
+            if value is not None and not value.strip():
+                raise ValueError(
+                    f"step {self.name!r}: {key!r} must be a non-empty string"
+                )
         if sum(k is not None for k in (self.agent, self.action, self.command)) != 1:
             raise ValueError(
                 f"step {self.name!r}: exactly one of 'agent', 'action', or "
