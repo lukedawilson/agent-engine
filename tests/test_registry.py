@@ -24,8 +24,12 @@ class _Loader:
 class TestBuiltinRegistration:
     def test_default_registry_has_builtin_actions(self):
         reg = default_registry()
-        assert reg.actions["kill_listeners"] is actions.kill_listeners
         assert reg.actions["commit"] is actions.commit
+
+    def test_kill_listeners_action_not_registered(self):
+        """The port_sweep pipeline step that used the node-shaped wrapper is
+        gone; the startup sweep calls kill_listeners_on_port directly."""
+        assert "kill_listeners" not in default_registry().actions
 
 
 class TestActionRegistration:

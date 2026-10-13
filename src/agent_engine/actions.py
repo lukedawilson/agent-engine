@@ -119,12 +119,6 @@ def kill_listeners_on_port(port: int, match: str | None = None,
         subprocess.run(["kill", "-9", pid], capture_output=True, check=False)
 
 
-def kill_listeners(_state: dict, params: dict) -> dict:
-    """Node wrapper: sweep listeners per `params: {port: N, match: str?}`."""
-    kill_listeners_on_port(params["port"], match=params.get("match"))
-    return {}
-
-
 def commit(state: dict, params: dict) -> dict:
     """The pipeline's only commit point. Skipped loudly when the worktree was
     dirty at run start, so the auto-commit can never swallow pre-existing

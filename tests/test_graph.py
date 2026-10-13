@@ -1,12 +1,9 @@
 """Graph builder + run_pipeline behavioral tests.
 
 The yosk-equivalent YAML below must reproduce the hardcoded loop's behavior:
-dev → check → review → port_sweep → qa → commit, retries to dev, failure on
+dev → check → review → qa → commit, retries to dev, failure on
 exhaustion/exception. run_agent is stubbed (the SDK network boundary);
-everything else — files, git, checkpoints — is real.
-
-NOTE: port_sweep params use port 18099 with an impossible match string so a
-test run can never kill a real local dev server (topology is unchanged)."""
+everything else — files, git, checkpoints — is real."""
 
 import argparse
 import queue
@@ -53,12 +50,8 @@ steps:
     agent: review
     artifact: review-findings.md
     verdicts: { pass: APPROVED, fail: NEEDS CHANGES }
-    on_pass: port_sweep
-    on_fail: { goto: dev, retry: true }
-  - name: port_sweep
-    action: kill_listeners
-    params: { port: 18099, match: agent-engine-test-no-such-proc }
     on_pass: qa
+    on_fail: { goto: dev, retry: true }
   - name: qa
     agent: qa
     artifact: qa-report.md
@@ -145,17 +138,17 @@ class TestTopology:
                           agents_dir=repo / "sdk_agents", state_dir=repo / ".pr",
                           workspace=repo)
         nodes = set(build_graph(runtime).get_graph().nodes)
-        assert {"dev", "check", "review", "port_sweep", "qa", "commit",
+        assert {"dev", "check", "review", "qa", "commit",
                 "bump", "success"} <= nodes
 
     def test_unknown_action_fails_at_build(self, repo):
         (repo / "bad.yaml").write_text(YOSK_YAML.replace(
-            "action: kill_listeners", "action: no_such_action"))
+            "action: commit", "action: no_such_action"))
         cfg = load_config(Path("bad.yaml"))
         runtime = Runtime(cfg=cfg, registry=default_registry(),
                           llm=build_llm(cfg.llm), agents_dir=repo / "sdk_agents",
                           state_dir=repo / ".pr", workspace=repo)
-        with pytest.raises(ValueError, match="no_such_action.*port_sweep|port_sweep.*no_such_action"):
+        with pytest.raises(ValueError, match="no_such_action.*commit|commit.*no_such_action"):
             build_graph(runtime)
 
 
@@ -362,7 +355,7 @@ class TestVizStream:
         assert [e["type"] for e in events][0] == "run_started"
         assert [e["type"] for e in events][-1] == "run_finished"
         started = [e["node"] for e in events if e["type"] == "node_started"]
-        assert started == ["dev", "check", "review", "port_sweep", "qa",
+        assert started == ["dev", "check", "review", "qa",
                            "commit", "success"]
         assert events[0]["subject"] == "plan plan.md"
         assert events[0]["max_attempts"] == 3

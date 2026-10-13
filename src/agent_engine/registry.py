@@ -1,8 +1,8 @@
 """Extension registry — the seam between core and consumer/bundled extensions.
 
-Core pre-registers the built-ins (actions `kill_listeners`/`commit`, document
-loader `plan`); everything else arrives via `load_extensions` from the
-pipeline's `extensions:` list — `module:Class` strings, explicit only, no
+Core pre-registers the built-ins (action `commit`, document loader `plan`);
+everything else arrives via `load_extensions` from the pipeline's
+`extensions:` list — `module:Class` strings, explicit only, no
 auto-discovery.
 """
 
@@ -76,13 +76,12 @@ class Registry:
 
 
 def default_registry() -> Registry:
-    """Core built-ins: actions `kill_listeners`/`commit`, document loader
-    `plan` (flag `--plan PATH`)."""
+    """Core built-ins: action `commit`, document loader `plan`
+    (flag `--plan PATH`)."""
     from . import actions as _actions
     from .loaders import PlanDocumentLoader
 
     reg = Registry()
-    reg.add_action("kill_listeners", _actions.kill_listeners)
     reg.add_action("commit", _actions.commit)
     reg.add_document_loader(PlanDocumentLoader())
     return reg

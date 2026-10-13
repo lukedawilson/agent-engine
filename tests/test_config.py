@@ -7,10 +7,11 @@ from pydantic import ValidationError
 from agent_engine.config import Route, load_config
 
 # The plan's yosk-equivalent reference pipeline (009, YAML schema section),
-# verbatim except for one substitution: 012 replaced the agent step named
+# verbatim except for two substitutions: 012 replaced the agent step named
 # `test` (artifact ci-fix.md, PASS/FAIL) with the mechanical command step
-# named `test` — same position, same on_fail wiring. This is the canonical
-# pin: the documented schema must load.
+# named `test` — same position, same on_fail wiring; and 009 dropped the
+# port_sweep step (its sweep moved into engine startup, no longer a pipeline
+# step). This is the canonical pin: the documented schema must load.
 FULL_YAML = """\
 name: yosk-construction
 
@@ -46,13 +47,8 @@ steps:
     agent: review
     artifact: review-findings.md
     verdicts: { pass: APPROVED, fail: NEEDS CHANGES }
-    on_pass: port_sweep
-    on_fail: { goto: dev, retry: true }
-
-  - name: port_sweep
-    action: kill_listeners
-    params: { port: 8080, match: Yosk }
     on_pass: qa
+    on_fail: { goto: dev, retry: true }
 
   - name: qa
     agent: qa
@@ -102,7 +98,7 @@ def test_full_schema_example_round_trips(tmp_path):
     assert cfg.llm.extra_body == {"chat_template_kwargs": {"thinking": False}}
     assert cfg.llm.timeout is None  # opinionated no-timeout default
 
-    dev, test, review, port_sweep, qa, commit = cfg.steps
+    dev, test, review, qa, commit = cfg.steps
     assert dev.agent == "dev"
     assert dev.produces == ["implementation-summary.md"]
     assert dev.on_pass == "test"
@@ -114,9 +110,6 @@ def test_full_schema_example_round_trips(tmp_path):
     assert test.on_fail == Route(goto="dev", retry=True)
 
     assert review.verdicts.fail == "NEEDS CHANGES"
-
-    assert port_sweep.action == "kill_listeners"
-    assert port_sweep.params == {"port": 8080, "match": "Yosk"}
 
     assert qa.max_iterations == 200
 

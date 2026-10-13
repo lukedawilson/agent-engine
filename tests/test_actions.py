@@ -14,8 +14,7 @@ from pathlib import Path
 import pytest
 
 from agent_engine.actions import (_listening_pids, _parse_cwd_output, commit,
-                                  git_worktree_clean, kill_listeners,
-                                  kill_listeners_on_port)
+                                  git_worktree_clean, kill_listeners_on_port)
 
 lsof_required = pytest.mark.skipif(
     shutil.which("lsof") is None, reason="lsof required")
@@ -143,20 +142,11 @@ class TestKillListenersOnPort:
             if proc.poll() is None:
                 proc.kill()
 
-    @lsof_required
-    def test_node_sweeps_from_params(self):
-        """The node-shaped wrapper reads port/match from step params."""
-        port = free_port()
-        proc = spawn_listener(port)
-        try:
-            wait_listening(port)
-            update = kill_listeners({"subject": "x"}, {"port": port, "match": "socket"})
-            proc.wait(timeout=5)
-            assert proc.poll() is not None
-            assert update == {}
-        finally:
-            if proc.poll() is None:
-                proc.kill()
+    def test_kill_listeners_wrapper_removed(self):
+        """The port_sweep pipeline step that used the node-shaped wrapper is
+        gone; the startup sweep calls kill_listeners_on_port directly."""
+        import agent_engine.actions as actions_module
+        assert not hasattr(actions_module, "kill_listeners")
 
     @lsof_required
     def test_never_sweeps_own_listener(self):
