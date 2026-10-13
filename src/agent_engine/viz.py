@@ -503,7 +503,6 @@ PAGE = """<!doctype html>
   var fatalNodes = new Set();
   var maxAttempts = null;
   var attempt = null;
-  var verdictAttempt = null;
   var mermaidSource = null;
   var renderCount = 0;
   var mermaidFailed = !!window.__mermaidFailed;
@@ -907,7 +906,6 @@ PAGE = """<!doctype html>
         resetVerdicts();
         if (ev.attempt !== undefined) {
           attempt = ev.attempt;
-          verdictAttempt = ev.attempt;
         }
         maxAttempts = ev.max_attempts;
         el("subject").textContent = ev.subject;
@@ -948,13 +946,7 @@ PAGE = """<!doctype html>
         }
         break;
       case "state":
-        if (ev.attempt !== undefined) {
-          attempt = ev.attempt;
-          if (verdictAttempt !== null && ev.attempt !== verdictAttempt) {
-            resetVerdicts();
-          }
-          verdictAttempt = ev.attempt;
-        }
+        if (ev.attempt !== undefined) { attempt = ev.attempt; }
         if (ev.step_verdicts !== undefined) {
           Object.keys(ev.step_verdicts).forEach(function (k) {
             verdictSteps.add(k);
@@ -962,8 +954,8 @@ PAGE = """<!doctype html>
             if (v === "pass") { verdictPass.add(k); verdictFail.delete(k); }
             else if (v === "fail") { verdictFail.add(k); verdictPass.delete(k); }
             else { verdictPass.delete(k); verdictFail.delete(k); }
+            currentVerdicts[k] = v;
           });
-          currentVerdicts = ev.step_verdicts;
           updateBadges();
           if (pendingCompletion !== null
               && (pendingCompletion.node in ev.step_verdicts)) {

@@ -771,10 +771,12 @@ class TestServer:
         assert "mouseup" in PAGE
         assert "dragging" in PAGE
 
-    def test_page_constant_resets_verdicts_on_attempt_change(self):
-        assert "verdictAttempt" in PAGE
+    def test_page_constant_resets_verdicts_on_run_start(self):
         assert "resetVerdicts" in PAGE
-        assert "ev.attempt !== verdictAttempt" in PAGE
+        # no attempt-bump reset: verdicts must survive a retry loopback
+        assert "verdictAttempt" not in PAGE
+        assert "ev.attempt !== verdictAttempt" not in PAGE
+        assert "currentVerdicts[k] = v" in PAGE
 
 
 # The page script is real browser JS embedded in the PAGE constant. Run it
@@ -967,15 +969,18 @@ main();
         assert proc.returncode == 0, proc.stderr
         return json.loads(proc.stdout)
 
-    def test_attempt_change_clears_verdict_badges_and_node_colors(self, node,
-                                                                  tmp_path):
+    def test_attempt_change_keeps_latest_results(self, node, tmp_path):
         events = [
             {"type": "run_started", "subject": "s", "max_attempts": 5,
              "attempt": 1, "thread_id": "t"},
             {"type": "node_finished", "node": "test", "ok": True},
             {"type": "state", "attempt": 1,
              "step_verdicts": {"test": "pass"}, "failed": False},
-            # the bump node: attempt 2 starts with reset verdict state
+            {"type": "node_finished", "node": "review", "ok": True},
+            {"type": "state", "attempt": 1,
+             "step_verdicts": {"test": "pass", "review": "fail"},
+             "failed": False},
+            # the bump node: review failed, so the engine loops back to dev
             {"type": "state", "attempt": 2, "step_verdicts": {},
              "failed": False},
             {"type": "node_finished", "node": "test", "ok": True},
@@ -984,16 +989,20 @@ main();
         ]
         snaps = self._run_page(node, events, tmp_path)
 
-        # within attempt 1 the pass badge shows
+        # within attempt 1 both verdicts show
         assert snaps[0]["badges"] == ["test: pass"]
         assert snaps[0]["classes"]["test"] == "pass"
-        # the attempt transition wipes per-attempt display state — the stale
-        # "test: no verdict" badge must be gone, and the node color reset
-        assert snaps[1]["badges"] == []
-        assert snaps[1]["classes"].get("test", "pending") == "pending"
-        # re-running the gate on attempt 2 restores pass
-        assert snaps[2]["badges"] == ["test: pass"]
+        assert snaps[1]["badges"] == ["test: pass", "review: fail"]
+        assert snaps[1]["classes"]["review"] == "fail"
+        # the loopback must NOT wipe the latest results — the stage pills
+        # and node colours survive the attempt bump
+        assert snaps[2]["badges"] == ["test: pass", "review: fail"]
         assert snaps[2]["classes"]["test"] == "pass"
+        assert snaps[2]["classes"]["review"] == "fail"
+        # re-running the gate on attempt 2 updates its own results only
+        assert snaps[3]["badges"] == ["test: pass", "review: fail"]
+        assert snaps[3]["classes"]["test"] == "pass"
+        assert snaps[3]["classes"]["review"] == "fail"
 
     def test_same_attempt_accumulates_badges_without_reset(self, node,
                                                            tmp_path):
