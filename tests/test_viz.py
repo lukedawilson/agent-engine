@@ -735,6 +735,20 @@ class TestServer:
         assert "stage-console" in PAGE
         assert "collapsed" in PAGE
 
+    def test_page_constant_has_copy_button(self):
+        assert "copy-btn" in PAGE
+        assert "console-wrap" in PAGE
+        assert "COPY_ICON" in PAGE
+        assert "CHECK_ICON" in PAGE
+        assert "navigator.clipboard" in PAGE
+        assert "writeText" in PAGE
+        # float+sticky, not absolute: the button lives in the wrap's content
+        # box so the scrollbar (outside the content box) can't cover it
+        assert "position: sticky" in PAGE
+        assert "float: right" in PAGE
+        assert "position: absolute" not in PAGE
+        assert "has-scrollbar" not in PAGE
+
     def test_page_constant_has_console_live_tail(self):
         assert "scrollHeight" in PAGE
         assert "scrollTop" in PAGE
@@ -825,7 +839,14 @@ Object.defineProperties(El.prototype, {
   },
   innerHTML: {
     get: function () { return this._html; },
-    set: function (v) { this._html = String(v); this.children = []; }
+    set: function (v) {
+      this._html = String(v);
+      this.children = [];
+      // approximate innerText for copy tests: strip tags, unescape entities
+      this.textContent = String(v).replace(/<[^>]*>/g, "")
+        .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+        .replace(/&amp;/g, "&");
+    }
   }
 });
 El.prototype.appendChild = function (c) { this.children.push(c); return c; };
@@ -890,6 +911,16 @@ var esInstance = null;
 
 globalThis.document = document;
 globalThis.window = window;
+var copiedText = null;
+// node 21+ ships a read-only `navigator` global, so defineProperty is needed
+Object.defineProperty(globalThis, "navigator", {
+  configurable: true,
+  value: {
+    clipboard: {
+      writeText: function (t) { copiedText = t; return Promise.resolve(); }
+    }
+  }
+});
 globalThis.mermaid = {
   initialize: function () {},
   render: function (_id, src) {
@@ -943,6 +974,13 @@ async function main() {
       snapshots.push({ ev: ev, badges: badges(), classes: nodeClasses() });
     }
   });
+  // exercise the copy button on the dev console
+  var dev = document.getElementById("stage-dev");
+  var copyBtn = dev.querySelector(".console-wrap").querySelector(".copy-btn");
+  copyBtn.listeners["click"]();
+  await new Promise(function (res) { setImmediate(res); });
+  snapshots.push({ copy: { text: copiedText,
+                           title: copyBtn.getAttribute("title") } });
   console.log(JSON.stringify(snapshots));
 }
 main();
@@ -1025,6 +1063,33 @@ main();
         assert snaps[1]["badges"] == ["test: pass", "review: fail"]
         assert snaps[1]["classes"]["test"] == "pass"
         assert snaps[1]["classes"]["review"] == "fail"
+
+    def test_copy_button_copies_console_text(self, node, tmp_path):
+        events = [
+            {"type": "run_started", "subject": "s", "max_attempts": 5,
+             "attempt": 1, "thread_id": "t"},
+            {"type": "console", "node": "dev", "stream": "stdout",
+             "text": "first line"},
+            {"type": "console", "node": "dev", "stream": "stderr",
+             "text": "\x1b[31mred\x1b[0m line"},
+        ]
+        snaps = self._run_page(node, events, tmp_path)
+
+        # the copied text is the console lines with ANSI markup stripped
+        assert snaps[-1]["copy"]["text"] == "first line\nred line"
+        assert snaps[-1]["copy"]["title"] == "Copied!"
+
+    def test_copy_button_nothing_to_copy_on_empty_console(self, node,
+                                                          tmp_path):
+        events = [
+            {"type": "run_started", "subject": "s", "max_attempts": 5,
+             "attempt": 1, "thread_id": "t"},
+        ]
+        snaps = self._run_page(node, events, tmp_path)
+
+        # no console lines: no clipboard write, informative title instead
+        assert snaps[-1]["copy"]["text"] is None
+        assert snaps[-1]["copy"]["title"] == "Nothing to copy"
 
 
 class TestDemo:

@@ -455,14 +455,25 @@ PAGE = """<!doctype html>
   .status-pass { color: #2e7d32; }
   .status-fail { color: #b26a00; }
   .status-fatal { color: #c62828; }
+  .console-wrap { max-height: 240px; overflow-y: auto; background: #1e1e1e; }
   .stage-console { margin: 0; padding: 8px 10px; background: #1e1e1e;
                    color: #e0e0e0; font: 12px/1.5 ui-monospace, SFMono-Regular,
-                   Menlo, monospace; white-space: pre-wrap; word-break: break-all;
-                   max-height: 240px; overflow-y: auto; }
+                   Menlo, monospace; white-space: pre-wrap; word-break: break-all; }
   .stage-console .cline { display: block; min-height: 1em; }
   .stage-console .omitted { color: #888; font-style: italic; }
   .stage-console .stage-placeholder { color: #888; font-style: italic; }
-  .stage.collapsed .stage-console { display: none; }
+  /* float puts the button in the wrap's content box, which the scrollbar
+     sits outside of — the scrollbar can never cover it; sticky keeps it
+     pinned to the top-right corner while the console scrolls */
+  .copy-btn { position: sticky; top: 6px; float: right; display: flex;
+              align-items: center; justify-content: center; width: 26px;
+              height: 26px; margin: 6px 6px 0 0; padding: 0; border: 0;
+              border-radius: 4px; cursor: pointer; background: #333333;
+              color: #f2f2f2; }
+  .copy-btn:hover { background: #4d4d4d; color: #ffffff; }
+  .copy-btn:focus-visible { outline: 2px solid #61d6d6; outline-offset: 1px; }
+  .copy-btn svg { display: block; }
+  .stage.collapsed .console-wrap { display: none; }
   #run-log { list-style: none; margin: 0; padding: 8px 0 0; flex: 0 0 auto;
              max-height: 25%; overflow-y: auto; border-top: 1px solid #e0e0e0;
              font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
@@ -514,6 +525,16 @@ PAGE = """<!doctype html>
                  "#881798", "#3a96dd", "#cccccc"];
   var BRIGHT = ["#767676", "#e74856", "#16c60c", "#f9f1a5", "#3b78ff",
                 "#b4009e", "#61d6d6", "#f2f2f2"];
+  var COPY_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="14"'
+    + ' height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+    + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round"'
+    + ' aria-hidden="true"><rect x="9" y="9" width="13" height="13"'
+    + ' rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1'
+    + ' 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+  var CHECK_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="14"'
+    + ' height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+    + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round"'
+    + ' aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>';
 
   function el(id) { return document.getElementById(id); }
 
@@ -659,8 +680,22 @@ PAGE = """<!doctype html>
     console.className = "stage-console";
     addPlaceholder(console);
 
+    var wrap = document.createElement("div");
+    wrap.className = "console-wrap";
+    var copyBtn = document.createElement("button");
+    copyBtn.className = "copy-btn";
+    copyBtn.type = "button";
+    copyBtn.setAttribute("title", "Copy output");
+    copyBtn.setAttribute("aria-label", "Copy " + node + " console output");
+    copyBtn.innerHTML = COPY_ICON;
+    copyBtn.addEventListener("click", function () {
+      copyConsole(console, copyBtn);
+    });
+    wrap.appendChild(copyBtn);
+    wrap.appendChild(console);
+
     section.appendChild(header);
-    section.appendChild(console);
+    section.appendChild(wrap);
     stages.appendChild(section);
     renderStageHeader(node);
     return section;
@@ -722,7 +757,7 @@ PAGE = """<!doctype html>
     stageWord = {};
     Array.from(nodeIds).forEach(function (n) {
       var section = ensureSection(n);
-      var pre = section.querySelector(".stage-console");
+      var pre = consoleOf(section);
       pre.innerHTML = "";
       addPlaceholder(pre);
       section.classList.add("collapsed");
@@ -731,19 +766,65 @@ PAGE = """<!doctype html>
     el("run-log").innerHTML = "";
   }
 
+  function consoleOf(section) {
+    return section.querySelector(".console-wrap")
+      .querySelector(".stage-console");
+  }
+
+  function scrollPortOf(section) {
+    return section.querySelector(".console-wrap");
+  }
+
+  function copyConsole(pre, btn) {
+    var lines = Array.prototype.map.call(pre.querySelectorAll(".cline"),
+      function (c) { return c.textContent; });
+    if (lines.length === 0) {
+      btn.setAttribute("title", "Nothing to copy");
+      return;
+    }
+    var text = lines.join("\\n");
+    function done(ok) {
+      btn.innerHTML = ok ? CHECK_ICON : COPY_ICON;
+      btn.setAttribute("title", ok ? "Copied!" : "Copy failed");
+      if (ok) {
+        setTimeout(function () {
+          btn.innerHTML = COPY_ICON;
+          btn.setAttribute("title", "Copy output");
+        }, 1500);
+      }
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { done(true); },
+        function () { done(false); });
+    } else {
+      // clipboard API unavailable (e.g. plain-http on a non-localhost host)
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.top = "-1000px";
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (err) { ok = false; }
+      document.body.removeChild(ta);
+      done(ok);
+    }
+  }
+
   function nearBottom(pre) {
     return pre.scrollHeight - pre.scrollTop - pre.clientHeight < 24;
   }
 
   function tailSection(section) {
     if (section.classList.contains("collapsed")) { return; }
-    var pre = section.querySelector(".stage-console");
-    pre.scrollTop = pre.scrollHeight;
+    var sp = scrollPortOf(section);
+    sp.scrollTop = sp.scrollHeight;
   }
 
   function appendConsole(section, html) {
-    var pre = section.querySelector(".stage-console");
-    var stick = !section.classList.contains("collapsed") && nearBottom(pre);
+    var pre = consoleOf(section);
+    var sp = scrollPortOf(section);
+    var stick = !section.classList.contains("collapsed") && nearBottom(sp);
     var ph = pre.querySelector(".stage-placeholder");
     if (ph) { pre.removeChild(ph); }
     if (pre.querySelectorAll(".cline").length >= MAX_CONSOLE) {
@@ -764,7 +845,7 @@ PAGE = """<!doctype html>
     line.className = "cline";
     line.innerHTML = html;
     pre.appendChild(line);
-    if (stick) { pre.scrollTop = pre.scrollHeight; }
+    if (stick) { sp.scrollTop = sp.scrollHeight; }
   }
 
   function handleConsole(ev) {
