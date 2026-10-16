@@ -31,7 +31,6 @@ llm:
   model: openai/deepseek-v4-pro
   base_url: https://api.deepseek.com
   api_key_env: TEST_LLM_KEY
-  extra_body: { chat_template_kwargs: { thinking: false } }
 state_dir: .pr
 max_attempts: 3
 agents_dir: sdk_agents
@@ -324,6 +323,28 @@ class TestResume:
         run_pipeline_args = args(plan=None, resume="no-such-thread")
         with pytest.raises(ValueError, match="no-such-thread"):
             run_pipeline("pipeline.yaml", run_pipeline_args)
+
+    def test_resume_after_hard_failure_reenters_failed_step(self, repo,
+                                                            fake_agents):
+        """A stage exception checkpoints failed=True with no pending work;
+        resume must re-enter at the failed step, not return the dead state."""
+        script_all_pass(fake_agents)
+        fake_agents.set("review", [
+            ("raise",),
+            ("write", "review-findings.md", "VERDICT: APPROVED"),
+        ])
+        ok, attempts = run_pipeline("pipeline.yaml", args())
+        assert (ok, attempts) == (False, 1)
+
+        ok, attempts = run_pipeline(
+            "pipeline.yaml", args(plan=None, resume=self.sole_thread_id(repo)))
+        assert (ok, attempts) == (True, 1)
+        # dev/check/review completed before the failure — only review onward
+        # re-ran, this time to completion
+        assert fake_agents.agents_called() == \
+            ["dev", "check", "review", "review", "qa"]
+        assert git(repo, "log", "-1", "--pretty=%s") == \
+            "feat: construct plan plan.md (agent dev loop)"
 
 
 def drain_events(bus: VizBus) -> list[dict]:

@@ -98,9 +98,6 @@ llm:
   model: openai/deepseek-v4-pro
   base_url: https://api.deepseek.com
   api_key_env: OPENAI_API_KEY        # missing env var → run fails fast, naming it
-  extra_body:
-    chat_template_kwargs:
-      thinking: false
   # timeout: null                    # default = no client timeout (long agent runs)
 
 state_dir: .pr                        # artifacts + checkpoints live here

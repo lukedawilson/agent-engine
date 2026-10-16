@@ -5,6 +5,7 @@ built-in `plan` loader plus whatever the pipeline's `extensions:` register)
 extension is listed in that pipeline's YAML."""
 
 import argparse
+import sys
 from pathlib import Path
 
 from .config import load_config
@@ -57,4 +58,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2  # unreachable — parse_args exits first
     args = build_parser(known.pipeline).parse_args(argv)
     success, _attempts = run_pipeline(args.pipeline, args)
+    if not success:
+        print("agent-engine: pipeline failed — exiting with code 1",
+              file=sys.stderr)
     return 0 if success else 1

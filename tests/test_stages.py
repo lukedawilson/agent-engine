@@ -181,7 +181,7 @@ class TestAgentNode:
     def test_agent_failure_sets_failed(self, runtime, fake_agents):
         fake_agents.set("check", [("raise",)])
         update = make_agent_node(runtime, runtime.cfg.steps[1])(make_state())
-        assert update == {"failed": True}
+        assert update == {"failed": True, "failed_step": "check"}
 
     def test_plain_agent_step_runs_and_continues(self, runtime, fake_agents):
         update = make_agent_node(runtime, runtime.cfg.steps[0])(make_state())
@@ -258,7 +258,7 @@ class TestCommandNode:
             raise RuntimeError("boom")
 
         monkeypatch.setattr("agent_engine.stages._run_command", boom)
-        assert node(make_state()) == {"failed": True}
+        assert node(make_state()) == {"failed": True, "failed_step": "test"}
 
     def test_plain_fail_route_has_no_retry_target(self, runtime):
         node = self._node(runtime, [

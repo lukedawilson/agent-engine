@@ -25,7 +25,6 @@ llm:
   model: openai/deepseek-v4-pro
   base_url: https://api.deepseek.com
   api_key_env: OPENAI_API_KEY
-  extra_body: { chat_template_kwargs: { thinking: false } }
 
 state_dir: .pr
 max_attempts: 3
@@ -95,7 +94,6 @@ def test_full_schema_example_round_trips(tmp_path):
     assert cfg.llm.model == "openai/deepseek-v4-pro"
     assert cfg.llm.base_url == "https://api.deepseek.com"
     assert cfg.llm.api_key_env == "OPENAI_API_KEY"
-    assert cfg.llm.extra_body == {"chat_template_kwargs": {"thinking": False}}
     assert cfg.llm.timeout is None  # opinionated no-timeout default
 
     dev, test, review, qa, commit = cfg.steps
@@ -158,6 +156,15 @@ def test_unknown_step_key_rejected(tmp_path):
 def test_unknown_llm_key_rejected(tmp_path):
     data = _base()
     data["llm"]["bogus"] = 1
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        _load(tmp_path, data)
+
+
+def test_extra_body_llm_key_rejected(tmp_path):
+    """extra_body was dead config: the SDK model silently drops it (the real
+    field is litellm_extra_body), so the schema no longer accepts it."""
+    data = _base()
+    data["llm"]["extra_body"] = {"chat_template_kwargs": {"thinking": False}}
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         _load(tmp_path, data)
 

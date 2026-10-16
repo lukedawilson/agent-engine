@@ -18,6 +18,35 @@ _DEEPSEEK_MODEL = "deepseek-v4-pro"
 if _DEEPSEEK_MODEL not in _model_features.SEND_REASONING_CONTENT_MODELS:
     _model_features.SEND_REASONING_CONTENT_MODELS.append(_DEEPSEEK_MODEL)
 
+# Compat shim 2: the SDK splits a multi-tool-call turn into one assistant
+# message per call (Agent.step) and carries reasoning_content only on the
+# first; Message.to_chat_dict also drops empty-string reasoning. DeepSeek's
+# thinking mode 400s any request whose history contains reasoning_content
+# but omits it from an assistant tool-call message ("The reasoning_content
+# in the thinking mode must be passed back to the API"). Repair the
+# serialized history: an assistant tool-call message without its own
+# reasoning borrows the turn's last reasoning (reset on user turns), and a
+# present-but-empty reasoning is still written (field presence matters).
+# Remove once the SDK distributes reasoning_content to every message.
+_ORIGINAL_FORMAT_MESSAGES = LLM.format_messages_for_llm
+if not getattr(_ORIGINAL_FORMAT_MESSAGES, "_agent_engine_reasoning_repair", False):
+    def _repair_reasoning_passback(self, messages: list) -> list[dict]:
+        out = _ORIGINAL_FORMAT_MESSAGES(self, messages)
+        last = None
+        for msg, d in zip(messages, out):
+            if msg.role == "user":
+                last = None
+            if msg.role == "assistant" and msg.tool_calls:
+                rc = getattr(msg, "reasoning_content", None)
+                if rc is not None:
+                    last = rc
+                if last is not None:
+                    d["reasoning_content"] = last
+        return out
+
+    _repair_reasoning_passback._agent_engine_reasoning_repair = True
+    LLM.format_messages_for_llm = _repair_reasoning_passback
+
 
 def build_llm(cfg: LlmConfig) -> LLM:
     api_key = os.environ.get(cfg.api_key_env)
@@ -28,5 +57,4 @@ def build_llm(cfg: LlmConfig) -> LLM:
         api_key=api_key,
         base_url=cfg.base_url,
         timeout=cfg.timeout,  # policy: no LLM timeout unless explicitly set
-        extra_body=cfg.extra_body,
     )

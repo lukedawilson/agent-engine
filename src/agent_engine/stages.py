@@ -225,7 +225,7 @@ def make_agent_node(runtime: Runtime, step: StepConfig):
                            max_iterations=max_iterations)
         if not result.ok:
             print(f"[{subject}] {step.name} agent failed on attempt {attempt}.", flush=True)
-            return {"failed": True}
+            return {"failed": True, "failed_step": step.name}
         if verdicts_map is None:
             return {"failed": False}
 
@@ -269,7 +269,7 @@ def make_command_node(runtime: Runtime, step: StepConfig):
                 step.command, runtime.workspace, timeout)
         except Exception:
             print(traceback.format_exc()[-4000:], file=sys.stderr, flush=True)
-            return {"failed": True}
+            return {"failed": True, "failed_step": step.name}
         if output:
             print(output, end="" if output.endswith("\n") else "\n", flush=True)
         merged = {**state["step_verdicts"],
@@ -300,7 +300,7 @@ def make_action_node(runtime: Runtime, step: StepConfig):
             return fn(state, step.params) or {}
         except Exception:
             print(traceback.format_exc()[-4000:], file=sys.stderr, flush=True)
-            return {"failed": True}
+            return {"failed": True, "failed_step": step.name}
 
     return node
 

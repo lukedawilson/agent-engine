@@ -39,6 +39,8 @@ class LoopState(TypedDict):
     max_attempts: int
     notes: Annotated[list[str], operator.add]
     failed: bool                       # hard stage failure — ends the run
+    failed_step: str | None            # the step that hard-failed (resume target)
+    resume_target: str | None          # where a resumed run re-enters (START edge)
     outcome: str | None                # "success" once routed to the success terminal
     commit_allowed: bool               # worktree was clean at run start
     step_verdicts: dict[str, str | None]  # per-step pass/fail/None(unclear)
@@ -68,7 +70,9 @@ def build_graph(runtime: Runtime, checkpointer=None):
     graph.add_node("bump", make_bump_node(runtime))
     graph.add_conditional_edges("bump", lambda state: state["retry_target"])
     graph.add_node("success", success_node)
-    graph.add_edge(START, runtime.cfg.steps[0].name)
+    graph.add_conditional_edges(
+        START,
+        lambda state: state.get("resume_target") or runtime.cfg.steps[0].name)
     graph.add_edge("success", END)
     return graph.compile(checkpointer=checkpointer)
 
@@ -147,6 +151,8 @@ def run_pipeline(cfg_path, args, *, viz_bus=None) -> tuple[bool, int]:
             "max_attempts": max_attempts,
             "notes": [],
             "failed": False,
+            "failed_step": None,
+            "resume_target": None,
             "outcome": None,
             # Only a clean-at-start worktree gets an auto-commit — otherwise
             # the commit could swallow pre-existing changes. Computed BEFORE
@@ -164,6 +170,23 @@ def run_pipeline(cfg_path, args, *, viz_bus=None) -> tuple[bool, int]:
                 f"No checkpoint found for thread {thread_id!r} in {db} — "
                 f"nothing to resume.")
         graph = build_graph(runtime, saver)
+
+        if resume and initial is None:
+            values = graph.get_state(config).values
+            if values.get("failed"):
+                # A hard-failed run's checkpoint has no pending work — a
+                # plain resume would return it untouched and exit silently.
+                # Re-enter at the step that failed so the run can complete.
+                failed_step = values.get("failed_step")
+                target = (failed_step or values.get("retry_target")
+                          or cfg.steps[0].name)
+                print(
+                    f"[{values.get('subject', '?')}] Resuming hard-failed run "
+                    f"(thread {thread_id}) — re-entering at step {target!r}. "
+                    f"Failure details: {state_dir}/last-error.md",
+                    flush=True)
+                initial = {**values, "failed": False,
+                           "resume_target": target, "failed_step": None}
 
         if bus is None and not getattr(args, "no_viz", True):
             start_state = initial if initial is not None \
@@ -232,7 +255,15 @@ def run_pipeline(cfg_path, args, *, viz_bus=None) -> tuple[bool, int]:
             success = final["outcome"] == "success"
             attempts = final["attempt"]
 
-    if not success and not final["failed"]:
-        print(f"[{final['subject']}] FAILED after {final['attempt']} attempt(s).",
-              flush=True)
+    if not success and final is not None:
+        if final.get("failed"):
+            print(
+                f"[{final['subject']}] FAILED after {final['attempt']} "
+                f"attempt(s) — hard failure at step "
+                f"{final.get('failed_step', 'unknown')!r}; see "
+                f"{state_dir}/last-error.md",
+                flush=True)
+        else:
+            print(f"[{final['subject']}] FAILED after {final['attempt']} "
+                  f"attempt(s).", flush=True)
     return success, attempts

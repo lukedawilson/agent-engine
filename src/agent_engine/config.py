@@ -111,7 +111,6 @@ class LlmConfig(BaseModel):
     model: str
     base_url: str | None = None
     api_key_env: str
-    extra_body: dict[str, Any] | None = None
     timeout: float | None = None  # omitted → opinionated no-timeout default
 
 
