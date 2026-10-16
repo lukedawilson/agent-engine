@@ -7,4 +7,5 @@ dist/
 build/
 .claude-local/
 uv.lock
+.DS_Store
 
