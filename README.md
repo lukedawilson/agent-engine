@@ -256,3 +256,22 @@ and this README wired in as shared context. Run it from the repo root with
 it — markdown-decorated verdicts, stale-artifact hygiene, verdict-first
 truncation, unclear-verdict retry, dirty-worktree commit skip, and
 empty-context fail-fast.
+
+## AI-DLC
+
+The development lifecycle workflow lives in
+`.aidlc/aidlc-rules/aws-aidlc-rules/core-workflow.md` (the entry point;
+phase details under `aws-aidlc-rule-details/`). Working docs — plans, user
+stories, units of work, state — live in `aidlc-docs/`, created as the
+workflow runs. The bundled `ai-dlc` document loader (see Extension points)
+wires the pipeline's `--ai-dlc-unit` flag to those docs.
+
+OpenCode commands over the workflow: `/epic-status`, `/ticket-details`,
+`/unit-status`, `/update-subtask` (ticket boards over `aidlc-docs/`),
+`/apply-aidlc-patches` (numbered `.patch` files under `.aidlc/aidlc-patches/`,
+applied by `apply-patches.sh`), `/load-backend-rules`
+(`coding-standards-ddd.yaml`), `/software-selection`, `/postmortem`,
+`/figma`, and `/export-opencode-tools-to-claude` (syncs commands and skills
+into `.claude-local/` for the Claude CLI).
+
+Skills: `brainstorming`, `hypothesis-generation`, `writing-plans`.

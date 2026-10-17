@@ -14,6 +14,14 @@ Permitted without asking: research, reading files, explaining, and writing
 planning documents (e.g. `planning-docs/**`) when asked. Everything else —
 including "red" TDD test files — requires an explicit yes first.
 
+When the user invokes AI-DLC,
+read and follow `.aidlc/aidlc-rules/aws-aidlc-rules/core-workflow.md` to start the workflow.
+
+When presenting AI-DLC review/approval questions, do so inline in the chat —
+override the AI-DLC rule that says "never ask questions in chat."
+After the user answers each question,
+update the corresponding plan document with the answer before presenting the next question.
+
 ## Slash commands
 
 **When the user invokes a slash command** (e.g. `/agent-engine`, `/unit-status`), the FIRST and ONLY action is to read its definition from `.opencode/commands/<command>.md`. Never pattern-match the command name to any other flow, workflow, or phase — the command file is the single source of truth.
