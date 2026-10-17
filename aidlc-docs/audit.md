@@ -79,3 +79,46 @@
 
 ## Application Design — plan created
 - 2026-10-17T12:30:00Z — application-design-plan.md created (mandatory artifacts checklist + 6 Domain Exposition questions Q-AD1..Q-AD6). Presenting questions inline per AGENTS.md override.
+
+## Application Design — Domain Exposition complete
+- 2026-10-17T12:45:00Z — Q-AD1..Q-AD6 all answered **A** (with recommendations accepted):
+  1. New feedback-domain component (outputs.py-style): capture + verdict parsing together
+  2. Pipeline writes captured response to existing artifact path; build_context untouched
+  3. Tool restrictions = .agent.md frontmatter only
+  4. New isolation component: IsolationBackend protocol + DockerBackend impl
+  5. FakeBackend as test seam; real Docker only in opt-in integration tests
+  6. Source-agnostic pure parser: parse(text) -> Verdict
+- Proceeding to Step 10: generate application design artifacts (components.md, component-methods.md, services.md [descent audit], component-dependency.md, application-design.md).
+
+## Application Design — artifacts generated
+- 2026-10-17T12:55:00Z — Generated components.md, component-methods.md, services.md (descent audit), component-dependency.md, application-design.md (consolidated). All six Q-AD decisions incorporated (all A). Review requested.
+
+## Application Design — DDD-rule amendments applied (user approved)
+- 2026-10-17T13:05:00Z — /load-backend-rules loaded coding-standards-ddd.yaml; conflicts flagged vs AD; user accepted all revision recommendations. Applied:
+  1. Q-AD4: IsolationBackend protocol REPLACED by single concrete `Sandbox` type (Docker Engine API; platform variance internal). Interface extracted only when a second backend (native Linux namespaces) lands.
+  2. Q-AD5: FakeBackend seam REMOVED (testability-driven structure forbidden); pure parts unit-tested, real Docker in opt-in integration tests.
+  3. Q-AD6: parser returns typed Result[Verdict] (NO_VERDICT/AMBIGUOUS) — no exceptions for expected conditions.
+  4. services.md descent audit: Outputs/IsolationProvider services REMOVED (one caller = no service) → CapturedOutput.from_agent_result static constructor, Sandbox.for_config static method. Zero new services.
+  5. requirements.md: open question added — Unit 3 FD "Linux: Docker vs native namespace isolation".
+- Files amended: application-design-plan.md, components.md, component-methods.md, services.md, component-dependency.md, application-design.md, requirements.md.
+
+## Application Design — Domain Model APPROVED
+- 2026-10-17T13:20:00Z — User approved the amended domain model ("I'm happy with this domain model — approved"). Change-surface Mermaid class diagram embedded in application-design.md Domain Shape section. User requested a full-pipeline diagram (all components, change-marked) for reference; per-unit FD docs will reference the approved diagram.
+
+## Full-pipeline domain diagram recorded
+- 2026-10-17T13:30:00Z — Full-pipeline Mermaid class diagram (all components, change-marked by unit) recorded in component-dependency.md. User-requested caveat included: parts of the EXISTING unchanged model are known to need refactoring under a future intent (outside this scope); diagram records today's structure for traceability. Proceeding to Units Generation.
+
+## Units Generation — Part 1 Planning answers
+- 2026-10-17T13:45:00Z — U-1 unit naming: **A** — numeric `unit-1`/`unit-2`/`unit-3` (matches ai-dlc loader `construction/unit-<N>/` expectation; reconciles the ported-commands layout gap)
+- 2026-10-17T13:46:00Z — U-2 story-map source: **A** — map FR/NFR IDs to units; no stories generated
+- 2026-10-17T13:47:00Z — U-3 Unit 2 scope: **A** — confirm mapping (FR-1.1, FR-1.4, FR-1.5, FR-1.6, FR-1.7); command-step hardening stays in Unit 2
+
+## Units Generation — Part 1 approval
+- 2026-10-17T13:50:00Z — Approval prompt: "Unit of work plan complete. Review the plan in aidlc-docs/inception/plans/unit-of-work-plan.md. Ready to proceed to generation?"
+- 2026-10-17T13:50:00Z — User response: "Yes"
+
+## Units Generation — Part 2 Generation executed
+- 2026-10-17T14:00:00Z — Generated unit-of-work.md (3 units: unit-1 output-passing fix, unit-2 SDK hardening, unit-3 kernel isolation; responsibilities + key domain objects + out-of-scope), unit-of-work-dependency.md (matrix + mermaid + coupling rules + validation), unit-of-work-story-map.md (all FR/NFR mapped to units; no unassigned). Plan checkboxes [x], state updated. Review requested.
+
+## Units Generation — Approval
+- 2026-10-17T14:05:00Z — User response: "Agreed" (approving units generation, proceeding to CONSTRUCTION PHASE)

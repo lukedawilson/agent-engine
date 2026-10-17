@@ -47,6 +47,10 @@ Isolation is **optional** — no user is forced to use a container. Not requeste
 | FR-2.5 | **Profile defaults**: what the sandbox blocks by default (network, file paths, capabilities) — **deferred to Functional Design** ("we can discuss the mechanism during FD"). |
 | FR-2.6 | **Host-side commit**: the commit action remains host-side native git (avoids Windows write-back pitfalls). |
 
+### Open Questions (deferred to Functional Design)
+
+- **Linux backend (Unit 3 FD)**: Docker vs native namespace isolation (bubblewrap/Landlock/seccomp). macOS and Windows must be Docker-based (sandboxed steps run a Linux dev image → need a Linux kernel → VM); Linux uniquely can isolate natively without a daemon. If a native-Linux backend is implemented, a shared interface is extracted at that point — the second implementation is the last responsible moment (per DDD rules; no single-implementation interfaces).
+
 ## Cross-Cutting / Non-Functional
 
 | ID | NFR |

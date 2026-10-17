@@ -25,7 +25,7 @@ The pipeline must capture the agent's final SDK response and produce the artifac
 - B) Extend existing components: capture in `stages.py` Runtime, parsing stays in `verdicts.py`
 - X) Other (describe)
 
-[Answer]:
+[Answer]: A — new component (e.g. outputs.py): capture + verdict parsing together as the feedback domain
 
 ### Q-AD2 — Component Methods: inter-stage medium for findings
 
@@ -35,7 +35,7 @@ After capture, how do findings reach downstream agents (review/qa)?
 - B) Pass findings in-memory via `LoopState`; drop file artifacts for summaries entirely
 - X) Other (describe)
 
-[Answer]:
+[Answer]: A — pipeline writes the captured response to the existing artifact path (implementation-summary.md); swap the writer agent→pipeline; build_context untouched
 
 ### Q-AD3 — Component Identification: tool-restriction config surface (Unit 2)
 
@@ -45,7 +45,7 @@ Where does per-agent tool restriction live once the SDK knobs are exposed?
 - B) Also add per-step overrides in `pipeline.yaml`
 - X) Other (describe)
 
-[Answer]:
+[Answer]: A — .agent.md frontmatter only (SDK-native tools/filter_tools_regex/include_default_tools); pipeline YAML stays config-light
 
 ### Q-AD4 — Component Identification: isolation backend boundary (Unit 3)
 
@@ -55,7 +55,7 @@ Unit 3 sandboxes terminal tool + command steps behind the Docker Engine API. Wha
 - B) Fold docker-client usage directly into `Runtime`/stages (no separate protocol)
 - X) Other (describe)
 
-[Answer]:
+[Answer]: A — new isolation component. AMENDED (DDD rules): single concrete `Sandbox` type speaking the Docker Engine API — no protocol (single-impl interfaces forbidden); platform variance (daemon detection, mount translation, CRLF) is internal behavior; shared interface extracted only when a second backend (e.g. native Linux namespaces) is implemented.
 
 ### Q-AD5 — Design Patterns: isolation testability seam
 
@@ -65,7 +65,7 @@ How are container tests kept runnable without a running daemon?
 - B) Tests require a real ephemeral container (CI provisioned)
 - X) Other (describe)
 
-[Answer]:
+[Answer]: AMENDED (DDD rules) — no FakeBackend protocol seam (no testability-driven structure): unit-test the pure parts (request building, result mapping, path translation); real Docker covered by opt-in integration tests.
 
 ### Q-AD6 — Component Dependencies: verdict parser shape
 
@@ -75,4 +75,4 @@ The captured-response parsing redesign is flagged for FD ("we've had bugs in thi
 - B) Keep parsing embedded in stage logic, reading whichever source is configured
 - X) Other (describe)
 
-[Answer]:
+[Answer]: A, AMENDED (DDD rules) — source-agnostic pure parser returning a typed RESULT object: Verdict.from_text(text) -> Result[Verdict] with typed error codes (NO_VERDICT / AMBIGUOUS); no exceptions for expected conditions.
