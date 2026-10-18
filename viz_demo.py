@@ -66,7 +66,7 @@ def emit_node(bus: viz.VizBus, name: str, state: dict | None = None,
         bus.publish({"type": "console", "node": name, "stream": "stdout",
                      "text": "$ .venv/bin/python -m pytest tests/ -q"})
         bus.publish({"type": "console", "node": name, "stream": "stdout",
-                     "text": "323 passed in 28.0s"})
+                     "text": "388 passed, 10 skipped in 242.86s"})
     else:
         bus.publish({"type": "console", "node": name, "stream": "stderr",
                      "text": "\x1b[33m[SDK] step 1 \u2014 thinking\x1b[0m"})

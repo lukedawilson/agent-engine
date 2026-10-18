@@ -12,10 +12,15 @@ import enum
 from dataclasses import dataclass
 from pathlib import Path
 
+from openhands.sdk.event.llm_convertible.action import ActionEvent
 from openhands.sdk.event.llm_convertible.message import MessageEvent
 from openhands.sdk.llm.message import content_to_str
 
 from .results import Result
+
+# The OpenHands FinishTool's registered name — the tool whose `message` IS the
+# agent's final response (see `_final_agent_text`).
+FINISH_TOOL = "finish"
 
 # Leading markdown/list/quote decoration tolerated on a verdict line.
 _LEAD_DECOR = "#*_`>- "
@@ -138,14 +143,26 @@ class CapturedOutput:
 
 
 def _final_agent_text(conv) -> str:
-    """Extract the final agent message text from an SDK conversation.
+    """Extract the agent's final response from an SDK conversation.
+
+    The OpenHands agent signals completion by calling `FinishTool`; its
+    `FinishAction.message` *is* the final response and arrives as an
+    `ActionEvent` (tool_name ``"finish"``), never a `MessageEvent`. Read that
+    first; fall back to the last agent `MessageEvent` only when the agent
+    finished with a plain-text response instead of a finish call.
 
     Reads `conv.events` — callers must do this BEFORE the conversation is
     closed (the SDK releases the event stream on close).
     """
+    events = getattr(conv, "events", [])
+    for event in reversed(events):
+        if isinstance(event, ActionEvent) and event.tool_name == FINISH_TOOL:
+            message = getattr(event.action, "message", None)
+            if message and message.strip():
+                return message
     agent_events = [
         event
-        for event in getattr(conv, "events", [])
+        for event in events
         if isinstance(event, MessageEvent) and event.source == "agent"
     ]
     if not agent_events:

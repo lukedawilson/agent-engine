@@ -1,12 +1,15 @@
 """Tests for CapturedOutput — the pipeline-captured agent response channel."""
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
+from openhands.sdk.event.llm_convertible.action import ActionEvent
 from openhands.sdk.event.llm_convertible.message import MessageEvent
-from openhands.sdk.llm.message import Message, TextContent
+from openhands.sdk.llm.message import Message, MessageToolCall, TextContent
+from openhands.sdk.tool.builtins.finish import FinishAction
 
 from agent_engine.outputs import CaptureError, CapturedOutput
 
@@ -15,6 +18,25 @@ def _agent_event(text: str) -> MessageEvent:
     return MessageEvent(
         source="agent",
         llm_message=Message(role="assistant", content=[TextContent(type="text", text=text)]),
+    )
+
+
+def _finish_event(message: str) -> ActionEvent:
+    """A real FinishTool ActionEvent — how the OpenHands agent actually ends a
+    run. Its `message` IS the final response, delivered as an action (with the
+    matching `FinishObservation` as its result), never a `MessageEvent`."""
+    return ActionEvent(
+        thought=[TextContent(type="text", text="wrapping up")],
+        tool_name="finish",
+        tool_call_id="call-finish-1",
+        tool_call=MessageToolCall(
+            id="call-finish-1",
+            name="finish",
+            arguments=json.dumps({"message": message}),
+            origin="completion",
+        ),
+        llm_response_id="resp-1",
+        action=FinishAction(message=message),
     )
 
 
@@ -67,6 +89,26 @@ class TestFromAgentResult:
         result = CapturedOutput.from_agent_result(_conv(_user_event("hi")), "out.md", tmp_path)
         assert result.is_err()
         assert result.error == CaptureError.EMPTY_RESPONSE
+
+    def test_captures_finish_tool_message(self, tmp_path: Path):
+        # The real agent ends via FinishTool; its message is the final response,
+        # even when an earlier agent MessageEvent exists.
+        conv = _conv(
+            _user_event("the task"),
+            _agent_event("working on it"),
+            _finish_event("final summary with findings"),
+        )
+        result = CapturedOutput.from_agent_result(conv, "implementation-summary.md", tmp_path)
+        assert result.is_ok()
+        assert result.unwrap().raw_text == "final summary with findings"
+
+    def test_finish_tool_without_agent_message(self, tmp_path: Path):
+        # A run whose only final response is the FinishTool call (no preceding
+        # agent MessageEvent) must still capture it — not report empty.
+        conv = _conv(_user_event("the task"), _finish_event("only the finish message"))
+        result = CapturedOutput.from_agent_result(conv, "out.md", tmp_path)
+        assert result.is_ok()
+        assert result.unwrap().raw_text == "only the finish message"
 
     def test_blank_agent_text_is_empty_response(self, tmp_path: Path):
         result = CapturedOutput.from_agent_result(_conv(_agent_event("  \n ")), "out.md", tmp_path)
