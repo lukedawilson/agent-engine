@@ -19,6 +19,12 @@ dependencies = [
 [project.scripts]
 agent-engine = "agent_engine.cli:main"
 
+[project.optional-dependencies]
+dev = [
+    "hypothesis>=6.0",
+    "pytest>=8.0",
+]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

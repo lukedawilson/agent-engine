@@ -122,3 +122,37 @@
 
 ## Units Generation — Approval
 - 2026-10-17T14:05:00Z — User response: "Agreed" (approving units generation, proceeding to CONSTRUCTION PHASE)
+
+## Construction — unit-1 Functional Design answers
+- 2026-10-17T14:20:00Z — FD-1 capture scope: **A** — capture replaces exactly produces:/artifact: channels; other terminal-produced files untouched
+- FD-2 verdict semantics: **A** — last-VERDICT-line-wins + decoration tolerance + caveat handling; typed Result[Verdict] (NO_VERDICT/AMBIGUOUS), no exceptions
+- FD-3 truncation: **A** — verdict-first truncation for verdict channel; summary keeps full response; build_context truncates to budget
+- FD-4 missing/empty response: **A** — attempt failure, increment attempt, retry per existing policy
+- FD-5 YAML: **A** — implicit capture, schema unchanged, no opt-out
+
+## Construction — unit-1 Functional Design artifacts generated
+- 2026-10-17T14:30:00Z — Generated business-logic-model.md, business-rules.md, domain-entities.md under aidlc-docs/construction/unit-1/functional-design/. DDD descent audit passed (VOs own parse/write; StagesRuntime delegates only; no new services). PBT-01 properties identified. Review requested.
+
+## Construction — unit-1 Functional Design approval
+- 2026-10-17T14:35:00Z — User response: "Approve and continue" (unit-1 FD approved; proceeding to NFR Requirements)
+
+## Construction — unit-1 NFR Requirements generated
+- 2026-10-17T14:55:00Z — NFR answers: NFR-1=A (generic Result[T,E]), NFR-2=A (hypothesis dev dep), NFR-3=A (no new data-protection requirements). Generated nfr-requirements.md (5 NFRs; scalability/performance/availability/maintainability/usability N/A per user scoping; security rule dispositions table) + tech-stack-decisions.md (5 decisions, 1 deferred item) under aidlc-docs/construction/unit-1/nfr-requirements/. Review requested.
+
+## Construction — unit-1 NFR Requirements approval
+- 2026-10-17T15:00:00Z — User response: "Approve and continue" (unit-1 NFR Requirements approved; proceeding to Infrastructure Design)
+
+## Construction — unit-1 Infrastructure Design generated
+- 2026-10-17T15:10:00Z — All 7 infrastructure categories N/A with justification (unit-1 = in-process data-flow change, desktop library; zero infrastructure footprint). Generated infrastructure-design.md + deployment-architecture.md under aidlc-docs/construction/unit-1/infrastructure-design/; unit-3 infra (daemon socket, mounts, images) explicitly deferred. No open questions. Review requested.
+
+## Construction — unit-1 Infrastructure Design approval
+- 2026-10-17T15:20:00Z — User response: "Approve and continue" (unit-1 Infrastructure Design approved; proceeding to Code Generation)
+
+## Construction — unit-1 Code Generation plan
+- 2026-10-17T15:30:00Z — Logging approval prompt: unit-1 code-generation plan created at aidlc-docs/construction/plans/unit-1-code-generation-plan.md (13 TDD steps; brownfield: modify stages.py + 2 agent files + pyproject; create results.py/outputs.py + 4 test files; delete verdicts.py; N/A steps documented). Awaiting user approval of the plan (covers entire generation sequence).
+
+## Construction — unit-1 code-generation plan approval
+- 2026-10-17T15:40:00Z — User response: "Yes, record it as a note. Then TDD unit 1, red/green/refactor" — self-hosting note recorded in plan; plan APPROVED; proceeding to Part 2 (Generation) via strict TDD.
+
+## Construction — unit-1 Code Generation complete
+- 2026-10-17T16:30:00Z — All 13 plan steps executed TDD. Full suite 373 passed. Files: created results.py/outputs.py + 4 test files + code docs; modified stages.py, 3 agent files, pyproject.toml, conftest.py, 3 test files; deleted verdicts.py + test_verdicts.py. Review requested.

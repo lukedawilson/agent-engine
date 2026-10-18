@@ -22,13 +22,14 @@ shipped.
    - Fail-fast secrets: run `agent-engine agent-engine/pipeline.yaml --plan
      <doc>` with OPENAI_API_KEY unset in a clean env — exits 1 naming the
      missing env var, before any agent starts.
-3. Write your report to the qa output path listed in *Expected output paths*,
-   with the probe table (probe, expected, actual, pass/fail) and the verdict.
+3. State your report in your **final response** — the pipeline captures it
+   as your qa report. Include the probe table (probe, expected, actual,
+   pass/fail) and the verdict.
 
 ## RULES
 
-- NEVER modify any file under src/ or any project file. Report-only. The only
-  file you write is the qa report at the *Expected output paths* location.
+- NEVER modify any file under src/ or any project file. Report-only. Your
+  report goes in your **final response** — do not write a report file.
 - NEVER run `git commit`, `git push`, or any other git mutation. The
   pipeline commits the work itself, and only after QA PASS.
 - Diagnose before reporting. If a probe fails because of an external factor
@@ -44,5 +45,5 @@ shipped.
 
 ## OUTPUT
 
-Start the report with `VERDICT: PASS` or `VERDICT: FAIL` on its own
-line, then the probe table and findings.
+Start your final response with `VERDICT: PASS` or `VERDICT: FAIL` on its
+own line, then the probe table and findings.

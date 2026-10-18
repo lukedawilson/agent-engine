@@ -3,7 +3,7 @@
 ## Project Information
 - **Project Type**: Brownfield
 - **Start Date**: 2026-10-17T10:58:41Z
-- **Current Stage**: INCEPTION - Application Design (awaiting review)
+- **Current Stage**: CONSTRUCTION - Unit 1 complete (approved 2026-10-18); next = Unit 2 Functional Design
 
 ## Workspace State
 - **Existing Code**: Yes
@@ -24,7 +24,7 @@
 - **Total Stages**: 12 planned
 - **Stages to Execute**: Application Design, Units Generation, Functional Design, NFR Requirements, Infrastructure Design, Code Generation, Build and Test
 - **Stages to Skip**: User Stories (user confirmed), NFR Design (no perf/HA work; container infra covered by Infrastructure Design)
-- **Unit Order**: Unit 1 findings/verdict passing → Unit 2 tool hardening → Unit 3 kernel isolation (vertical slices)
+- **Unit Order**: Unit 1 output-passing fix + file-tool removal → Unit 2 SDK hardening → Unit 3 kernel isolation (vertical slices)
 
 ## Extension Configuration
 - **Domain Standards**: Yes — enabled (Requirements Analysis, 2026-10-17)
@@ -34,16 +34,27 @@
 
 ## Stage Progress
 - [x] Workspace Detection — 2026-10-17T10:58:41Z
-- [x] Reverse Engineering — completed on 2026-10-17T10:58:41Z; artifacts at aidlc-docs/inception/reverse-engineering/
+- [x] Reverse Engineering — completed 2026-10-17T10:58:41Z; artifacts at aidlc-docs/inception/reverse-engineering/
 - [x] Requirements Analysis — approved by user 2026-10-17T12:15:00Z (directives: Unit 1 = findings/verdict-passing mechanism first; skip User Stories; units = vertical slices)
-- [ ] User Stories (conditional)
+- [ ] User Stories — SKIPPED (user confirmed; internal tooling)
 - [x] Workflow Planning — approved 2026-10-17T12:25:00Z (user restated 3 units: output-passing fix + file-tool removal, SDK hardening, kernel isolation)
-- [x] Application Design — artifacts generated 2026-10-17T12:55:00Z; awaiting user review
-- [ ] Units Generation — EXECUTE (3 vertical-slice units)
-- [ ] Functional Design — EXECUTE (per unit; Unit 1 parsing redesign)
-- [ ] NFR Requirements — EXECUTE (security baseline blocking)
+- [x] Application Design — approved 2026-10-17T13:20:00Z (DDD amendments applied; domain diagrams approved)
+- [x] Units Generation — approved 2026-10-17 (numeric unit names unit-1/2/3; story-map maps FR/NFR IDs; artifacts in aidlc-docs/inception/application-design/)
 - [ ] NFR Design — SKIP (no perf/HA; infra in Infrastructure Design)
-- [ ] Infrastructure Design — EXECUTE (Unit 3 container runtime)
-- [ ] Code Generation — EXECUTE (always)
-- [ ] Build and Test — EXECUTE (always)- [ ] Build and Test
+
+## Unit Progress
+
+### unit-1 (output-passing fix + file-tool removal) — COMPLETE
+- [x] Functional Design — approved 2026-10-17T14:35:00Z
+- [x] NFR Requirements — approved 2026-10-17T15:00:00Z
+- [x] Infrastructure Design — approved 2026-10-17 (all categories N/A)
+- [x] Code Generation — approved 2026-10-18 (user: "Seems to work. Commit and push, mark unit complete")
+- [x] Build and Test — full suite green: 373 passed (mechanical `test` command substance)
+
+### unit-2 (SDK hardening) — NOT STARTED
+Scope FR-1.1 (filter_tools_regex/include_default_tools exposure), FR-1.4 (task_tracker fix), FR-1.5 (command-step shell hardening), FR-1.6 (action-step subprocess hardening), FR-1.7 (extension tool-registration validation)
+
+### unit-3 (kernel isolation, opt-in) — NOT STARTED
+Scope FR-2.1–FR-2.6 (container sandboxing via Docker Engine API; fail-fast when unavailable; macOS/Linux/Windows; profile defaults at FD; host-side commit)
+
 - [ ] Operations (placeholder)

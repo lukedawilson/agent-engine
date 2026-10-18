@@ -5,10 +5,12 @@ pipeline config; the fixed policies stay here, not in config:
 
 - per-attempt hygiene: every declared artifact/produces file + last-error.md
   is deleted at attempt start, so stale files can't be misread
+- capture-first feedback: the pipeline captures each agent's final response
+  and writes the artifact itself — agents no longer file their own reports
 - verdict-first truncation: a clear verdict stands even if the run was cut
   short before the agent formally finished
-- unclear verdict → implicit, attempt-bounded retry with the artifact's
-  content surfaced into notes (never routable — policy, not config)
+- empty response / unclear verdict → implicit, attempt-bounded retry with the
+  captured text surfaced into notes (never routable — policy, not config)
 - notes accumulate across attempts into the next attempt's context
 - command steps are mechanical: the exit code is the verdict (0 ⇒ pass,
   anything else ⇒ fail), a timeout kills the whole process group, and the
@@ -31,8 +33,8 @@ from openhands.sdk import Conversation
 
 from .agents import load_agent
 from .config import TERMINALS, PipelineConfig, Route, StepConfig, route_target
+from .outputs import CapturedOutput, Verdict
 from .registry import Registry
-from .verdicts import parse_verdict
 
 if TYPE_CHECKING:
     from openhands.sdk import LLM
@@ -73,16 +75,26 @@ class AgentResult:
 
     ok=False only on unhandled exceptions. truncated=True when the run ended
     without the agent reaching FINISHED — the turn cap (ERROR) or the SDK's
-    stuck detector (STUCK) both land here."""
+    stuck detector (STUCK) both land here. response carries the captured final
+    agent message (capture-applying steps only); capture_error is set when the
+    agent finished but produced no final response ("empty_response")."""
     ok: bool = False
     truncated: bool = False
+    response: str | None = None
+    capture_error: str | None = None
 
 
 def run_agent(agent_name: str, message: str, runtime: Runtime,
-              max_iterations: int = DEFAULT_MAX_ITERATIONS) -> AgentResult:
+              max_iterations: int = DEFAULT_MAX_ITERATIONS,
+              step: StepConfig | None = None) -> AgentResult:
     """Run one agent stage. The agent file's body is delivered as a system
     message suffix (AgentContext); the user turn carries only the task.
-    Any failure — setup or run — is reported to <state_dir>/last-error.md."""
+    Any failure — setup or run — is reported to <state_dir>/last-error.md.
+
+    For steps declaring outputs (produces/artifact), the final response is
+    captured from conv.events (before conv.close()) and written by the
+    pipeline to the declared artifact path — the agent never files its own
+    report."""
     conv = None
     try:
         from openhands.sdk.conversation.state import ConversationExecutionStatus
@@ -94,6 +106,19 @@ def run_agent(agent_name: str, message: str, runtime: Runtime,
         conv.run()
 
         truncated = conv.state.execution_status != ConversationExecutionStatus.FINISHED
+
+        if step is not None and (step.artifact is not None or step.produces):
+            artifact = step.artifact if step.artifact is not None else step.produces[0]
+            captured = CapturedOutput.from_agent_result(conv, artifact, runtime.state_dir)
+            if captured.is_err():
+                return AgentResult(ok=True, truncated=truncated,
+                                   capture_error=captured.error.value)
+            write_result = captured.unwrap().write()
+            if write_result.is_err():
+                raise RuntimeError(
+                    f"captured output write failed: {write_result.error.value}")
+            return AgentResult(ok=True, truncated=truncated,
+                               response=captured.unwrap().raw_text)
         return AgentResult(ok=True, truncated=truncated)
     except Exception:
         err = traceback.format_exc()
@@ -168,16 +193,6 @@ def clear_attempt_artifacts(runtime: Runtime) -> None:
         (runtime.state_dir / name).unlink(missing_ok=True)
 
 
-def _read_stage_artifact(state_dir: Path, artifact: str,
-                         verdicts: dict[str, str]) -> tuple[str | None, str | None]:
-    """(verdict, text) for a stage artifact — both None when the file is missing."""
-    path = state_dir / artifact
-    if not path.exists():
-        return None, None
-    text = path.read_text()
-    return parse_verdict(text, verdicts), text
-
-
 def _unclear_target(runtime: Runtime, step: StepConfig) -> str:
     """Where the unclear-verdict retry loops to: on_fail's goto when that is
     a step, else the entry step (yosk always looped back to dev)."""
@@ -188,10 +203,14 @@ def _unclear_target(runtime: Runtime, step: StepConfig) -> str:
 
 
 def _unclear_note(runtime: Runtime, step: StepConfig, attempt: int,
-                  text: str | None, truncated: bool, max_iterations: int) -> str:
+                  text: str | None, truncated: bool, max_iterations: int,
+                  error: str | None = None) -> str:
     """Explain an unclear verdict to the next attempt — and surface the
-    artifact's content when it exists, so real findings are never swallowed."""
-    rel = f"{prompt_dir(runtime)}/{step.artifact}"
+    captured response when it exists, so real findings are never swallowed."""
+    expected = ""
+    if step.verdicts is not None:
+        expected = (f" (expected `VERDICT: {step.verdicts.pass_}` or "
+                    f"`VERDICT: {step.verdicts.fail}` on its own line)")
     if truncated:
         lead = (f"{step.name} agent was cut short on attempt {attempt} "
                 f"(hit the {max_iterations}-turn limit or was stopped "
@@ -199,22 +218,26 @@ def _unclear_note(runtime: Runtime, step: StepConfig, attempt: int,
         if text is not None:
             return (f"## {step.name} output (attempt {attempt} — truncated)\n\n"
                     f"{lead}. Its findings so far:\n\n{text}")
-        return f"{lead} and wrote no report."
+        return f"{lead} and produced no final response."
     if text is None:
-        return f"{step.name} agent did not write `{rel}` on attempt {attempt}."
-    return (f"{step.name} agent wrote `{rel}` on attempt {attempt} but its "
-            f"verdict is unparseable (expected `VERDICT: {step.verdicts.pass_}` or "
-            f"`VERDICT: {step.verdicts.fail}` on its own line). "
-            f"Its findings so far:\n\n{text}")
+        return f"{step.name} agent produced no final response on attempt {attempt}."
+    if error == "ambiguous":
+        return (f"{step.name} agent's final response on attempt {attempt} carries "
+                f"conflicting verdicts{expected}. Its findings so far:\n\n{text}")
+    return (f"{step.name} agent's final response on attempt {attempt} contains no "
+            f"verdict{expected}. Its findings so far:\n\n{text}")
 
 
 def make_agent_node(runtime: Runtime, step: StepConfig):
-    """Node closure for an agent step. Steps without `artifact` run and
-    continue; verdict steps parse the artifact (LAST VERDICT line wins,
-    decoration-tolerant) and record pass/fail/None into step_verdicts."""
+    """Node closure for an agent step. The pipeline captures the final
+    response and writes the declared artifact itself; verdict steps parse the
+    captured text (decoration-tolerant) and record pass/fail/None into
+    step_verdicts. A finished agent with no final response, and a verdict the
+    parser can't pin down, both fall into the attempt-bounded unclear retry."""
     verdicts_map = None
     if step.verdicts is not None:
         verdicts_map = {step.verdicts.pass_: "pass", step.verdicts.fail: "fail"}
+    captures = step.artifact is not None or bool(step.produces)
 
     def node(state: dict) -> dict:
         attempt = state["attempt"]
@@ -222,31 +245,49 @@ def make_agent_node(runtime: Runtime, step: StepConfig):
         max_iterations = step.max_iterations or DEFAULT_MAX_ITERATIONS
         print(f"[{subject}] Running {step.agent} agent...", flush=True)
         result = run_agent(step.agent, state["context"], runtime,
-                           max_iterations=max_iterations)
+                           max_iterations=max_iterations, step=step)
         if not result.ok:
             print(f"[{subject}] {step.name} agent failed on attempt {attempt}.", flush=True)
             return {"failed": True, "failed_step": step.name}
-        if verdicts_map is None:
-            return {"failed": False}
 
-        verdict, text = _read_stage_artifact(
-            runtime.state_dir, step.artifact, verdicts_map)
-        merged = {**state["step_verdicts"], step.name: verdict}
-        if verdict == "pass":
-            print(f"[{subject}] {step.name} VERDICT: PASS on attempt {attempt}.", flush=True)
+        if result.capture_error is not None:
+            print(f"[{subject}] {step.name} agent produced no final response on "
+                  f"attempt {attempt}, retrying.", flush=True)
+            merged = {**state["step_verdicts"], step.name: None}
+            return {"step_verdicts": merged,
+                    "notes": [_unclear_note(runtime, step, attempt, None,
+                                            result.truncated, max_iterations)],
+                    "retry_target": _unclear_target(runtime, step)}
+
+        if verdicts_map is None:
+            merged = {**state["step_verdicts"], step.name: "pass"} if captures else \
+                state["step_verdicts"]
             return {"step_verdicts": merged, "failed": False}
-        if verdict == "fail":
-            print(f"[{subject}] {step.name} verdict: fail on attempt {attempt}.", flush=True)
+
+        parsed = Verdict.from_text(result.response or "", verdicts_map)
+        merged = {**state["step_verdicts"], step.name: None}
+        if parsed.is_ok():
+            verdict = parsed.unwrap().value
+            merged[step.name] = verdict
+            if verdict == "pass":
+                print(f"[{subject}] {step.name} VERDICT: PASS on attempt {attempt}.",
+                      flush=True)
+                return {"step_verdicts": merged, "failed": False}
+            print(f"[{subject}] {step.name} verdict: fail on attempt {attempt}.",
+                  flush=True)
             update = {"step_verdicts": merged,
-                      "notes": [f"## {step.name} output (attempt {attempt})\n\n{text}"]}
+                      "notes": [f"## {step.name} output (attempt {attempt})\n\n"
+                                f"{result.response}"]}
             if isinstance(step.on_fail, Route) and step.on_fail.retry:
                 update["retry_target"] = step.on_fail.goto
             return update
+
         print(f"[{subject}] {step.name} verdict unclear on attempt {attempt}, retrying.",
               flush=True)
         return {"step_verdicts": merged,
-                "notes": [_unclear_note(runtime, step, attempt, text,
-                                        result.truncated, max_iterations)],
+                "notes": [_unclear_note(runtime, step, attempt, result.response,
+                                        result.truncated, max_iterations,
+                                        parsed.error.value)],
                 "retry_target": _unclear_target(runtime, step)}
 
     return node
@@ -324,6 +365,13 @@ def make_router(runtime: Runtime, step: StepConfig):
         if state["failed"]:
             return END
         if step.verdicts is None and step.command is None:
+            # Capture-applying steps without verdicts (produces-only) retry on
+            # empty responses: the node signals it by recording None plus a
+            # retry_target. Steps that don't capture never retry here.
+            if ((step.artifact is not None or step.produces)
+                    and state["step_verdicts"].get(step.name) is None
+                    and state.get("retry_target")):
+                return "bump" if state["attempt"] < state["max_attempts"] else END
             return resolve(step.on_pass)
         verdict = state["step_verdicts"].get(step.name)
         if verdict == "pass":

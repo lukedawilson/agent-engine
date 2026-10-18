@@ -56,7 +56,7 @@ def _script_test(*behaviors):
 
 def _passing_scripts(fake_agents, **overrides):
     scripts = {
-        "dev": [("ok",)],
+        "dev": [("write", "implementation-summary.md", "Implemented the fix.\n")],
         "review": [("write", "review-findings.md",
                     "Looks good.\n\nVERDICT: APPROVED\n")],
         "qa": [("write", "qa-report.md", "All good.\n\nVERDICT: PASS\n")],
@@ -121,20 +121,19 @@ class TestHistoricalFixtures:
 
     def test_stale_artifact_is_deleted_between_attempts(self, consumer_repo,
                                                         fake_agents):
-        """A stale artifact from attempt N must be deleted before attempt N+1
-        runs — otherwise the verdict stage re-reads the previous file and the
-        loop retries against ghosts. The pin: attempt 2's note must be the
-        missing-artifact one, proving the stale FAIL was gone."""
+        """A stale artifact from attempt N must not leak into attempt N+1's
+        verdict — capture is per-attempt (read from the attempt's own final
+        response), so attempt 2's empty response must produce the
+        empty-response note, proving the stale FAIL was not re-read."""
         _passing_scripts(fake_agents, qa=[
             ("write", "qa-report.md", "STALE findings\n\nVERDICT: FAIL\n"),
-            ("ok",),  # attempt 2 writes nothing
+            ("ok",),  # attempt 2 produces no final response
             ("write", "qa-report.md", "Fixed.\n\nVERDICT: PASS\n"),
         ])
         rc = main([str(consumer_repo / "agent-engine" / "pipeline.yaml"), "--plan", "plan.md", "--no-viz"])
         assert rc == 0
         attempt3_qa = fake_agents.messages_for("qa")[-1]
-        assert ("qa agent did not write `agent-engine/.pr/qa-report.md` "
-                "on attempt 2." in attempt3_qa)
+        assert "qa agent produced no final response on attempt 2." in attempt3_qa
         assert "qa output (attempt 2)" not in attempt3_qa
 
     def test_verdict_written_before_turn_cap_still_passes(self, consumer_repo,
@@ -164,7 +163,7 @@ class TestHistoricalFixtures:
         rc = main([str(consumer_repo / "agent-engine" / "pipeline.yaml"), "--plan", "plan.md", "--no-viz"])
         assert rc == 0
         attempt2_dev = fake_agents.messages_for("dev")[1]
-        assert "unparseable" in attempt2_dev
+        assert "contains no verdict" in attempt2_dev
         assert "I cannot decide" in attempt2_dev
 
     def test_dirty_worktree_at_start_skips_commit_but_run_succeeds(

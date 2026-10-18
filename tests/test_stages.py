@@ -134,14 +134,14 @@ class TestAgentNode:
         update = make_agent_node(runtime, runtime.cfg.steps[1])(state)
         assert update["step_verdicts"] == {"dev": "pass", "check": "pass"}
 
-    def test_missing_artifact_is_unclear(self, runtime, fake_agents):
+    def test_empty_response_is_unclear(self, runtime, fake_agents):
         update = make_agent_node(runtime, runtime.cfg.steps[1])(make_state())
         assert update["step_verdicts"] == {"check": None}
         (note,) = update["notes"]
-        assert "did not write `.pr/ci-fix.md` on attempt 1" in note
+        assert "check agent produced no final response on attempt 1" in note
         assert update["retry_target"] == "dev"  # on_fail's goto
 
-    def test_unclear_note_carries_workspace_relative_path(self, tmp_path, fake_agents):
+    def test_empty_response_note_names_the_step(self, tmp_path, fake_agents):
         state_dir = tmp_path / "agent-engine" / ".pr"
         state_dir.mkdir(parents=True)
         rt = Runtime(cfg=make_cfg(STEPS), registry=default_registry(),
@@ -150,13 +150,13 @@ class TestAgentNode:
                      workspace=tmp_path)
         update = make_agent_node(rt, rt.cfg.steps[1])(make_state())
         (note,) = update["notes"]
-        assert "did not write `agent-engine/.pr/ci-fix.md` on attempt 1" in note
+        assert "check agent produced no final response on attempt 1" in note
 
-    def test_unparseable_verdict_surfaces_content(self, runtime, fake_agents):
+    def test_no_verdict_surfaces_content(self, runtime, fake_agents):
         fake_agents.set("check", [("write", "ci-fix.md", "I am undecided")])
         update = make_agent_node(runtime, runtime.cfg.steps[1])(make_state())
         (note,) = update["notes"]
-        assert "unparseable" in note
+        assert "contains no verdict" in note
         assert "VERDICT: PASS" in note and "VERDICT: FAIL" in note
         assert "I am undecided" in note
 
@@ -184,8 +184,10 @@ class TestAgentNode:
         assert update == {"failed": True, "failed_step": "check"}
 
     def test_plain_agent_step_runs_and_continues(self, runtime, fake_agents):
+        fake_agents.set("dev", [("write", "implementation-summary.md", "did the work")])
         update = make_agent_node(runtime, runtime.cfg.steps[0])(make_state())
-        assert update == {"failed": False}
+        assert update["failed"] is False
+        assert update["step_verdicts"] == {"dev": "pass"}
         assert fake_agents.calls[0]["max_iterations"] == 500  # default budget
 
     def test_max_iterations_from_step(self, runtime, fake_agents):

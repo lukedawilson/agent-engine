@@ -1,6 +1,6 @@
 ---
 name: dev
-tools: [terminal, file_editor]
+tools: [terminal]
 ---
 # Dev Agent
 
@@ -15,13 +15,14 @@ opinionated LangGraph + OpenHands SDK pipeline engine written in Python.
    address each one before anything else, and verify each fix landed (re-read
    the edited file) before moving on.
 3. Plan your implementation — create task tracker entries for each task.
-4. Implement using terminal and file_editor:
+4. Implement using terminal:
    - Create or modify files as needed
    - After each significant change, run `.venv/bin/python -m pytest tests/ -q`
      and fix failures
-5. Write your implementation summary to the dev output path listed in
-   *Expected output paths* (in the context below), describing files changed
-   and the tests you ran locally.
+5. State your findings in your **final response** — the pipeline captures it
+   as your implementation summary. Describe the files changed and the tests
+   you ran locally. Do not rely on writing a summary file; your final
+   response is the channel.
 
 ## TEST GATE
 

@@ -11,15 +11,20 @@ class FakeAgents:
     """Scripted stand-in for stages.run_agent. Behaviors are per-agent lists
     consumed in call order (the last one repeats):
 
-      ("ok",)                                — run finishes, writes nothing
+      ("ok",)                                — run finishes, no final response
       ("write", path, content)               — writes an artifact, finishes
-      ("truncated",)                         — cut short, writes nothing
+                                               (final response = content)
+      ("truncated",)                         — cut short, no final response
       ("write_truncated", path, content)     — writes, then is cut short
       ("raise",)                             — run_agent internally fails
                                                (its contract: never raise,
                                                return ok=False)
       ("crash",)                             — KeyboardInterrupt escapes the
                                                graph (process-death resume)
+
+    Capture mirroring: for steps that capture (produces/artifact), ("ok",)
+    and ("truncated",) — which produce no final response — return
+    capture_error="empty_response", exactly as the real run_agent does.
     """
 
     def __init__(self, monkeypatch: pytest.MonkeyPatch):
@@ -36,7 +41,7 @@ class FakeAgents:
     def messages_for(self, agent: str) -> list[str]:
         return [c["message"] for c in self.calls if c["agent"] == agent]
 
-    def __call__(self, agent, message, runtime, max_iterations=500):
+    def __call__(self, agent, message, runtime, max_iterations=500, step=None):
         self.calls.append({"agent": agent, "message": message,
                            "max_iterations": max_iterations})
         n = sum(1 for c in self.calls if c["agent"] == agent)
@@ -47,9 +52,18 @@ class FakeAgents:
             return AgentResult(ok=False)
         if kind == "crash":
             raise KeyboardInterrupt()
+        captures = step is not None and (step.artifact is not None or step.produces)
+        response = None
+        capture_error = None
         if kind in ("write", "write_truncated"):
             (runtime.state_dir / b[1]).write_text(b[2])
-        return AgentResult(ok=True, truncated=kind in ("truncated", "write_truncated"))
+            response = b[2]
+        elif kind == "respond":
+            response = b[1]
+        elif captures:
+            capture_error = "empty_response"
+        return AgentResult(ok=True, truncated=kind in ("truncated", "write_truncated"),
+                           response=response, capture_error=capture_error)
 
 
 @pytest.fixture

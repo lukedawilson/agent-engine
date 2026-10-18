@@ -177,6 +177,7 @@ class TestRunPipeline:
         assert "broken build" in second_dev  # fail note reached the next attempt
 
     def test_exhaustion_fails(self, repo, fake_agents):
+        script_all_pass(fake_agents)
         fake_agents.set("check", [("write", "ci-fix.md", "VERDICT: FAIL")])
         ok, attempts = run_pipeline("pipeline.yaml", args())
         assert (ok, attempts) == (False, 3)
@@ -184,6 +185,7 @@ class TestRunPipeline:
         assert git(repo, "log", "-1", "--pretty=%s") == "init"  # no commit
 
     def test_max_attempts_cli_override(self, repo, fake_agents):
+        script_all_pass(fake_agents)
         fake_agents.set("check", [("write", "ci-fix.md", "VERDICT: FAIL")])
         ok, attempts = run_pipeline("pipeline.yaml", args(max_attempts=1))
         assert (ok, attempts) == (False, 1)
@@ -206,7 +208,7 @@ class TestRunPipeline:
         ok, attempts = run_pipeline("pipeline.yaml", args())
         assert (ok, attempts) == (True, 2)
         second_dev = fake_agents.messages_for("dev")[1]
-        assert "unparseable" in second_dev and "undecided prose" in second_dev
+        assert "contains no verdict" in second_dev and "undecided prose" in second_dev
 
     def test_stale_artifact_deleted_between_attempts(self, repo, fake_agents):
         script_all_pass(fake_agents)
@@ -218,7 +220,7 @@ class TestRunPipeline:
         ok, attempts = run_pipeline("pipeline.yaml", args())
         assert (ok, attempts) == (True, 3)
         third_dev = fake_agents.messages_for("dev")[2]
-        assert "did not write `.pr/ci-fix.md` on attempt 2" in third_dev
+        assert "check agent produced no final response on attempt 2" in third_dev
 
     def test_dirty_worktree_at_start_skips_commit(self, repo, fake_agents):
         (repo / "dirty.txt").write_text("not mine")
@@ -260,7 +262,8 @@ class TestCommandStep:
 
     def test_test_fail_retries_from_dev(self, repo, fake_agents):
         self._write(repo, COMMAND_STAGE_YAML)
-        fake_agents.set("dev", [("ok",), ("write", "fix.marker", "")])
+        fake_agents.set("dev", [("respond", "attempt 1 done"),
+                                ("write", "fix.marker", "")])
         ok, attempts = run_pipeline("commandstage.yaml", args())
         assert (ok, attempts) == (True, 2)
         assert fake_agents.agents_called() == ["dev", "dev"]

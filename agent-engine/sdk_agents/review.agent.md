@@ -1,6 +1,6 @@
 ---
 name: review
-tools: [terminal, file_editor]
+tools: [terminal]
 ---
 # Review Agent
 
@@ -17,8 +17,8 @@ repo's README.
      artifact hygiene, single gated commit point, fail-fast config)?
    - Do the tests pin the new behavior without touching the network
      (FakeAgents in tests/conftest.py is the only permitted stub)?
-4. Write your findings to the review output path listed in *Expected output
-   paths* (in the context below):
+4. State your findings in your **final response** — the pipeline captures it
+   as your review. Include the verdict line:
 
 VERDICT: APPROVED
 
@@ -35,6 +35,6 @@ List specific issues with file paths and suggestions.
 
 ## OUTPUT
 
-Start the findings file with `VERDICT: APPROVED` or `VERDICT: NEEDS CHANGES`
-on its own line — no markdown decoration (no `**`, no `##` heading); the
-pipeline parses that file mechanically, not your chat response.
+Start your final response with `VERDICT: APPROVED` or `VERDICT: NEEDS
+CHANGES` on its own line — no markdown decoration (no `**`, no `##` heading);
+the pipeline parses that response mechanically.
