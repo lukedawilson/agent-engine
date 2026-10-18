@@ -156,3 +156,42 @@
 
 ## Construction — unit-1 Code Generation complete
 - 2026-10-17T16:30:00Z — All 13 plan steps executed TDD. Full suite 373 passed. Files: created results.py/outputs.py + 4 test files + code docs; modified stages.py, 3 agent files, pyproject.toml, conftest.py, 3 test files; deleted verdicts.py + test_verdicts.py. Review requested.
+
+## Construction — unit-2 Functional Design session resumption
+- 2026-10-18T00:00:00Z — Resumed workflow. aidlc-state.md current stage: CONSTRUCTION — unit-1 complete, next = unit-2 Functional Design. Loaded: common rules (process-overview, session-continuity, content-validation, question-format-guide), unit-of-work.md, unit-of-work-story-map.md, unit-of-work-dependency.md, requirements.md, domain-standards + security-baseline + coding-standards-ddd extensions, and unit-1 FD artifacts (format reference). Reverse-engineered current code: agents.py (load_agent), registry.py (add_tool), config.py, actions.py, stages.py (_run_command), sdk_agents/*.agent.md, plus SDK AgentDefinition/Agent schema + register_tool + agent_definition_to_factory.
+- 2026-10-18T00:00:00Z — User request (raw): "./trigger-agent-engine.sh --ai-dlc-unit U2" failed with FileNotFoundError (no construction/unit-2/ docs); user selected "Run Unit 2 Functional Design now".
+
+## Construction — unit-2 Functional Design answers
+- 2026-10-18T00:00:00Z — FD-1 task_tracker: **B** — drop the instruction; dev stays terminal-only (least-privilege; pipeline owns cross-step progress). User later confirmed "drop task list tool".
+- FD-2 tool set: **B** — capabilities + FinishTool + ThinkTool. `tools:` = exact capability allowlist; FinishTool (done signal) + ThinkTool (reasoning scaffold) always present as infra. Empty `tools:` → think + finish only. User confirmed "keep think tool available".
+- FD-2b filter_tools_regex: **A** — drop it; explicit allowlist is the whole story.
+- FD-3 command shell: **A** — hybrid (shlex argv when no metacharacters, shell=True for complex, env hygiene in both).
+- FD-4 reserved names: **A** — collision = any name in the SDK global registry (list_registered_tools) + non-empty identifier.
+- FD-5 action subprocess: **B** — deeper (pid-token numeric validation + shutil.which binary resolution + explicit shell=False + env hygiene).
+
+## Construction — unit-2 Functional Design artifacts generated
+- 2026-10-18T00:00:00Z — Generated business-logic-model.md, business-rules.md, domain-entities.md under aidlc-docs/construction/unit-2/functional-design/. DDD descent audit passed (all new behaviour = step 0 static helpers or step 2 existing-entity methods; no new VO/entity/service; no single-impl interface; no persistence). PBT-02 properties identified. **Scope amendment**: FR-1.1 reduced by FD-2/FD-2b — no filter_tools_regex, no include_default_tools frontmatter knob (requirements.md FR-1.1 + unit-of-work.md "new frontmatter fields" wording to be amended). Review requested.
+
+## Construction — unit-2 Functional Design approval
+- 2026-10-18T00:00:00Z — User response: "Approved" (unit-2 FD approved; proceeding to NFR Requirements). Scope amendment applied: requirements.md FR-1.1 + unit-of-work.md unit-2 responsibility/key-domain-object wording updated to the reduced tool-surface scope.
+
+## Construction — unit-2 NFR Requirements answers
+- 2026-10-18T00:00:00Z — NFR-1 environment hygiene: **C** — Hybrid. Fixed known-safe whitelist (PATH + minimal vars) + author-extensible allowlist (new optional config key); secrets excluded by default.
+
+## Construction — unit-2 NFR Requirements artifacts generated
+- 2026-10-18T00:00:00Z — Generated nfr-requirements.md (5 NFRs: env hygiene, input validation, fail-closed, PBT, backward compat; scalability/performance/availability/maintainability/usability N/A; security dispositions: SECURITY-05/06/12/15 applicable, rest N/A) + tech-stack-decisions.md (6 decisions: no new deps, whitelist+allowlist env, proc module, add_tool validation, shutil.which, optional config key; 3 deferred to unit-3) under aidlc-docs/construction/unit-2/nfr-requirements/. FD artifacts updated (child_env → whitelist+allowlist; BR-7 → one optional additive key). Review requested.
+
+## Construction — unit-2 NFR Requirements approval
+- 2026-10-18T00:00:00Z — User response (raw): "Include OPENAI_API_KEY by default in the allowlist. Then approve and continue" — NFR-1 refined: the LLM API key (`llm.api_key_env`) is **included by default** in the child env (not scrubbed). Env-allowlist key pinned as `env_allowlist: list[str] = []` (pipeline-level, optional, additive). Artifacts updated (nfr-requirements.md, tech-stack-decisions.md, FD business-rules/logic-model/domain-entities). NFR Requirements APPROVED; proceeding to Infrastructure Design.
+
+## Construction — unit-2 Infrastructure Design generated
+- 2026-10-18T00:00:00Z — All 7 infrastructure categories N/A with justification (unit-2 = in-process host-side hardening, desktop library; zero infra footprint). Generated infrastructure-design.md + deployment-architecture.md under aidlc-docs/construction/unit-2/infrastructure-design/; container infra (daemon socket, mounts, image toolchain) explicitly deferred to unit-3. No open questions. Review requested.
+
+## Construction — unit-2 Infrastructure Design approval
+- 2026-10-18T00:00:00Z — User response: "Approve and continue" (unit-2 Infra Design approved; proceeding to Code Generation). User addition (raw): "Unit also includes updating the example agent Def front matter so it will still work" — unit-2 scope now explicitly includes updating/verifying the shipped example agent definitions (`agent-engine/sdk_agents/*.agent.md`) so they remain valid under the new tool-surface semantics (BR-1) and the FR-1.4 change.
+
+## Construction — unit-2 Code Generation plan
+- 2026-10-18T00:00:00Z — Logging approval prompt: unit-2 code-generation plan created at aidlc-docs/construction/plans/unit-2-code-generation-plan.md (14 TDD steps; brownfield: create proc.py + 2 test files; modify registry.py, stages.py, actions.py, config.py, agents.py docstring, dev.agent.md; no new runtime deps; FR-1.1 = test + docstring only, no load_agent logic change). Awaiting user approval of the plan (covers the entire generation sequence).
+
+## Construction — unit-2 Code Generation — delegated to user's dev loop
+- 2026-10-18T00:00:00Z — User response (raw): "I'll run the dev loop myself, so just create the artefacts and stop" — unit-2 code generation (Part 2) is delegated to the user's dev loop (self-hosting via `./trigger-agent-engine.sh --ai-dlc-unit U2`). Assistant creates design/plan artefacts only and writes no application code. All unit-2 design artefacts (FD, NFR, Infrastructure Design) + the code-generation plan are in place; the dev agent executes the plan's 14 TDD steps.

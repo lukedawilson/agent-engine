@@ -23,7 +23,7 @@ Applies to every run, no opt-out flags ("we're guardrailed by design"). Existing
 
 | ID | Requirement |
 | --- | --- |
-| FR-1.1 | **Expose the SDK's tool-restriction surface.** Wire the OpenHands SDK knobs that agent-engine currently ignores — `filter_tools_regex`, `include_default_tools` — through the agent factory so `.agent.md` frontmatter can express them. Fail fast on unknown tool names (already true; preserve). |
+| FR-1.1 | **Tool-surface semantics (reduced 2026-10-18, unit-2 FD-2/FD-2b).** `tools:` in `.agent.md` is the sole, exact capability allowlist; `FinishTool` + `ThinkTool` remain SDK-default infra (not capabilities). `filter_tools_regex` and an `include_default_tools` frontmatter knob are **out of scope**. Fail fast on unknown tool names (preserve). |
 | FR-1.2 | **Replace agent-written reports with pipeline-captured responses.** The pipeline captures the agent's **final SDK response** and writes the artifact itself (implementation summary + verdicts parsed from the captured text). Agent file-writes stop being a feedback channel. |
 | FR-1.3 | **Drop `file_editor` from shipped agents.** With FR-1.2 it has no remaining job. Its parsing logic (of captured responses into summary + verdicts) gets dedicated treatment during Functional Design — the existing verdict parser has had bugs; do not carry assumptions into the redesign. |
 | FR-1.4 | **Fix tool-list/prompt consistency.** The `task_tracker` instruction in `dev.agent.md` is a no-op (tool not in its allowlist). Either add the tool or drop the instruction. |

@@ -23,14 +23,14 @@ Three vertical-slice units, executed in strict order. Single package (`agent-eng
 **Intent** (user's words): "SDK-level hardening" — the full Stage-1 surface minus output-passing (FR-1.1, FR-1.4, FR-1.5, FR-1.6, FR-1.7). Always-on, no opt-out.
 
 **Responsibilities**:
-- Expose the OpenHands SDK tool-restriction knobs agent-engine currently ignores: `filter_tools_regex`, `include_default_tools` wired through the agent factory from `.agent.md` frontmatter (FR-1.1). Fail-fast on unknown tool names preserved.
+- Lock the agent tool surface: `tools:` is the exact capability allowlist; `FinishTool` + `ThinkTool` remain infra (FR-1.1, reduced per FD-2/FD-2b). Fail-fast on unknown tool names preserved.
 - Fix `task_tracker` no-op instruction in `dev.agent.md` — either add the tool or drop the instruction (FR-1.4).
 - Harden command-step shell invocation — `shell=True` → argv list, quoting, environment hygiene (FR-1.5).
 - Harden action-step subprocess calls in `actions.py` (git/lsof/ps) for least privilege and injection resistance (FR-1.6).
 - Validate extension tool registration — collision detection against built-ins and other extensions, reserved-name rejection, fail fast at load (FR-1.7). `ToolRegistry.validate`.
 - Preserve fixed policies: fail-fast, single host-side commit, crash-safe resume.
 
-**Key domain objects**: `AgentDefinition` (entity, modified — new frontmatter fields), `ToolRegistry` (entity, modified — validate), `StagesRuntime._run_command` (modified), `ExtensionRegistry` (modified — validation at add_tool).
+**Key domain objects**: `ToolRegistry` (entity, modified — validate), `StagesRuntime._run_command` (modified), `ExtensionRegistry` (modified — validation at add_tool), `proc` (new module of pure subprocess helpers).
 
 ### unit-3 — Kernel-level isolation (opt-in)
 
