@@ -427,3 +427,28 @@ class TestVizStream:
         assert (ok, attempts) == (True, 1)
         assert fake_agents.agents_called() == \
             ["dev", "check", "review", "review", "qa"]
+
+    def test_resume_applies_max_attempts_override(self, repo, fake_agents):
+        """--max-attempts must reach a resumed run, not be dropped in favour of
+        the checkpoint's frozen value."""
+        script_all_pass(fake_agents)
+        fake_agents.set("review", [
+            ("crash",),
+            ("write", "review-findings.md", "VERDICT: APPROVED"),
+        ])
+        with pytest.raises(KeyboardInterrupt):
+            run_pipeline("pipeline.yaml", args(), viz_bus=VizBus())
+
+        db = repo / ".pr" / "loop-checkpoints.sqlite"
+        with sqlite3.connect(db) as conn:
+            (tid,) = conn.execute(
+                "SELECT DISTINCT thread_id FROM checkpoints").fetchone()
+
+        bus = VizBus()
+        ok, attempts = run_pipeline(
+            "pipeline.yaml", args(plan=None, resume=tid, max_attempts=99),
+            viz_bus=bus)
+        assert (ok, attempts) == (True, 1)
+        events = drain_events(bus)
+        run_started = next(e for e in events if e["type"] == "run_started")
+        assert run_started["max_attempts"] == 99

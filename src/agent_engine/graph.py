@@ -171,6 +171,12 @@ def run_pipeline(cfg_path, args, *, viz_bus=None) -> tuple[bool, int]:
                 f"nothing to resume.")
         graph = build_graph(runtime, saver)
 
+        if resume and getattr(args, "max_attempts", None):
+            # A resumed run takes its state from the checkpoint, so the CLI
+            # override computed above would never reach it. Re-apply it to the
+            # checkpoint state before the run re-enters.
+            graph.update_state(config, {"max_attempts": max_attempts})
+
         if resume and initial is None:
             values = graph.get_state(config).values
             if values.get("failed"):
