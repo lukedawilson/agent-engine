@@ -3,7 +3,7 @@
 ## Project Information
 - **Project Type**: Brownfield
 - **Start Date**: 2026-10-17T10:58:41Z
-- **Current Stage**: CONSTRUCTION - Unit 3 Functional Design approved (2026-10-19); next = Unit 3 NFR Requirements
+- **Current Stage**: CONSTRUCTION - Unit 3 Infrastructure Design approved (2026-10-19); next = Unit 3 Code Generation
 
 ## Workspace State
 - **Existing Code**: Yes
@@ -18,13 +18,13 @@
 ## Intent
 - **Primary Intent**: Guardrails and sandboxing for the agent-engine pipeline library, in two stages:
   1. SDK-level hardening — harden the existing tooling injection via what the OpenHands SDK provides
-  2. Kernel-level isolation — proper kernel-level isolation for guardrails and sandboxing
+  2. Kernel-level sandboxing — kernel-enforced sandboxing for guardrails (namespaces/cgroups/seccomp via Docker)
 
 ## Execution Plan Summary
 - **Total Stages**: 12 planned
 - **Stages to Execute**: Application Design, Units Generation, Functional Design, NFR Requirements, Infrastructure Design, Code Generation, Build and Test
 - **Stages to Skip**: User Stories (user confirmed), NFR Design (no perf/HA work; container infra covered by Infrastructure Design)
-- **Unit Order**: Unit 1 output-passing fix + file-tool removal → Unit 2 SDK hardening → Unit 3 kernel isolation (vertical slices)
+- **Unit Order**: Unit 1 output-passing fix + file-tool removal → Unit 2 SDK hardening → Unit 3 kernel-level sandboxing (vertical slices)
 
 ## Extension Configuration
 - **Domain Standards**: Yes — enabled (Requirements Analysis, 2026-10-17)
@@ -59,12 +59,13 @@ Scope FR-1.1 (tool-surface semantics — `tools:` as sole capability allowlist; 
 - [x] Code Generation — complete 2026-10-19 (dev loop self-hosted: `proc.py` + registry/actions/stages/config/agents hardening + `env_allowlist` + tests)
 - [x] Build and Test — full suite green: 391 passed (mechanical `test` command substance)
 
-### unit-3 (kernel isolation, always-on) — IN PROGRESS
-Scope FR-2.1–FR-2.6 (always-on sandbox; Docker backend on macOS/Windows, native bwrap+Landlock+seccomp backend on Linux; fail-fast when no runtime; host-side commit; agent git-mutation blocking)
+### unit-3 (kernel-level sandboxing, always-on) — IN PROGRESS
+Scope FR-2.1–FR-2.6 (always-on sandbox; Docker backend on ALL platforms — native bwrap/Landlock path dropped 2026-10-19, Sandbox surface retained as extension seam; fail-fast when no runtime; host-side commit; agent git-mutation blocking; per-step env + setup provision phase)
 
-- [x] Functional Design — approved 2026-10-19 (FD-1 conservative default profile; FD-2 two backends, one Sandbox surface; FD-3c git-mutation block; FD-4 always-on directive; FD-5 interface-level fakes; artifacts in aidlc-docs/construction/unit-3/functional-design/)
-- [ ] NFR Requirements — next
-- [ ] Infrastructure Design
+- [x] Functional Design — approved 2026-10-19 (FD-1 conservative default profile; FD-3c git-mutation block; FD-4 always-on directive; FD-5 interface-level fakes; artifacts in aidlc-docs/construction/unit-3/functional-design/ — amended in place during NFR stage)
+- [x] NFR Requirements — approved 2026-10-19 (NFR-1 per-step env; NFR-2 persistent-per-run; NFR-3 docker CLI; NFR-5 setup hook provision phase + stamp caching; NFR-6 CI ubuntu+windows; major directive: drop native backend, keep interface; artifacts in aidlc-docs/construction/unit-3/nfr-requirements/)
+- [x] Infrastructure Design — approved 2026-10-19 (ID-1 own dev image via CI/GHCR; ID-2 any compliant daemon, API ≥1.43, Linux-containers mode on Windows; ID-3 ~/.agent-engine/state, one stamp/key; ID-4 caps 4g/2cpu exec, 8g/4cpu provision, per-pipeline override; ID-5 JSONL audit + 5MB rotation; ID-6 GitHub-hosted ubuntu+windows CI; ID-7 repo-shipped docs/setup.md user guide; ID-8 terminology = kernel-level sandboxing; artifacts in aidlc-docs/construction/unit-3/infrastructure-design/ + construction/shared-infrastructure.md)
+- [ ] Code Generation — Part 1 plan approved 2026-10-19 under docs-first directive (raw: "Get the docs ready for the agent-engine to implement, but do NOT write code"); implementation handoff spec at aidlc-docs/construction/unit-3/code/implementation-spec.md; code execution DEFERRED to implementing agent
 - [ ] Code Generation
 - [ ] Build and Test
 - [ ] Operations (placeholder)

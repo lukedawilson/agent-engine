@@ -1,4 +1,4 @@
-# Functional Design Plan — unit-3 (kernel isolation, always-on)
+# Functional Design Plan — unit-3 (kernel-level sandboxing, always-on)
 
 > **Amended 2026-10-19 (FD-4, user directive):** isolation is **always-on**, not opt-in — the title and context above originally read "opt-in". No usable runtime ⇒ fail fast on every run. The `isolation:` section configures the always-on sandbox; it can never disable it.
 

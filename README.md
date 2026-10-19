@@ -19,7 +19,7 @@ pip install -e .          # from this repo
 python -m pytest tests/ -q
 ```
 
-Requires Python ≥ 3.11.
+Requires Python ≥ 3.12.
 
 ## Quick start
 
