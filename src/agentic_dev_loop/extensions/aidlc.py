@@ -1,13 +1,17 @@
 """AI-DLC document-loader extension. Loading IS choosing: name
 `agentic_dev_loop.extensions.aidlc:AidlcExtension` in the pipeline's
-`extensions:` list and the pipeline gains `--ai-dlc-unit` (any
-unambiguous unit spelling: U4 / 4 / 004 / U004 / full slug) plus bare-run
-autodetect of the current unit from `aidlc-docs/aidlc-state.md`.
+`extensions:` list and the pipeline gains `--aidlc-unit` — the unit
+directory name under `aidlc-docs/construction/` (e.g. `unit-3`,
+`support-for-windows`), matched verbatim — plus bare-run autodetect of
+the current unit from the Current Stage line of
+`aidlc-docs/aidlc-state.md`.
 
-Resolvers are verbatim ports of yosk's `resolve_unit_docs` /
-`get_current_unit`, with `docs_dir` parameterised (was the module-level
-AIDLC_DOCS_DIR) and the coding-standards merge dropped (the pipeline's
-`additional_files:` now owns shared files).
+No input mangling. AI-DLC's own ruleset imposes no naming convention on
+unit directories (`{unit-name}` is a free placeholder), so the extension
+imposes none either: the slug is the directory name, exactly. `U3`, `3`,
+`004` and friends are NOT accepted unless a directory is literally named
+that. The Current Stage line names the unit as its directory name
+("Unit unit-3", "Unit support-for-windows") for autodetect.
 """
 
 import argparse
@@ -15,59 +19,29 @@ import re
 from pathlib import Path
 
 _DOC_SUFFIXES = (".md", ".yaml", ".yml", ".txt")
-_UNIT_DIR_NUMBER = re.compile(r"unit[-_](\d+)")
 
 
-def _leading_number(text: str) -> int | None:
-    """Leading digits of a unit id (``"004-preset-management"`` -> 4), or
-    None for ids that do not start with a number."""
-    match = re.match(r"(\d+)", text)
-    return int(match.group(1)) if match else None
-
-
-def _dir_unit_number(dir_name: str) -> int | None:
-    """Numeric prefix of a unit dir name (``"unit-004-preset-management"``
-    -> 4, ``"unit-14"`` -> 14)."""
-    match = _UNIT_DIR_NUMBER.match(dir_name.lower())
-    return int(match.group(1)) if match else None
-
-
-def resolve_unit_docs(docs_dir: Path | str, unit_id: str) -> dict[str, str]:
+def resolve_unit_docs(docs_dir: Path | str, unit_slug: str) -> dict[str, str]:
     docs: dict[str, str] = {}
     docs_dir = Path(docs_dir)
-    unit_id = unit_id.strip()
-    if unit_id[:1] in ("U", "u"):
-        unit_id = unit_id[1:]
+    unit_slug = unit_slug.strip()
 
-    unit_patterns = [f"unit-{unit_id}", f"unit_{unit_id}"]
-    number = _leading_number(unit_id)
     construction_dir = docs_dir / "construction"
-    candidates: list[Path] = []
+    unit_dir: Path | None = None
     if construction_dir.is_dir():
         for entry in sorted(construction_dir.iterdir()):
-            if not entry.is_dir():
-                continue
-            name = entry.name.lower()
-            if name == unit_patterns[0].lower() or name == unit_patterns[1].lower():
-                candidates.append(entry)
-            elif number is not None and _dir_unit_number(entry.name) == number:
-                candidates.append(entry)
+            if entry.is_dir() and entry.name == unit_slug:
+                unit_dir = entry
+                break
 
-    candidates = sorted(set(candidates), key=lambda p: p.name.lower())
-    if len(candidates) > 1:
-        raise RuntimeError(
-            f"Ambiguous unit id '{unit_id}': multiple unit directories match "
-            f"({', '.join(p.name for p in candidates)}). Pass the full unit "
-            "slug to disambiguate.")
-
-    unit_dir = candidates[0] if candidates else None
     if unit_dir is None:
-        look_for = ", ".join(unit_patterns)
-        if number is not None:
-            look_for += f", or any unit dir numbered {number}"
+        available = ""
+        if construction_dir.is_dir():
+            names = sorted(p.name for p in construction_dir.iterdir() if p.is_dir())
+            available = f" (available: {', '.join(names)})"
         raise FileNotFoundError(
-            f"No docs directory found for unit {unit_id} under {construction_dir} "
-            f"(looked for {look_for})")
+            f"No unit directory named '{unit_slug}' under {construction_dir}"
+            f"{available or ' (no unit directories found)'}")
 
     for file in sorted(unit_dir.rglob("*")):
         if file.is_file() and file.suffix in _DOC_SUFFIXES:
@@ -94,37 +68,35 @@ def resolve_unit_docs(docs_dir: Path | str, unit_id: str) -> dict[str, str]:
     # present is how the spec reaches agents.
     plans_dir = docs_dir / "construction" / "plans"
     if plans_dir.is_dir():
-        for file in sorted(plans_dir.glob(f"unit-{unit_id}-*-code-generation-plan.md")):
+        for file in sorted(plans_dir.glob(f"{unit_slug}-*-code-generation-plan.md")):
             docs[f"plans/{file.name}"] = file.read_text()
 
     return docs
 
 
 def get_current_unit(docs_dir: Path | str) -> str:
-    """Read the current unit from the aidlc-state.md Current Stage line."""
+    """Read the current unit slug from the aidlc-state.md Current Stage line.
+
+    The stage line must name the unit as its directory name ("Unit unit-3",
+    "Unit support-for-windows"); the slug is returned verbatim for a direct
+    directory match.
+    """
     state_file = Path(docs_dir) / "aidlc-state.md"
     if not state_file.is_file():
         raise FileNotFoundError(f"aidlc-state file not found: {state_file}")
     # Anchor to the Current Stage line — the file accumulates history, so an
     # unanchored search could silently pick up an earlier "Unit N" mention.
-    match = re.search(r"Current Stage[^\n]*Unit (\d+)", state_file.read_text())
+    match = re.search(r"Current Stage[^\n]*Unit ([\w-]+(?:\.[\w-]+)*)", state_file.read_text())
     if not match:
         raise RuntimeError(
             f"Could not determine current unit from {state_file} "
-            "(no 'Unit N' in the Current Stage line)")
-    return f"U{match.group(1)}"
-
-
-def _normalize_unit(unit: str) -> str:
-    unit = unit.strip()
-    if unit[:1] in ("U", "u"):
-        unit = unit[1:]
-    return f"U{unit}"
+            "(no 'Unit <slug>' in the Current Stage line)")
+    return match.group(1)
 
 
 class AidlcDocumentLoader:
-    """`--ai-dlc-unit` (any unambiguous spelling), or bare-run
-    autodetect from aidlc-state.md."""
+    """`--aidlc-unit` (a unit directory name, matched verbatim), or bare-run
+    autodetect from the Current Stage line of aidlc-state.md."""
 
     name = "ai-dlc"
     defaultable = True
@@ -133,15 +105,15 @@ class AidlcDocumentLoader:
         self.docs_dir = Path(docs_dir)
 
     def add_cli_args(self, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("--ai-dlc-unit", metavar="U<N>", default=None,
-                        help="AI-DLC unit ID: any unambiguous spelling "
-                             "(U4, 4, 004, U004) or the full unit slug "
-                             "(U004-preset-management); defaults to the "
-                             "current unit in aidlc-docs/aidlc-state.md")
+        parser.add_argument("--aidlc-unit", metavar="SLUG", default=None,
+                        help="AI-DLC unit: the unit directory name under "
+                             "aidlc-docs/construction/ (e.g. unit-3 or "
+                             "support-for-windows), matched verbatim; "
+                             "defaults to the current unit in "
+                             "aidlc-docs/aidlc-state.md")
 
     def resolve(self, args: argparse.Namespace) -> tuple[dict[str, str], str]:
-        unit = (_normalize_unit(args.ai_dlc_unit) if args.ai_dlc_unit
-                else get_current_unit(self.docs_dir))
+        unit = args.aidlc_unit or get_current_unit(self.docs_dir)
         return resolve_unit_docs(self.docs_dir, unit), f"unit {unit}"
 
 

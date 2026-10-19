@@ -3,7 +3,7 @@
 ## Project Information
 - **Project Type**: Brownfield
 - **Start Date**: 2026-10-17T10:58:41Z
-- **Current Stage**: CONSTRUCTION - Unit 3 Infrastructure Design approved (2026-10-19); next = Unit 3 Code Generation
+- **Current Stage**: CONSTRUCTION - Unit unit-3 Infrastructure Design approved (2026-10-19); next = Unit unit-3 Code Generation
 
 ## Workspace State
 - **Existing Code**: Yes

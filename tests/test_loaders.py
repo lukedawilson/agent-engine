@@ -81,28 +81,28 @@ class TestSelectLoader:
 
     def test_flag_selects_its_loader(self):
         plan = _Loader("plan", "--plan", "plan")
-        aidlc = _Loader("ai-dlc", "--ai-dlc-unit", "ai_dlc_unit", defaultable=True)
+        aidlc = _Loader("ai-dlc", "--aidlc-unit", "aidlc_unit", defaultable=True)
         reg = self._registry_with(plan, aidlc)
 
-        assert select_loader(reg, _args(plan=Path("p.md"), ai_dlc_unit=None)) is plan
-        assert select_loader(reg, _args(plan=None, ai_dlc_unit="U3")) is aidlc
+        assert select_loader(reg, _args(plan=Path("p.md"), aidlc_unit=None)) is plan
+        assert select_loader(reg, _args(plan=None, aidlc_unit="U3")) is aidlc
 
     def test_flags_from_two_loaders_error_naming_both(self):
         reg = self._registry_with(
             _Loader("plan", "--plan", "plan"),
-            _Loader("ai-dlc", "--ai-dlc-unit", "ai_dlc_unit", defaultable=True))
+            _Loader("ai-dlc", "--aidlc-unit", "aidlc_unit", defaultable=True))
 
         with pytest.raises(ValueError) as excinfo:
-            select_loader(reg, _args(plan=Path("p.md"), ai_dlc_unit="U3"))
+            select_loader(reg, _args(plan=Path("p.md"), aidlc_unit="U3"))
 
         message = str(excinfo.value)
         assert "plan" in message and "ai-dlc" in message
 
     def test_sole_defaultable_autoruns_with_no_flag(self):
-        aidlc = _Loader("ai-dlc", "--ai-dlc-unit", "ai_dlc_unit", defaultable=True)
+        aidlc = _Loader("ai-dlc", "--aidlc-unit", "aidlc_unit", defaultable=True)
         reg = self._registry_with(_Loader("plan", "--plan", "plan"), aidlc)
 
-        assert select_loader(reg, _args(plan=None, ai_dlc_unit=None)) is aidlc
+        assert select_loader(reg, _args(plan=None, aidlc_unit=None)) is aidlc
 
     def test_none_defaultable_returns_none_with_no_flag(self):
         reg = self._registry_with(_Loader("plan", "--plan", "plan"))

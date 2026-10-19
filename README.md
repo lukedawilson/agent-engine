@@ -27,7 +27,7 @@ Requires Python ≥ 3.12.
 ```bash
 export OPENAI_API_KEY=...   # whatever env var your pipeline's api_key_env names
 agentic-dev-loop agentic-dev-loop/pipeline.yaml --plan plan.md
-agentic-dev-loop agentic-dev-loop/pipeline.yaml --ai-dlc-unit U2
+agentic-dev-loop agentic-dev-loop/pipeline.yaml --aidlc-unit unit-2
 agentic-dev-loop agentic-dev-loop/pipeline.yaml --resume <thread-id> --max-attempts 5
 ./trigger-agentic-dev-loop.sh --plan plan.md   # same thing, from the repo root
 ```
@@ -46,10 +46,12 @@ expanded and live-tails its console. To eyeball the viz page without
 running a pipeline, `.venv/bin/python viz_demo.py` serves the real topology
 and replays a scripted run (every node state, verdict badges, retry cycle).
 
-`--ai-dlc-unit` accepts any unambiguous spelling of a unit number — `U2`,
-`2`, `U002`, `002` — or the full unit slug (`U002-custom-configuration`).
-If multiple unit directories match one id, the run fails loudly naming
-every candidate; pass the full slug to disambiguate.
+`--aidlc-unit` takes the unit directory name under
+`aidlc-docs/construction/` verbatim — `unit-2`,
+`unit-002-custom-configuration`, or any slug AI-DLC's own naming uses
+(AI-DLC imposes no naming convention on unit directories). No spelling
+tolerance, no numeric aliases: the slug must name the directory exactly,
+and a wrong slug fails loudly listing the directories that do exist.
 
 ## What a run looks like
 
@@ -220,10 +222,10 @@ Loader-selection flow: a loader's flag in argv selects it; flags from two
 loaders in one invocation error out; with no flag, the sole `defaultable`
 loader autoruns (the bundled `ai-dlc` loader autodetects the current unit
 from `aidlc-docs/aidlc-state.md`), otherwise the run proceeds with no
-injected docs and the pipeline `name:` as subject. Unit ids resolve by
-exact directory name or by numeric prefix (`unit-004-preset-management`
-answers to `4`, `004`, `U4`, `U004`, or its full slug); ambiguous ids fail
-loud listing all matches. A selected loader that
+injected docs and the pipeline `name:` as subject. A unit id must name
+its directory exactly (`--aidlc-unit unit-3`); there is no numeric
+fallback or spelling tolerance, and an unmatched slug fails loud listing
+the available directories. A selected loader that
 yields zero docs **fails fast** — context is never silently degraded.
 Duplicate CLI option strings across loaders are a load-time error naming both.
 
@@ -265,7 +267,7 @@ The development lifecycle workflow lives in
 phase details under `aws-aidlc-rule-details/`). Working docs — plans, user
 stories, units of work, state — live in `aidlc-docs/`, created as the
 workflow runs. The bundled `ai-dlc` document loader (see Extension points)
-wires the pipeline's `--ai-dlc-unit` flag to those docs.
+wires the pipeline's `--aidlc-unit` flag to those docs.
 
 OpenCode commands over the workflow: `/epic-status`, `/ticket-details`,
 `/unit-status`, `/update-subtask` (ticket boards over `aidlc-docs/`),

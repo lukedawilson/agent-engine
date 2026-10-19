@@ -120,11 +120,11 @@ class TestHelp:
         with pytest.raises(SystemExit) as e:
             main(["aidlc.yaml", "--help"])
         assert e.value.code == 0
-        assert "--ai-dlc-unit" in capsys.readouterr().out
+        assert "--aidlc-unit" in capsys.readouterr().out
 
         with pytest.raises(SystemExit):
             main(["pipeline.yaml", "--help"])
-        assert "--ai-dlc-unit" not in capsys.readouterr().out
+        assert "--aidlc-unit" not in capsys.readouterr().out
 
     def test_no_pipeline_shows_core_surface(self, repo, capsys):
         with pytest.raises(SystemExit) as e:

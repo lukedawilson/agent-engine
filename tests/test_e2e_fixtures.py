@@ -184,7 +184,7 @@ class TestHistoricalFixtures:
          / "unit-99").mkdir(parents=True)
         with pytest.raises(RuntimeError, match="yielded no docs"):
             main([str(consumer_repo / "agentic-dev-loop" / "pipeline.yaml"),
-                  "--ai-dlc-unit", "U99", "--no-viz"])
+                  "--aidlc-unit", "unit-99", "--no-viz"])
         assert fake_agents.calls == []
 
 
