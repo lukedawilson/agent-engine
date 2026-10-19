@@ -4,7 +4,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from agent_engine.config import Route, load_config
+from agentic_dev_loop.config import Route, load_config
 
 # The plan's yosk-equivalent reference pipeline (009, YAML schema section),
 # verbatim except for two substitutions: 012 replaced the agent step named
@@ -16,7 +16,7 @@ FULL_YAML = """\
 name: yosk-construction
 
 extensions:
-  - agent_engine.extensions.aidlc:AidlcExtension
+  - agentic_dev_loop.extensions.aidlc:AidlcExtension
 
 additional_files:
   - coding-standards-ddd.yaml
@@ -85,7 +85,7 @@ def test_full_schema_example_round_trips(tmp_path):
     cfg = load_config(p)
 
     assert cfg.name == "yosk-construction"
-    assert cfg.extensions == ["agent_engine.extensions.aidlc:AidlcExtension"]
+    assert cfg.extensions == ["agentic_dev_loop.extensions.aidlc:AidlcExtension"]
     assert cfg.additional_files == ["coding-standards-ddd.yaml"]
     assert cfg.state_dir == ".pr"
     assert cfg.max_attempts == 3

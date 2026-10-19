@@ -157,7 +157,7 @@ temporary directories and real implementations instead.
 
 ## SDK compat shims
 
-Import-time monkeypatches in `src/agent_engine/llm.py` paper over OpenHands
+Import-time monkeypatches in `src/agentic_dev_loop/llm.py` paper over OpenHands
 SDK bugs. They go stale silently when the SDK changes — **`COMPAT-SHIMS.md`**
 is the registry (each shim's removal criterion, target SDK version, pinning
 test) and `tests/test_sdk_compat.py` guards both directions: the version guard

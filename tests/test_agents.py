@@ -9,7 +9,7 @@ import pytest
 from openhands.sdk import LLM
 from openhands.sdk.agent.agent import Agent
 
-from agent_engine.agents import load_agent
+from agentic_dev_loop.agents import load_agent
 
 
 @pytest.fixture

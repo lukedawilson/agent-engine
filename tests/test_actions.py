@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_engine.actions import (_listening_pids, _parse_cwd_output, _pid_cwd,
+from agentic_dev_loop.actions import (_listening_pids, _parse_cwd_output, _pid_cwd,
                                   commit, git_worktree_clean,
                                   kill_listeners_on_port)
 
@@ -146,7 +146,7 @@ class TestKillListenersOnPort:
     def test_kill_listeners_wrapper_removed(self):
         """The port_sweep pipeline step that used the node-shaped wrapper is
         gone; the startup sweep calls kill_listeners_on_port directly."""
-        import agent_engine.actions as actions_module
+        import agentic_dev_loop.actions as actions_module
         assert not hasattr(actions_module, "kill_listeners")
 
     @lsof_required

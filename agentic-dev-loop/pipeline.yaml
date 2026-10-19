@@ -1,7 +1,7 @@
 name: agentic-dev-loop-construction
 
 extensions:
-  - agent_engine.extensions.aidlc:AidlcExtension   # bundled; loading IS choosing
+  - agentic_dev_loop.extensions.aidlc:AidlcExtension   # bundled; loading IS choosing
 
 additional_files:                    # top-level, standalone, optional
   - ../README.md                     # resolved relative to the pipeline file's dir;

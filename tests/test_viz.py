@@ -25,9 +25,9 @@ from typing import Annotated, TypedDict
 
 import pytest
 
-from agent_engine import viz
-from agent_engine.config import PipelineConfig, load_config
-from agent_engine.viz import (MAX_LINE, PAGE, ConsoleCapture, HeartbeatThread,
+from agentic_dev_loop import viz
+from agentic_dev_loop.config import PipelineConfig, load_config
+from agentic_dev_loop.viz import (MAX_LINE, PAGE, ConsoleCapture, HeartbeatThread,
                               NodeWatch, VizBus, _Tee, _handler_class,
                               serve_viz, topology_mermaid, translate)
 

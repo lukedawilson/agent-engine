@@ -31,8 +31,8 @@ import time
 import webbrowser
 from pathlib import Path
 
-from agent_engine import viz
-from agent_engine.config import load_config
+from agentic_dev_loop import viz
+from agentic_dev_loop.config import load_config
 
 EXAMPLE = Path(__file__).parent / "agentic-dev-loop" / "pipeline.yaml"
 SUBJECT = "plan demo.md"

@@ -15,9 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Distribution renamed from `agent-engine` to `agentic-dev-loop`; the CLI
-  command renamed from `agent-engine` to `agentic-dev-loop`, and the shipped
-  example-pipeline directory and trigger script renamed to match. The Python
-  import (`agent_engine`) is unchanged.
+  command renamed from `agent-engine` to `agentic-dev-loop`, the shipped
+  example-pipeline directory and trigger script renamed to match, and the
+  Python import renamed from `agent_engine` to `agentic_dev_loop`.
 - Agent steps now capture the agent's final response as the pipeline feedback
   channel; agents no longer write artifacts through `file_editor` (the tool
   was removed).

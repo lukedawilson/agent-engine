@@ -44,7 +44,7 @@ dependencies = [
 Homepage = "https://github.com/lukedawilson/agentic-dev-loop"
 
 [project.scripts]
-agentic-dev-loop = "agent_engine.cli:main"
+agentic-dev-loop = "agentic_dev_loop.cli:main"
 
 [project.optional-dependencies]
 dev = [
@@ -56,4 +56,4 @@ dev = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-agent_engine = ["py.typed"]
+agentic_dev_loop = ["py.typed"]

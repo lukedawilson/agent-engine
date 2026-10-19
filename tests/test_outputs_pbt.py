@@ -7,7 +7,7 @@ from pathlib import Path
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from agent_engine.outputs import CapturedOutput, Verdict, VerdictError
+from agentic_dev_loop.outputs import CapturedOutput, Verdict, VerdictError
 
 VERDICTS = {"PASS": "pass", "FAIL": "fail"}
 

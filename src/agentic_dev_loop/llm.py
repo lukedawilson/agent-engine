@@ -29,7 +29,7 @@ if _DEEPSEEK_MODEL not in _model_features.SEND_REASONING_CONTENT_MODELS:
 # present-but-empty reasoning is still written (field presence matters).
 # Remove once the SDK distributes reasoning_content to every message.
 _ORIGINAL_FORMAT_MESSAGES = LLM.format_messages_for_llm
-if not getattr(_ORIGINAL_FORMAT_MESSAGES, "_agent_engine_reasoning_repair", False):
+if not getattr(_ORIGINAL_FORMAT_MESSAGES, "_agentic_dev_loop_reasoning_repair", False):
     def _repair_reasoning_passback(self, messages: list) -> list[dict]:
         out = _ORIGINAL_FORMAT_MESSAGES(self, messages)
         last = None
@@ -44,7 +44,7 @@ if not getattr(_ORIGINAL_FORMAT_MESSAGES, "_agent_engine_reasoning_repair", Fals
                     d["reasoning_content"] = last
         return out
 
-    _repair_reasoning_passback._agent_engine_reasoning_repair = True
+    _repair_reasoning_passback._agentic_dev_loop_reasoning_repair = True
     LLM.format_messages_for_llm = _repair_reasoning_passback
 
 

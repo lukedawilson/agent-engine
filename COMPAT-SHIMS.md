@@ -1,6 +1,6 @@
 # SDK compat shims
 
-Import-time monkeypatches in `src/agent_engine/llm.py` that paper over
+Import-time monkeypatches in `src/agentic_dev_loop/llm.py` that paper over
 OpenHands SDK bugs. Each targets a specific SDK version; each has a removal
 criterion and a pinning test. They are engine-side by design — they survive
 SDK reinstalls — but they go stale silently when the SDK changes, so the repo

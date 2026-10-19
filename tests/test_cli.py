@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_engine.cli import build_parser, main
+from agentic_dev_loop.cli import build_parser, main
 
 PLAIN_YAML = """\
 name: tiny
@@ -116,7 +116,7 @@ class TestHelp:
 
     def test_extension_flags_only_when_configured(self, repo, capsys):
         write_pipeline(repo, "aidlc.yaml", with_extensions(
-            PLAIN_YAML, "agent_engine.extensions.aidlc:AidlcExtension"))
+            PLAIN_YAML, "agentic_dev_loop.extensions.aidlc:AidlcExtension"))
         with pytest.raises(SystemExit) as e:
             main(["aidlc.yaml", "--help"])
         assert e.value.code == 0
@@ -229,9 +229,9 @@ class TestViz:
             return types.SimpleNamespace(server_address=("127.0.0.1", port)), \
                 object()
 
-        monkeypatch.setattr("agent_engine.graph.kill_listeners_on_port",
+        monkeypatch.setattr("agentic_dev_loop.graph.kill_listeners_on_port",
                             fake_sweep)
-        monkeypatch.setattr("agent_engine.viz.serve_viz", fake_serve_viz)
+        monkeypatch.setattr("agentic_dev_loop.viz.serve_viz", fake_serve_viz)
         opened = []
         monkeypatch.setattr("webbrowser.open", opened.append)
 
@@ -267,10 +267,10 @@ class TestViz:
     def test_busy_preferred_port_falls_back_and_notices(self, repo, fake_agents,
                                                         monkeypatch, capsys):
         fake_agents.set("dev", [("write", "implementation-summary.md", "done")])
-        monkeypatch.setattr("agent_engine.graph.kill_listeners_on_port",
+        monkeypatch.setattr("agentic_dev_loop.graph.kill_listeners_on_port",
                             lambda *a, **k: None)
         monkeypatch.setattr(
-            "agent_engine.viz.serve_viz",
+            "agentic_dev_loop.viz.serve_viz",
             lambda *a, **k: (types.SimpleNamespace(
                 server_address=("127.0.0.1", 45123)), object()))
         opened = []
@@ -286,10 +286,10 @@ class TestViz:
                                                     monkeypatch, capsys):
         fake_agents.set("dev", [("write", "implementation-summary.md", "done")])
         swept = []
-        monkeypatch.setattr("agent_engine.graph.kill_listeners_on_port",
+        monkeypatch.setattr("agentic_dev_loop.graph.kill_listeners_on_port",
                             lambda *a, **k: swept.append(a))
         monkeypatch.setattr(
-            "agent_engine.viz.serve_viz",
+            "agentic_dev_loop.viz.serve_viz",
             lambda *a, **k: (types.SimpleNamespace(
                 server_address=("127.0.0.1", 45123)), object()))
         opened = []
@@ -306,9 +306,9 @@ class TestViz:
         called = []
         swept = []
         monkeypatch.setattr(
-            "agent_engine.viz.serve_viz",
+            "agentic_dev_loop.viz.serve_viz",
             lambda *a, **k: called.append("serve") or (object(), object()))
-        monkeypatch.setattr("agent_engine.graph.kill_listeners_on_port",
+        monkeypatch.setattr("agentic_dev_loop.graph.kill_listeners_on_port",
                             lambda *a, **k: swept.append(a))
 
         code = main(["pipeline.yaml", "--plan", "plan.md", "--no-viz"])

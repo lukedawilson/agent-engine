@@ -15,7 +15,7 @@ if _REPO_ROOT not in sys.path:
 
 import pytest
 
-from agent_engine.stages import AgentResult
+from agentic_dev_loop.stages import AgentResult
 
 
 class FakeAgents:
@@ -41,7 +41,7 @@ class FakeAgents:
     def __init__(self, monkeypatch: pytest.MonkeyPatch):
         self.calls: list[dict] = []
         self.script: dict[str, list[tuple]] = {}
-        monkeypatch.setattr("agent_engine.stages.run_agent", self)
+        monkeypatch.setattr("agentic_dev_loop.stages.run_agent", self)
 
     def set(self, agent: str, behaviors: list[tuple]) -> None:
         self.script[agent] = list(behaviors)

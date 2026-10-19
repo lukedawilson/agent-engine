@@ -1,5 +1,5 @@
 """AI-DLC document-loader extension. Loading IS choosing: name
-`agent_engine.extensions.aidlc:AidlcExtension` in the pipeline's
+`agentic_dev_loop.extensions.aidlc:AidlcExtension` in the pipeline's
 `extensions:` list and the pipeline gains `--ai-dlc-unit` (any
 unambiguous unit spelling: U4 / 4 / 004 / U004 / full slug) plus bare-run
 autodetect of the current unit from `aidlc-docs/aidlc-state.md`.

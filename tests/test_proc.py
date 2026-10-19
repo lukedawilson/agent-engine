@@ -10,7 +10,7 @@ import string
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from agent_engine.proc import child_env, is_pid_token, needs_shell, split_command
+from agentic_dev_loop.proc import child_env, is_pid_token, needs_shell, split_command
 
 
 class TestNeedsShell:

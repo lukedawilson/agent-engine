@@ -91,7 +91,7 @@ Verbatim from `agentic-dev-loop/pipeline.yaml` (comments added):
 ```yaml
 name: agentic-dev-loop-construction
 extensions:
-  - agent_engine.extensions.aidlc:AidlcExtension
+  - agentic_dev_loop.extensions.aidlc:AidlcExtension
 additional_files:
   - ../README.md                     # shared context for every agent step
 

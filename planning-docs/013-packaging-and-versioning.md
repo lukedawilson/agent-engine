@@ -1,6 +1,6 @@
 # 013 — Packaging & Versioning
 
-**Status**: Completed — shipped: pyproject 0.2.0 + hygiene, `--version`, CHANGELOG, release.yml, /publish (T1–T5, T8 done). Distribution renamed to `agentic-dev-loop` (CLI renamed to `agentic-dev-loop`; import `agent_engine` unchanged). Outstanding: T6 cut v0.2.0 + T7 verify, after the §7 one-time PyPI/GitHub setup.
+**Status**: Completed — shipped: pyproject 0.2.0 + hygiene, `--version`, CHANGELOG, release.yml, /publish (T1–T5, T8 done). Renamed across the board to `agentic-dev-loop`: distribution, CLI, repo, shipped example dir/trigger script, and Python import (`agent_engine` → `agentic_dev_loop`). Outstanding: T6 cut v0.2.0 + T7 verify, after the §7 one-time PyPI/GitHub setup.
 **Date**: 2026-10-19
 **Trigger**: User — "Before we implement unit 3, we should do proper packaging and versioning. The current version (without kernel-level sandboxing) is v0.x.x, and a proper v1 has the kernel-level sandboxing (unit 3)."
 
@@ -42,12 +42,12 @@
 
 - `[project] version` in `pyproject.toml` is the **only** place the version is written.
 - Runtime reads it via `importlib.metadata.version("agentic-dev-loop")` — verified working with the local editable install (resolves `0.1.0` today).
-- **No** `__version__` constant in `src/agent_engine/__init__.py` — dual sources drift (this repo has been burned by silent staleness before; don't invite it).
+- **No** `__version__` constant in `src/agentic_dev_loop/__init__.py` — dual sources drift (this repo has been burned by silent staleness before; don't invite it).
 - If metadata is unavailable (running from a source checkout that was never installed), fail **loudly**: print a clear error naming the problem ("agentic-dev-loop is not installed — version unavailable; run `pip install -e .`"). No silent fallback to a hard-coded string.
 
 **`--version` flag** (new, TDD per repo rule — red/green/refactor):
 - `agentic-dev-loop --version` prints `agentic-dev-loop X.Y.Z` from metadata.
-- Landed via `tests/test_cli.py` additions first (red), then the argparse wiring in `src/agent_engine/cli.py` (`_core_parser` / probe parser so it works even before config resolution), then refactor.
+- Landed via `tests/test_cli.py` additions first (red), then the argparse wiring in `src/agentic_dev_loop/cli.py` (`_core_parser` / probe parser so it works even before config resolution), then refactor.
 - No mocks: `importlib.metadata` is a local call against the installed distribution.
 
 ## 4. Packaging hygiene (pyproject.toml)
@@ -173,7 +173,7 @@ After that, every `v*` tag push publishes automatically.
 | T4 | `CHANGELOG.md` with `[Unreleased]` + `[0.2.0]` | docs |
 | T5 | `.github/workflows/release.yml` (§6) | config |
 | T6 | Commit T2–T5, annotate `v0.2.0`, push → CI publishes `agentic-dev-loop 0.2.0` to PyPI + creates the first GitHub Release | — |
-| T7 | Verify: `pip install agentic-dev-loop` in a clean venv; `agentic-dev-loop --version`; PyPI page renders README/licence/classifiers; GitHub Release body = changelog | — |
+| T7 | Verify: `pip install agentic-dev-loop` in a clean venv; `agentic-dev-loop --version`; PyPI page renders README/licence/classifiers; GitHub Release body = changelog. Rebuild wheels from a **clean tree** (`rm -rf build dist *.egg-info` first — setuptools reuses stale `build/lib` and ships old package dirs in the wheel; caught in practice during the import rename) | — |
 | T8 | Implement `/publish` command — release-cut automation: `tools/publish.py` (version resolution, pyproject bump, changelog render, commit/tag/push, `--dry-run`) + `tests/test_publish.py` (22 subprocess-git tests) + `.opencode/commands/publish.md` | **yes** ✅ done |
 
 Then unit-3 Code Generation proceeds with no further versioning work until its release-cut commit (bump to `1.0.0rc1` + changelog + tag `v1.0.0rc1` at Build-and-Test green).

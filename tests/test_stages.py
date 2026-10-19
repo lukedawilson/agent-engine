@@ -13,9 +13,9 @@ from langgraph.graph import END
 from openhands.sdk import LLM
 from openhands.sdk.conversation.state import ConversationExecutionStatus
 
-from agent_engine.config import PipelineConfig
-from agent_engine.registry import default_registry
-from agent_engine.stages import (
+from agentic_dev_loop.config import PipelineConfig
+from agentic_dev_loop.registry import default_registry
+from agentic_dev_loop.stages import (
     Runtime, _run_command, build_context, make_agent_node, make_bump_node,
     make_command_node, make_router, run_agent,
 )
@@ -259,7 +259,7 @@ class TestCommandNode:
         def boom(*a, **k):
             raise RuntimeError("boom")
 
-        monkeypatch.setattr("agent_engine.stages._run_command", boom)
+        monkeypatch.setattr("agentic_dev_loop.stages._run_command", boom)
         assert node(make_state()) == {"failed": True, "failed_step": "test"}
 
     def test_plain_fail_route_has_no_retry_target(self, runtime):
@@ -447,7 +447,7 @@ class TestRunAgent:
         self._write_agent(runtime)
         convs = []
         monkeypatch.setattr(
-            "agent_engine.stages.Conversation",
+            "agentic_dev_loop.stages.Conversation",
             lambda **kw: convs.append(FakeConversation(ConversationExecutionStatus.FINISHED, **kw)) or convs[-1])
         result = run_agent("dev", "the task", runtime, max_iterations=200)
         assert result.ok and not result.truncated
@@ -460,7 +460,7 @@ class TestRunAgent:
     def test_unfinished_run_is_truncated(self, runtime, monkeypatch):
         self._write_agent(runtime)
         monkeypatch.setattr(
-            "agent_engine.stages.Conversation",
+            "agentic_dev_loop.stages.Conversation",
             lambda **kw: FakeConversation(ConversationExecutionStatus.ERROR, **kw))
         result = run_agent("dev", "msg", runtime)
         assert result.ok and result.truncated
