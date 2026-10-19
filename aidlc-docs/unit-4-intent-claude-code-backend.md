@@ -4,6 +4,12 @@
 exploratory discussion. No code written, no AI-DLC workflow started, no
 decisions committed. Revisit before proceeding.
 
+**Direction (2026-10-18)**: the discussion converged on the *inverted* shape —
+not "Claude Code as a backend inside the engine," but "the engine exposed as an
+MCP toolkit that a Claude **dynamic workflow** drives." That is the recommended
+architecture (see below). The earlier "backend" framing (findings 1–3) is
+retained for completeness but is not the target.
+
 ## Intent
 
 Plug Claude Code into agent-engine as an alternative agent-execution backend
@@ -113,6 +119,70 @@ the extraction once, against a real second backend, not speculatively.
 `Sandbox.run` regardless; FR-2.3 fail-fast, NFR-3 least-privilege, host-side
 commit all carry over.
 
+## Recommended architecture — dynamic workflows as orchestrator, engine as guardrails toolkit
+
+### What dynamic workflows actually are (corrected)
+
+A dynamic workflow is a **JavaScript script Claude writes** that orchestrates
+many **subagents** via `agent()` / `pipeline()` / `parallel()`. Two hard
+constraints shape everything:
+
+- The script has **no filesystem, no shell, no `import()`** — "agents read,
+  write, and run commands; the script coordinates the agents."
+- Therefore the script **cannot** parse `pipeline.yaml`, run the engine CLI,
+  import the library, or call MCP tools directly. The only way it reaches the
+  engine is **through a subagent** (subagents inherit the session's tools +
+  permission rules).
+
+### Division of labor
+
+- **Workflow owns**: planning, fan-out/parallelism, adversarial verification,
+  checkpoint/resume, stall-retry, usage-limit wait. Most of what the engine's
+  LangGraph graph provides is already covered natively here.
+- **Engine owns**: the *deterministic, non-LLM* guardrails — the pipeline model
+  (validated), the mechanical command gate, the verdict protocol, the single
+  gated commit, and (unit-3) kernel isolation. These are exactly what the
+  workflow cannot do itself.
+
+### Exposed surface (MCP server, callable by subagents)
+
+| Tool | Responsibility | Notes |
+| --- | --- | --- |
+| `ae_load_pipeline(path)` | Read + validate `pipeline.yaml` via the real `load_config`/`PipelineConfig`; return the steps model (with `kind` injected) **and** its JSON schema | Fail-fast up front; schema = `PipelineConfig.model_json_schema()` |
+| `ae_run_step(name, context, notes)` | Execute one step inside the engine (command/action semantics + verdict parsing + artifact hygiene + attempt accounting) and return `{verdict, next, notes}` | Policies stay in the engine |
+| `ae_commit(message)` | The single gated commit (clean-worktree gate) | Host-side, unchanged |
+
+### Design principles
+
+1. **Engine = single source of truth** for both the model and the policies.
+   The workflow consumes the validated model; it never re-derives it in JS.
+2. **Parse = data, execute = policies.** `ae_load_pipeline` gives the workflow
+   something to schedule against; `ae_run_step`/`ae_commit` are where the
+   guardrails live. Both from the same engine.
+3. **Project the model.** Emit only orchestration-relevant fields (steps with
+   `kind`, routes, `max_attempts`, `produces`/`artifact`, `verdicts`) — not the
+   `llm` block (`api_key_env`, `base_url`).
+4. **Engine-derived schema.** The workflow's `agent({schema})` uses the schema
+   from `ae_load_pipeline`, so the steps model can't drift from the engine.
+5. **Every engine call is subagent-mediated** (the script can't call tools
+   directly). Determinism lives *inside* the tool (exit-code verdict,
+   `VERDICT:` parsing), not in the LLM that fronts it. Structured output keeps
+   the JSON from mangling.
+
+### Tradeoffs / open consequences
+
+- The engine's **`agent` step type and its LangGraph retry/verdict graph are
+  bypassed** in this mode — Claude subagents *are* dev/review/qa. Extracting a
+  callable `run_step(step, state)` from the graph node closures is a clean
+  refactor, not a rewrite.
+- A workflow's strength is **parallel fan-out**, but dev→test→review→qa is
+  sequential-with-retries. The workflow earns its keep via parallel review+qa,
+  adversarial verification, and checkpoint/resume; for a strictly linear
+  pipeline it's a modest scheduler, and a plain interactive session driving the
+  same MCP tools may be simpler. (Open question.)
+- Isolation becomes **two layers**: Claude Code's own sandboxing for subagent
+  Bash, plus the engine's `Sandbox` for the command gate it owns.
+
 ## Open questions (revisit later)
 
 1. Metering durability: how long does signed-in headless use stay on plan
@@ -126,6 +196,13 @@ commit all carry over.
 5. Agent-definition mapping: `.agent.md` → Claude system prompt (inline body
    or `append`); verdict protocol (`VERDICT:` line in final response) should
    carry over unchanged.
+6. Workflow vs plain session: is a dynamic workflow the right driver for a
+   sequential pipeline, or should a plain interactive session drive the same
+   MCP tools?
+7. Subagent-mediated deterministic steps: acceptable token cost of the
+   JSON-echoing subagent wrapper? (Cheap, but nonzero.)
+8. Refactor shape: extracting `run_step(step, state)` from the LangGraph node
+   closures — how much of the graph survives vs is bypassed in workflow mode?
 
 ## Sources
 
@@ -137,5 +214,7 @@ commit all carry over.
 - https://news.ycombinator.com/item?id=45644862 (Ask HN: production-ready? No)
 - https://news.ycombinator.com/item?id=49997654 (Oct 7 credits change)
 - https://arstechnica.com/ai/2026/06/anthropic-pauses-token-based-billing-for-its-claude-agent-sdk/
+- https://claude.com/resources/articles/introducing-dynamic-workflows-in-claude-code
+- https://code.claude.com/docs/en/workflows
 - Repo-internal: `aidlc-docs/inception/requirements/requirements.md`,
   `application-design.md`, `unit-of-work.md`
