@@ -12,15 +12,9 @@ import enum
 from dataclasses import dataclass
 from pathlib import Path
 
-from openhands.sdk.event.llm_convertible.action import ActionEvent
-from openhands.sdk.event.llm_convertible.message import MessageEvent
-from openhands.sdk.llm.message import content_to_str
+from openhands.sdk.conversation.response_utils import get_agent_final_response
 
 from .results import Result
-
-# The OpenHands FinishTool's registered name — the tool whose `message` IS the
-# agent's final response (see `_final_agent_text`).
-FINISH_TOOL = "finish"
 
 # Leading markdown/list/quote decoration tolerated on a verdict line.
 _LEAD_DECOR = "#*_`>- "
@@ -145,26 +139,9 @@ class CapturedOutput:
 def _final_agent_text(conv) -> str:
     """Extract the agent's final response from an SDK conversation.
 
-    The OpenHands agent signals completion by calling `FinishTool`; its
-    `FinishAction.message` *is* the final response and arrives as an
-    `ActionEvent` (tool_name ``"finish"``), never a `MessageEvent`. Read that
-    first; fall back to the last agent `MessageEvent` only when the agent
-    finished with a plain-text response instead of a finish call.
-
-    Reads `conv.events` — callers must do this BEFORE the conversation is
-    closed (the SDK releases the event stream on close).
+    Delegates to the SDK's own `get_agent_final_response`, which handles both
+    ways an agent can end a run — a `FinishTool` call or a plain-text message.
+    The events live on ``conv.state.events`` (NOT ``conv.events``), and must be
+    read before ``conv.close()`` releases the event stream.
     """
-    events = getattr(conv, "events", [])
-    for event in reversed(events):
-        if isinstance(event, ActionEvent) and event.tool_name == FINISH_TOOL:
-            message = getattr(event.action, "message", None)
-            if message and message.strip():
-                return message
-    agent_events = [
-        event
-        for event in events
-        if isinstance(event, MessageEvent) and event.source == "agent"
-    ]
-    if not agent_events:
-        return ""
-    return "".join(content_to_str(agent_events[-1].llm_message.content))
+    return get_agent_final_response(getattr(conv.state, "events", []))

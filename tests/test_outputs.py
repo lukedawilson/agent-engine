@@ -6,12 +6,17 @@ from types import SimpleNamespace
 
 import pytest
 
+from openhands.sdk import Conversation
 from openhands.sdk.event.llm_convertible.action import ActionEvent
 from openhands.sdk.event.llm_convertible.message import MessageEvent
 from openhands.sdk.llm.message import Message, MessageToolCall, TextContent
+from openhands.sdk.testing import TestLLM
 from openhands.sdk.tool.builtins.finish import FinishAction
 
+from agent_engine.agents import load_agent
 from agent_engine.outputs import CaptureError, CapturedOutput
+
+AGENTS_DIR = Path(__file__).parent.parent / "agent-engine" / "sdk_agents"
 
 
 def _agent_event(text: str) -> MessageEvent:
@@ -48,7 +53,10 @@ def _user_event(text: str) -> MessageEvent:
 
 
 def _conv(*events) -> SimpleNamespace:
-    return SimpleNamespace(events=list(events))
+    # The real Conversation exposes its events via `.state.events`, not
+    # `.events` — mirror that structure so the test can't pass against a
+    # `conv.events` read that the SDK never provides.
+    return SimpleNamespace(state=SimpleNamespace(events=list(events)))
 
 
 class TestFromAgentResult:
@@ -114,6 +122,34 @@ class TestFromAgentResult:
         result = CapturedOutput.from_agent_result(_conv(_agent_event("  \n ")), "out.md", tmp_path)
         assert result.is_err()
         assert result.error == CaptureError.EMPTY_RESPONSE
+
+
+class TestRealConversation:
+    """The capture path against a real SDK Conversation (scripted TestLLM) —
+    the regression guard synthetic `SimpleNamespace` fixtures cannot provide:
+    the real events live on `conv.state.events`, never `conv.events`."""
+
+    def test_captures_finish_message(self, tmp_path: Path):
+        finish_call = Message(
+            role="assistant",
+            content=[TextContent(type="text", text="")],
+            tool_calls=[MessageToolCall(
+                id="call-finish-1",
+                name="finish",
+                arguments=json.dumps({"message": "final summary from the dev agent"}),
+                origin="completion",
+            )],
+        )
+        llm = TestLLM.from_messages([finish_call])
+        agent = load_agent(AGENTS_DIR, "dev", llm)
+        conv = Conversation(agent=agent, workspace=str(tmp_path),
+                            max_iteration_per_run=10)
+        conv.send_message("implement unit 2")
+        conv.run()
+
+        result = CapturedOutput.from_agent_result(conv, "impl.md", tmp_path)
+        assert result.is_ok()
+        assert result.unwrap().raw_text == "final summary from the dev agent"
 
 
 class TestWrite:
