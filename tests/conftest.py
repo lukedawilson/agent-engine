@@ -13,6 +13,14 @@ _REPO_ROOT = str(Path(__file__).resolve().parents[1])
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
+# This repo dogfoods its own published wheel in .venv. The suite must test
+# the WORKING TREE, not the installed wheel — insert src/ ahead of anything
+# else (idempotently) so `import agentic_dev_loop` always resolves to the
+# source being developed. Pinned by tests/test_source_resolution.py.
+_SRC_DIR = str(Path(__file__).resolve().parents[1] / "src")
+if _SRC_DIR not in sys.path:
+    sys.path.insert(0, _SRC_DIR)
+
 import pytest
 
 from agentic_dev_loop.stages import AgentResult
