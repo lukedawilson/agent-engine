@@ -32,7 +32,7 @@
 - Release-cut commit = version bump in `pyproject.toml` + CHANGELOG entry in the **same commit**, tagged immediately after.
 - During the RC soak, `main` stays at `1.0.0rc1`; each fix shipped during soak becomes `rc.2`, `rc.3`, … until promotion.
 
-**PEP 440 note**: the git tag `v1.0.0-rc.1` corresponds to the canonical PyPI version string `1.0.0rc1`. `pyproject.toml` carries the canonical form (`1.0.0rc1`) so pip/PyPI never re-normalise what we tagged. Tags stay human-readable (`v1.0.0-rc.1`).
+**PEP 440 note**: the canonical string for the RC is `1.0.0rc1`, and that form is used **everywhere mechanical** — `pyproject.toml`, the CHANGELOG heading (`## [1.0.0rc1]`), and the git tag (`v1.0.0rc1`). `tools/publish.py` rejects non-canonical input (`1.0.0-rc.1` → suggests `1.0.0rc1`), and `release.yml`'s release-notes extraction keys on the tag minus `v`, so the tag and the changelog heading must match exactly — the tag cannot be cosmetic while the heading is canonical. The human-facing plan language (`v1.0.0-rc.1`) and the mechanical string (`v1.0.0rc1`) refer to the same release.
 
 **Soak criteria** (proposed, adjustable at the time): `v1.0.0-rc.1` is promoted when it has driven ≥ 2 real pipelines — the shipped self-loop demo plus at least one real repo pipeline — across ≥ 3 working days with **no blocker-level sandbox failures** (isolation escape, fail-fast-not-firing, platform breakage). Fixes during soak → next RC; promotion commit bumps to `1.0.0` on the then-current `main`.
 
@@ -73,7 +73,6 @@ classifiers = [
     "Development Status :: 4 - Beta",                     # 0.2.0: solid, tested, but the defining v1 capability (kernel sandbox) is missing
     "Environment :: Console",                              # CLI-driven: `agent-engine` console script
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
     "Operating System :: MacOS",                           # unit-3 FR-2.4 targets all three
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
@@ -95,7 +94,7 @@ Checked and rejected: `Topic :: Software Development :: Build Tools` (compile-fl
 
 Notes:
 - `Development Status` bumps to `5 - Production/Stable` in the `1.0.0` release-cut commit, not before.
-- `License ::` classifier is belt-and-braces alongside the PEP 639 `license = "Apache-2.0"` field (older tooling reads the classifier; new tooling reads the field — both must agree).
+- No `License ::` classifier: with the `setuptools >= 77` floor (§4), setuptools treats any `License ::` classifier as superseded by the PEP 639 `license = "Apache-2.0"` field and rejects the build (`InvalidConfigError`). The SPDX expression field alone is the single source of license truth.
 - Python 3.12–3.14 match the local venv (3.12.13) and system interpreters actually used (3.14.8).
 
 Out of scope: moving off setuptools (no benefit at this size), `py.typed` handling (already shipped), dependency changes (none needed for packaging).
@@ -175,8 +174,9 @@ After that, every `v*` tag push publishes automatically.
 | T5 | `.github/workflows/release.yml` (§6) | config |
 | T6 | Commit T2–T5, annotate `v0.2.0`, push → CI publishes `agent-engine 0.2.0` to PyPI + creates the first GitHub Release | — |
 | T7 | Verify: `pip install agent-engine` in a clean venv; `agent-engine --version`; PyPI page renders README/licence/classifiers; GitHub Release body = changelog | — |
+| T8 | Implement `/publish` command — release-cut automation: `tools/publish.py` (version resolution, pyproject bump, changelog render, commit/tag/push, `--dry-run`) + `tests/test_publish.py` (22 subprocess-git tests) + `.opencode/commands/publish.md` | **yes** ✅ done |
 
-Then unit-3 Code Generation proceeds with no further versioning work until its release-cut commit (bump to `1.0.0rc1` + changelog + tag `v1.0.0-rc.1` at Build-and-Test green).
+Then unit-3 Code Generation proceeds with no further versioning work until its release-cut commit (bump to `1.0.0rc1` + changelog + tag `v1.0.0rc1` at Build-and-Test green).
 
 ## 9. Integration with unit 3
 

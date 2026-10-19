@@ -3,6 +3,7 @@ extension flags exist (a loader's flag appears only when its extension is
 listed in the pipeline's `extensions:`). Pipeline runs are real; FakeAgents
 stubs only the SDK network boundary."""
 
+import importlib.metadata
 import sqlite3
 import subprocess
 import sys
@@ -130,6 +131,30 @@ class TestHelp:
             main(["--help"])
         assert e.value.code == 0
         assert "--resume" in capsys.readouterr().out
+
+
+class TestVersion:
+    def test_version_flag_without_pipeline(self, capsys):
+        with pytest.raises(SystemExit) as e:
+            main(["--version"])
+        assert e.value.code == 0
+        assert capsys.readouterr().out.strip() == (
+            f"agent-engine {importlib.metadata.version('agent-engine')}"
+        )
+
+    def test_version_flag_with_pipeline(self, repo, capsys):
+        with pytest.raises(SystemExit) as e:
+            main(["pipeline.yaml", "--version"])
+        assert e.value.code == 0
+        assert capsys.readouterr().out.strip() == (
+            f"agent-engine {importlib.metadata.version('agent-engine')}"
+        )
+
+    def test_version_flag_in_core_help(self, repo, capsys):
+        with pytest.raises(SystemExit) as e:
+            main(["--help"])
+        assert e.value.code == 0
+        assert "--version" in capsys.readouterr().out
 
 
 class TestRun:

@@ -5,12 +5,28 @@ built-in `plan` loader plus whatever the pipeline's `extensions:` register)
 extension is listed in that pipeline's YAML."""
 
 import argparse
+import importlib.metadata
 import sys
 from pathlib import Path
 
 from .config import load_config
 from .graph import run_pipeline
 from .registry import default_registry, load_extensions
+
+
+def _version() -> str:
+    """The installed distribution version — the single source of truth."""
+    try:
+        return importlib.metadata.version("agent-engine")
+    except importlib.metadata.PackageNotFoundError:
+        print("agent-engine is not installed — version unavailable; "
+              "run `pip install -e .`", file=sys.stderr)
+        raise SystemExit(1)
+
+
+def _add_version_flag(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--version", action="version",
+                        version=f"agent-engine {_version()}")
 
 
 def _core_parser() -> argparse.ArgumentParser:
@@ -33,6 +49,7 @@ def _core_parser() -> argparse.ArgumentParser:
                         help="preferred port for the live graph view "
                              "(default: 8321; falls back to a free port when "
                              "busy)")
+    _add_version_flag(parser)
     return parser
 
 
@@ -50,6 +67,7 @@ def build_parser(cfg_path) -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     probe = argparse.ArgumentParser(add_help=False)
     probe.add_argument("pipeline", type=Path, nargs="?")
+    _add_version_flag(probe)
     known, _ = probe.parse_known_args(argv)
     if known.pipeline is None:
         # No pipeline → the extension surface is unknowable; the core parser
