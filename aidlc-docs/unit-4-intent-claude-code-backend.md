@@ -1,8 +1,9 @@
 # Unit 4 Intent (draft) — Claude Code as a second agent backend
 
 **Status**: INTENT ONLY — draft, not started. Written 2026-10-18 from an
-exploratory discussion. No code written, no AI-DLC workflow started, no
-decisions committed. Revisit before proceeding.
+exploratory discussion; amended 2026-10-19 to add visualiser integration and
+the shared-steps-config framing. No code written, no AI-DLC workflow started,
+no decisions committed. Revisit before proceeding.
 
 **Direction (2026-10-18)**: the discussion converged on the *inverted* shape —
 not "Claude Code as a backend inside the engine," but "the engine exposed as an
@@ -17,6 +18,19 @@ alongside OpenHands, for users on a Pro/Enterprise (subscription) plan where
 an Anthropic API key isn't available. Desired metering: usage counts against
 the same limits as interactive use (TUI / web / desktop), not separate API
 billing.
+
+### What the user gets (the four load-bearing pillars)
+
+1. **Interactive metering** — every LLM call (workflow session and subagents)
+   counts against the user's Claude Pro/Enterprise interactive limits, never
+   separate API billing (finding 1).
+2. **Sandboxing** — the deterministic command gate still runs inside the
+   engine's kernel isolation (unit-3; finding 5).
+3. **The visualiser** — the live graph viz keeps working, showing every step
+   the workflow drives through the engine (finding 6).
+4. **Shared steps config** — one `pipeline.yaml` drives both modes: the
+   interactive engine run and the Claude workflow schedule against the same
+   validated steps model (finding 7).
 
 ## Relationship to existing units
 
@@ -119,6 +133,50 @@ the extraction once, against a real second backend, not speculatively.
 `Sandbox.run` regardless; FR-2.3 fail-fast, NFR-3 least-privilege, host-side
 commit all carry over.
 
+### 6. The visualiser — LLM-free, event-driven, but coupled to the graph runner
+
+`src/agent_engine/viz.py` is a deterministic observer with **no LLM calls and
+no agent prompt**: it translates LangGraph `tasks`/`updates` StreamParts into
+`node_started` / `node_finished` / `state` events (whitelisted state keys
+only), publishes them on a thread-safe `VizBus`, and serves a stdlib-only
+HTTP/SSE page with an embedded Mermaid flowchart. The flowchart topology is
+built from the same `PipelineConfig` (`topology_mermaid(cfg)`), so one config
+already feeds guardrails, scheduling, *and* the picture.
+
+Two facts shape its Unit 4 fit:
+
+- **Today it rides on the graph runner.** The bus is created and fed inside
+  `run_pipeline` (graph.py): it translates the live `graph.invoke` stream and
+  tees stdout/stderr. In workflow mode that runner is bypassed — subagent
+  activity happens inside Claude Code, invisible to the engine's bus.
+- **It is event-driven by design.** `viz_demo.py` already drives the full viz
+  surface from fabricated events — no pipeline, no checkpoints, no LLM —
+  proving the viz does not care where events come from.
+
+**Integration plan (recommended)**: `ae_run_step` publishes the same event
+vocabulary to the run's `VizBus`, and `serve_viz` is reused unchanged. The
+flowchart then shows every step the workflow drives through the engine.
+Subagent-side dev/review/qa activity stays invisible unless Claude-side hooks
+forward events (open question 9).
+
+### 7. Shared steps config — one `pipeline.yaml`, both modes
+
+The workflow script has **no filesystem access**, so it cannot read
+`pipeline.yaml` itself. `ae_load_pipeline` is the only path: the engine reads
+and validates the file with the real `load_config`/`PipelineConfig` and
+returns the steps model (with `kind` injected) plus its JSON schema.
+Consequences:
+
+- The workflow schedules against the **same validated model** the engine
+  executes — no JS re-derivation, no drift (design principles 1–4).
+- The same config feeds the viz topology (`topology_mermaid`), so the
+  flowchart always matches the steps the workflow runs.
+- A step change in `pipeline.yaml` propagates to both modes with **zero
+  workflow changes** — the engine-derived schema flows straight into the
+  workflow's `agent({schema})`.
+- The interactive engine run (OpenHands backend) and the workflow run share
+  the one config file; the engine stays the single source of truth for it.
+
 ## Recommended architecture — dynamic workflows as orchestrator, engine as guardrails toolkit
 
 ### What dynamic workflows actually are (corrected)
@@ -141,16 +199,55 @@ constraints shape everything:
   LangGraph graph provides is already covered natively here.
 - **Engine owns**: the *deterministic, non-LLM* guardrails — the pipeline model
   (validated), the mechanical command gate, the verdict protocol, the single
-  gated commit, and (unit-3) kernel isolation. These are exactly what the
-  workflow cannot do itself.
+  gated commit, the live visualiser, and (unit-3) kernel isolation. These are
+  exactly what the workflow cannot do itself.
 
 ### Exposed surface (MCP server, callable by subagents)
 
 | Tool | Responsibility | Notes |
 | --- | --- | --- |
-| `ae_load_pipeline(path)` | Read + validate `pipeline.yaml` via the real `load_config`/`PipelineConfig`; return the steps model (with `kind` injected) **and** its JSON schema | Fail-fast up front; schema = `PipelineConfig.model_json_schema()` |
-| `ae_run_step(name, context, notes)` | Execute one step inside the engine (command/action semantics + verdict parsing + artifact hygiene + attempt accounting) and return `{verdict, next, notes}` | Policies stay in the engine |
+| `ae_load_pipeline(path)` | Read + validate `pipeline.yaml` via the real `load_config`/`PipelineConfig`; return the steps model (with `kind` injected) **and** its JSON schema | Fail-fast up front; schema = `PipelineConfig.model_json_schema()`; also the viz topology source (`topology_mermaid`) |
+| `ae_run_step(name, context, notes)` | Execute one step inside the engine (command/action semantics + verdict parsing + artifact hygiene + attempt accounting) and return `{verdict, next, notes}` | Policies stay in the engine; publishes viz events (`node_started` / `node_finished` / `state`) to the run's `VizBus` |
+| `ae_viz_console(node, stream, text)` | Ship subagent-side console/event lines into the run's `VizBus` | Recommended for structured events (open question 11); raw console bytes go via Claude-side hooks → ingest route instead |
 | `ae_commit(message)` | The single gated commit (clean-worktree gate) | Host-side, unchanged |
+
+### Visualiser integration
+
+The viz is deterministic event plumbing — no LLM — so it sits entirely on the
+engine side of the division of labor:
+
+- `ae_run_step` publishes `node_started` / `node_finished` / `state` events to
+  the run's `VizBus` (the same vocabulary `viz.translate` produces today), so
+  the flowchart updates live as the workflow drives steps.
+- `serve_viz` and the embedded Mermaid page are reused unchanged; the topology
+  comes from the same validated config that `ae_load_pipeline` returned, so
+  the picture always matches the shared steps config (pillar 4).
+- The viz server runs in the engine MCP process (stdlib-only HTTP/SSE on
+  localhost); open questions 9–11 cover subagent-side visibility, terminal
+  output, and URL surfacing.
+- Fallback if the viz must not live in the engine process: the event log is
+  bus-shaped, so a `viz_demo`-style harness can replay a saved run — same
+  page, no engine. Not the target; kept as an option.
+
+**Agent terminal output.** Today the console stream works because the agent
+runs in-process: `ConsoleCapture` tees `sys.stdout`/`sys.stderr` and the
+OpenHands visualizer prints to those streams (plan 008). Engine-side output
+survives workflow mode unchanged — `ae_run_step` prints inside the MCP
+process. Subagent (dev/review/qa) output lives in a different process and
+never touches the tee: the user still sees it in Claude Code's own UI, but
+the viz sidebar doesn't. Recommended transport, split by payload type
+(open question 11):
+
+- **Structured events** — `ae_viz_console` MCP tool: the same channel
+  subagents already use, attribution supplied by the workflow, blast radius
+  bounded by the existing caps.
+- **Raw console bytes** — Claude-side hooks (`PostToolUse` / `Notification`)
+  POST to a new ingest route on the viz server: real output, no LLM
+  round-trip. An MCP tool is the wrong transport here — tool arguments are
+  model-generated text, so verbatim output would cost tokens and risk
+  mangling (the same cost as open question 7).
+- **Workflow-script forwarding** — rejected: the script sees summaries only
+  and is not a log shipper.
 
 ### Design principles
 
@@ -182,6 +279,11 @@ constraints shape everything:
   same MCP tools may be simpler. (Open question.)
 - Isolation becomes **two layers**: Claude Code's own sandboxing for subagent
   Bash, plus the engine's `Sandbox` for the command gate it owns.
+- The viz shows what the engine sees — command/action steps. Subagent-side
+  dev/review/qa activity is invisible without Claude-side event forwarding
+  (open question 9; console text is open question 11). Interim position:
+  **TBD** — do not assume the command-gate-only picture is the accepted
+  default.
 
 ## Open questions (revisit later)
 
@@ -203,6 +305,22 @@ constraints shape everything:
    JSON-echoing subagent wrapper? (Cheap, but nonzero.)
 8. Refactor shape: extracting `run_step(step, state)` from the LangGraph node
    closures — how much of the graph survives vs is bypassed in workflow mode?
+9. Viz subagent visibility: forward Claude-side subagent/tool events into the
+   engine's viz bus (via Claude hooks), or accept a command-gate-only
+   flowchart? **Interim default: TBD.** (Raw console text: question 11.)
+10. Viz hosting in workflow mode: `serve_viz` runs in the engine MCP process —
+    when is the topology (re)set (each `ae_load_pipeline` call?) and how is
+    the URL surfaced to the user (tool return, engine log)?
+11. Agent terminal output: engine-side console is captured in-process as
+    today; subagent (dev/review/qa) output needs a new ingress path.
+    Recommended: `ae_viz_console` MCP tool for structured events; Claude-side
+    hooks (`PostToolUse` / `Notification`) POSTing to a new viz ingest route
+    for raw console bytes (MCP tool arguments are model-generated text — the
+    wrong transport for verbatim output, same cost as question 7);
+    workflow-script forwarding rejected. Ingress is a trust-model change —
+    the first externally-produced content into the bus — bounded by the
+    existing caps (`MAX_LINE`, `console_maxlen`, per-stage `MAX_CONSOLE`) and
+    the page's HTML-escaping, but worth recording.
 
 ## Sources
 
