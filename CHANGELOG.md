@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-19
+
 ### Added
 
 - `env_allowlist` pipeline config to extend the whitelisted child-process
@@ -29,3 +31,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   implicit shell, explicit `shell=False`) and a whitelisted child environment.
 - Extension tool registration validates a non-empty identifier and rejects
   collisions with SDK-registered tools.
+
