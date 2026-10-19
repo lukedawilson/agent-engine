@@ -23,6 +23,9 @@ if _SRC_DIR not in sys.path:
 
 import pytest
 
+from agentic_dev_loop.isolation import (Sandbox, SandboxExecutionRequest,
+                                        SandboxExecutionResult, SandboxError,
+                                        is_git_mutation)
 from agentic_dev_loop.stages import AgentResult
 
 
@@ -88,3 +91,73 @@ class FakeAgents:
 @pytest.fixture
 def fake_agents(monkeypatch):
     return FakeAgents(monkeypatch)
+
+
+class FakeSandbox(Sandbox):
+    """Interface-level fake (FD-5): the only permitted Sandbox stub. Executes
+    commands host-side in-process (so command-step tests run real commands),
+    records every request, and enforces the git-mutation guard exactly like the
+    real DockerBackend. A per-test ``handler`` may override execution to script
+    specific commands."""
+
+    def __init__(self, *, git_mutations_blocked: bool = True):
+        self.requests: list[SandboxExecutionRequest] = []
+        self.closed = False
+        self.git_mutations_blocked = git_mutations_blocked
+        self.handler = None
+
+    def script(self, handler) -> None:
+        self.handler = handler
+
+    def run(self, request: SandboxExecutionRequest) -> SandboxExecutionResult:
+        self.requests.append(request)
+        if self.git_mutations_blocked and is_git_mutation(request.argv):
+            raise SandboxError(
+                f"AE-SBX-008: git mutation {' '.join(request.argv[:2])!r} blocked")
+        if self.handler is not None:
+            code, output, timed_out = self.handler(request)
+        else:
+            code, output, timed_out = _exec_host(request)
+        return SandboxExecutionResult(
+            exit_code=code, stdout=output, stderr="",
+            duration_seconds=0.0, backend="fake", timed_out=timed_out)
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def _exec_host(request: SandboxExecutionRequest) -> tuple[int | None, str, bool]:
+    import os
+    import signal
+    import subprocess
+
+    # Host-side approximation of the container: keep the sandbox PATH first
+    # but append the host PATH so host binaries (python) resolve — the real
+    # sandbox image ships python on its own PATH. Env scrubbing is separately
+    # covered by the resolve_sandbox_env tests.
+    env = dict(request.env)
+    env["PATH"] = (request.env.get("PATH", "") + os.pathsep
+                   + os.environ.get("PATH", "")).rstrip(os.pathsep)
+    try:
+        proc = subprocess.Popen(
+            request.argv, cwd=request.cwd, env=env, start_new_session=True,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        out, _ = proc.communicate(timeout=request.timeout)
+        return proc.returncode, out.decode("utf-8", "replace"), False
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGKILL)
+        out, _ = proc.communicate()
+        return None, out.decode("utf-8", "replace"), True
+    except FileNotFoundError:
+        return 127, f"{request.argv[0]}: not found", False
+
+
+@pytest.fixture
+def fake_sandbox(monkeypatch):
+    """Inject a FakeSandbox for every pipeline run: monkeypatches the eager
+    startup seam so ``run_pipeline``/``main`` get a scriptable fake instead of
+    a real Docker backend (FD-5)."""
+    sandbox = FakeSandbox()
+    monkeypatch.setattr("agentic_dev_loop.graph.startup_sandbox",
+                        lambda *a, **k: sandbox)
+    return sandbox

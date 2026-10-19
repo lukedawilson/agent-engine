@@ -1,5 +1,9 @@
 """Pipeline YAML schema and loader. Strict: unknown keys fail at every level."""
 
+from __future__ import annotations
+
+import hashlib
+import re
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +36,36 @@ def route_target(route: RouteTarget | None) -> str | None:
     return route.goto if isinstance(route, Route) else route
 
 
+class IsolationConfig(BaseModel):
+    """Optional `isolation:` section — configures the always-on sandbox (BR-2).
+    Absence means opinionated defaults, never unsandboxed behaviour. Unknown
+    keys fail at load (BR-5). `state_dir` is HOST-ONLY (stamps + audit) and is
+    never mounted into the sandbox (Q1)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    image: str | None = None            # per-pipeline override (KD-2 ref rules)
+    refresh: bool = False               # force re-provision (NFR-5)
+    memory: str | None = None           # override exec container memory
+    cpus: float | None = None           # override exec container cpus
+    allow_git_mutations: bool = False   # BR-6 knob
+    state_dir: str = "~/.agentic-dev-loop/state"  # stamps + audit (host-only)
+
+    @field_validator("memory")
+    @classmethod
+    def _check_memory(cls, v: str | None) -> str | None:
+        if v is not None and re.fullmatch(r"\d+[kmg]", v) is None:
+            raise ValueError(f"memory {v!r} must match ^\\d+[kmg]$")
+        return v
+
+    @field_validator("cpus")
+    @classmethod
+    def _check_cpus(cls, v: float | None) -> float | None:
+        if v is not None and v <= 0:
+            raise ValueError("cpus must be > 0")
+        return v
+
+
 class StepConfig(BaseModel):
     """One pipeline step. Its type IS the key it carries: exactly one of
     `agent`, `action`, or `command` — empty values do not count, anything
@@ -49,6 +83,8 @@ class StepConfig(BaseModel):
     verdicts: VerdictSpec | None = None
     max_iterations: int | None = None
     timeout: float | None = Field(default=None, gt=0)  # seconds, command steps only
+    env: dict[str, str | None] | None = None  # NFR-1: null = inherit host value
+    setup: str | None = None  # BR-13: command steps only
     on_pass: RouteTarget | None = None
     on_fail: RouteTarget | None = None
 
@@ -102,6 +138,10 @@ class StepConfig(BaseModel):
             raise ValueError(
                 f"step {self.name!r}: 'timeout' requires 'command'"
             )
+        if self.setup is not None and self.command is None:
+            raise ValueError(
+                f"step {self.name!r}: 'setup' is only allowed on 'command' steps"
+            )
         return self
 
 
@@ -122,7 +162,8 @@ class PipelineConfig(BaseModel):
     additional_files: list[str] = []
     env_allowlist: list[str] = []
     llm: LlmConfig
-    state_dir: str = ".pr"
+    isolation: IsolationConfig | None = None  # None = always-on defaults
+    state_dir: str = ".pr"  # default relocated to ~/.agentic-dev-loop/runs/<hash>/ at load
     max_attempts: int = 3
     agents_dir: str
     steps: list[StepConfig] = Field(min_length=1)
@@ -147,10 +188,23 @@ class PipelineConfig(BaseModel):
         return self
 
 
+def default_state_dir(pipeline_path: Path) -> str:
+    """The new run-state default (Q1): checkpoint DB + last-error.md live OUTSIDE
+    the workspace mount, under ~/.agentic-dev-loop/runs/<pipeline-hash>/ where
+    pipeline-hash is the first 12 chars of the sha256 of the absolute
+    pipeline-file path. Explicit `state_dir:` configs keep working unchanged."""
+    digest = hashlib.sha256(
+        str(Path(pipeline_path).resolve()).encode("utf-8")).hexdigest()[:12]
+    return str(Path("~/.agentic-dev-loop/runs").expanduser() / digest)
+
+
 def load_config(path: Path) -> PipelineConfig:
-    data = yaml.safe_load(Path(path).read_text())
+    path = Path(path)
+    data = yaml.safe_load(path.read_text())
     if not isinstance(data, dict):
         raise ValueError(
             f"pipeline config must be a mapping, got {type(data).__name__}: {path}"
         )
+    if "state_dir" not in data:
+        data["state_dir"] = default_state_dir(path)
     return PipelineConfig.model_validate(data)

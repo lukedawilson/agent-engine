@@ -12,6 +12,17 @@ Publicly depends on [OpenHands SDK](https://github.com/OpenHands/software-agent-
 for agent execution and [LangGraph](https://github.com/langchain-ai/langgraph)
 (+ `langgraph-checkpoint-sqlite`) for the state graph.
 
+## Sandboxed execution
+
+The agent `terminal` tool and command steps run inside an **always-on**,
+Docker-based kernel-level sandbox — `--network none`, read-only rootfs,
+dropped capabilities, writes only on the bind-mounted workspace. The
+`isolation:` section configures the sandbox (image override, resource caps,
+per-step `env:`/`setup:`, git-mutation blocking); it can never disable it. A
+missing or unusable Docker engine fails fast with an `AE-SBX-*` message. See
+[docs/setup.md](docs/setup.md) for the engine setup, first-run image pull, the
+`pipeline.yaml` contract, stamp caching, and troubleshooting.
+
 ## Install & test
 
 ```bash
@@ -69,11 +80,12 @@ dev ──▶ test ──▶ review ──▶ qa ──▶ commit
    `additional_files:` + auto-generated expected-output paths). Its writes
    are untracked; the pipeline only cares about declared `produces:` files.
 2. **test** is a mechanical command step: it runs the suite
-   (`.venv/bin/python -m pytest tests/ -q`) in the workspace shell. Exit 0
-   passes and moves on; anything else (including no exit by `timeout`) fails
-   and rewinds to `dev` with the failing output in the retry note.
+   (`.venv-sandbox/bin/python -m pytest tests/ -q -m "not docker"`) inside the
+   sandbox. Exit 0 passes and moves on; anything else (including no exit by
+   `timeout`) fails and rewinds to `dev` with the failing output in the retry
+   note.
 3. **review / qa** are verdict agents: each must write its declared
-   artifact (e.g. `.pr/qa-report.md`) whose **last** `VERDICT: <word>` line
+   artifact (e.g. `qa-report.md`) whose **last** `VERDICT: <word>` line
    decides routing. `pass` follows `on_pass`, `fail` follows `on_fail` —
    here `{goto: dev, retry: true}`, which consumes an attempt and feeds the
    artifact back to the dev agent as a retry note.
@@ -103,7 +115,8 @@ llm:
   api_key_env: OPENAI_API_KEY        # missing env var → run fails fast, naming it
   # timeout: null                    # default = no client timeout (long agent runs)
 
-state_dir: .pr                        # artifacts + checkpoints live here
+# state_dir omitted → default ~/.agentic-dev-loop/runs/<pipeline-hash>/
+# (artifacts + checkpoints live OUTSIDE the sandbox mount)
 max_attempts: 10                      # retries across the whole graph
 agents_dir: sdk_agents                # consumer-owned <name>.agent.md files
 
@@ -114,8 +127,9 @@ steps:
     on_pass: test                     # explicit; omitted → next step in order
 
   - name: test
-    command: .venv/bin/python -m pytest tests/ -q   # mechanical: exit code is the verdict
-    timeout: 600                                     # seconds; SIGKILLs the process group
+    command: .venv-sandbox/bin/python -m pytest tests/ -q -m "not docker"   # sandboxed: exit code is the verdict
+    setup: python -m venv .venv-sandbox && .venv-sandbox/bin/pip install -e ".[dev]"   # provision (network ON, stamp-cached)
+    timeout: 600                                     # seconds
     on_pass: review
     on_fail: {goto: dev, retry: true}
 
@@ -155,8 +169,9 @@ load. Graph-building dispatches on this `kind` (see `StepConfig.kind` in
   `artifact:` + `verdicts:` (verdict-parsed routing). `max_iterations` caps
   the agent's own loop.
 - **`command: <shell>`** — a *command step*: mechanical, never an LLM call.
-  The command runs in the workspace shell; exit 0 passes, anything else
-  (including no exit by `timeout`) fails. `timeout:` is its only extra field.
+  The command runs inside the sandbox (the bind-mounted workspace); exit 0
+  passes, anything else (including no exit by `timeout`) fails. `timeout:` and
+  `setup:` are its only extra fields.
 - **`action: <name>`** — an *action step*: invokes a registered node-shaped
   function `(state, params) -> state update` with the step's `params:`. The
   built-in is `commit`; extensions register more via `registry.add_action`.
@@ -167,8 +182,8 @@ load. Graph-building dispatches on this `kind` (see `StepConfig.kind` in
 
 ### Step semantics
 
-- A `command` step is **mechanical** — the command runs in the workspace
-  shell; exit 0 passes, anything else (including no exit by `timeout`,
+- A `command` step is **mechanical** — the command runs inside the
+  sandbox; exit 0 passes, anything else (including no exit by `timeout`,
   default 600s) fails and follows `on_fail` with the output tail in the
   retry note. The kind is the `command:` key, never the step's name.
 - `artifact` + `verdicts` mark a **verdict step**. `on_pass`/`on_fail` may be

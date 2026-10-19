@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from agentic_dev_loop.actions import (_listening_pids, _parse_cwd_output, _pid_cwd,
-                                  commit, git_worktree_clean,
+                                  _trusted_hooks_dir, commit, git_worktree_clean,
                                   kill_listeners_on_port)
 
 lsof_required = pytest.mark.skipif(
@@ -325,19 +325,45 @@ class TestCommitNode:
         assert git_log(repo) == before
         assert "Nothing to commit" in capsys.readouterr().out
 
-    def test_commit_failure_does_not_fail_the_run(self, tmp_path, monkeypatch,
-                                                  capsys):
-        """The work is already verified — a git error is a loud warning, not
-        a pipeline failure."""
+    def test_repo_hooks_are_bypassed_by_trusted_hooks_path(self, tmp_path,
+                                                            monkeypatch):
+        """Q3: the commit action runs git with `-c core.hooksPath=<trusted>`,
+        so a repo hook in `.git/hooks` never executes — a hostile/agent-written
+        pre-commit hook cannot block or mutate the commit."""
         repo = tmp_path / "repo"
         init_git_repo(repo)
         (repo / "feature.cs").write_text("// constructed by the pipeline")
-        # Force `git commit` to fail deterministically without relying on
-        # inherited env vars (the commit action scrubs its child env): a
-        # pre-commit hook that always fails.
+        marker = tmp_path / "hook-ran"
         hook = repo / ".git" / "hooks" / "pre-commit"
+        hook.write_text(f"#!/bin/sh\ntouch {marker}\nexit 1\n")
+        hook.chmod(0o755)
+        # Point the trusted hooks dir at a tmp dir — never the real home.
+        trusted = tmp_path / "trusted-hooks"
+        monkeypatch.setattr("agentic_dev_loop.actions._trusted_hooks_dir",
+                            lambda: str(trusted))
+        monkeypatch.chdir(repo)
+
+        update = commit({"subject": "unit U2", "commit_allowed": True}, COMMIT_PARAMS)
+
+        assert update == {}
+        assert not marker.exists()  # the repo hook never ran
+        assert "feat: construct unit U2 (agent dev loop)" in git_log(repo)
+
+    def test_commit_failure_does_not_fail_the_run(self, tmp_path, monkeypatch,
+                                                  capsys):
+        """The work is already verified — a git error is a loud warning, not
+        a pipeline failure. The trusted hooksPath still applies (a failing
+        hook in the trusted dir fails the commit loudly, non-fatally)."""
+        repo = tmp_path / "repo"
+        init_git_repo(repo)
+        (repo / "feature.cs").write_text("// constructed by the pipeline")
+        trusted = tmp_path / "trusted-hooks"
+        trusted.mkdir()
+        hook = trusted / "pre-commit"
         hook.write_text("#!/bin/sh\nexit 1\n")
         hook.chmod(0o755)
+        monkeypatch.setattr("agentic_dev_loop.actions._trusted_hooks_dir",
+                            lambda: str(trusted))
         monkeypatch.chdir(repo)
 
         update = commit({"subject": "unit U2", "commit_allowed": True}, COMMIT_PARAMS)

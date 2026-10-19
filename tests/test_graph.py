@@ -98,7 +98,7 @@ def git(repo: Path, *args: str) -> str:
 
 
 @pytest.fixture
-def repo(tmp_path, monkeypatch):
+def repo(tmp_path, monkeypatch, fake_sandbox):
     """A real git repo with the yosk-equivalent pipeline committed clean."""
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -452,3 +452,34 @@ class TestVizStream:
         events = drain_events(bus)
         run_started = next(e for e in events if e["type"] == "run_started")
         assert run_started["max_attempts"] == 99
+
+
+class TestSandboxLifecycle:
+    """Guard tests (Q1/Q2/Q3): the commit action never reaches the sandbox,
+    and the sandbox is destroyed on success and every error path."""
+
+    def test_commit_never_routed_to_sandbox(self, repo, fake_agents, fake_sandbox):
+        script_all_pass(fake_agents)
+        ok, attempts = run_pipeline("pipeline.yaml", args())
+        assert (ok, attempts) == (True, 1)
+        assert git(repo, "log", "-1", "--pretty=%s").startswith("feat: construct")
+        # agents are stubbed and the commit action is host-side: nothing ever
+        # entered the sandbox (FR-2.6 / BR-1.2)
+        assert fake_sandbox.requests == []
+
+    def test_sandbox_closed_on_success(self, repo, fake_agents, fake_sandbox):
+        script_all_pass(fake_agents)
+        run_pipeline("pipeline.yaml", args())
+        assert fake_sandbox.closed
+
+    def test_sandbox_closed_on_error(self, repo, fake_agents, fake_sandbox):
+        fake_agents.set("dev", [("raise",)])
+        run_pipeline("pipeline.yaml", args())
+        assert fake_sandbox.closed
+
+    def test_sandbox_closed_on_keyboard_interrupt(self, repo, fake_agents,
+                                                  fake_sandbox):
+        fake_agents.set("dev", [("crash",)])
+        with pytest.raises(KeyboardInterrupt):
+            run_pipeline("pipeline.yaml", args())
+        assert fake_sandbox.closed

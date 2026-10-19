@@ -66,3 +66,25 @@ def test_canary_sdk_still_drops_reasoning_on_split_tool_call_turn(monkeypatch):
         "message — shim 2 in src/agentic_dev_loop/llm.py is dead code. Remove it "
         "and update COMPAT-SHIMS.md."
     )
+
+
+def test_canary_sdk_terminal_seam_still_present():
+    """Canary for the unit-3 terminal seam (COMPAT-SHIMS.md): passes while the
+    SDK still exposes `TerminalTool.create(executor=...)` plus a callable
+    registry factory; fails once the SDK drops/changes either — the
+    SandboxTerminalExecutor seam is then dead and must be replaced with an
+    agentic-dev-loop-owned terminal tool."""
+    import inspect
+
+    from openhands.sdk.tool import register_tool
+    from openhands.tools.terminal import TerminalTool
+
+    assert "executor" in inspect.signature(TerminalTool.create).parameters, (
+        "The SDK no longer accepts `executor=` in TerminalTool.create — the "
+        "SandboxTerminalExecutor seam in src/agentic_dev_loop/agents.py is dead. "
+        "Replace it with an agentic-dev-loop-owned terminal tool and update "
+        "COMPAT-SHIMS.md.")
+    assert callable(register_tool), (
+        "The SDK's register_tool no longer accepts a callable factory — the "
+        "per-run terminal re-registration in agents.py is dead. Replace it and "
+        "update COMPAT-SHIMS.md.")

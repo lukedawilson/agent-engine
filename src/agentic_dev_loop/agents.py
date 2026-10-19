@@ -1,18 +1,26 @@
 """Agent file loading + SDK factory mechanics.
 
 The SDK's built-in tools are registered at import (its registry is global);
-consumer tools are registered by extensions via `Registry.add_tool`."""
+consumer tools are registered by extensions via `Registry.add_tool`. Unit-3
+adds the sandbox terminal seam: `SandboxTerminalExecutor` delegates each
+terminal action to a `Sandbox.run`, and `register_sandbox_terminal` re-registers
+the `terminal` tool name per run (KD-4 / §6)."""
 
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from openhands.sdk import LLM
+from openhands.sdk.tool import ToolExecutor
 from openhands.tools.file_editor import FileEditorTool  # noqa: F401 — registers "file_editor"
 from openhands.tools.task_tracker import TaskTrackerTool  # noqa: F401 — registers "task_tracker"
 from openhands.tools.terminal import TerminalTool  # noqa: F401 — registers "terminal"
 
+from .isolation import SandboxExecutionRequest, command_argv, resolve_sandbox_env
+
 if TYPE_CHECKING:
     from openhands.sdk.agent.agent import Agent
+
+    from .isolation import Sandbox
 
 
 def load_agent(agents_dir: Path | str, name: str, llm: LLM) -> "Agent":
@@ -47,3 +55,71 @@ def load_agent(agents_dir: Path | str, name: str, llm: LLM) -> "Agent":
             f"Agent file {path} name {agent_def.name!r} does not match "
             f"filename {stem!r}")
     return agent_definition_to_factory(agent_def)(llm)
+
+
+class SandboxTerminalExecutor(ToolExecutor):
+    """A stateless terminal executor: each action is a fresh ``Sandbox.run``
+    (no persistent shell session). ``is_input`` degrades to an unsupported
+    observation; ``reset`` is a no-op (there is no session to reset)."""
+
+    def __init__(self, sandbox: "Sandbox", *, workspace: str = "",
+                 env: dict[str, str] | None = None,
+                 pipeline: str | None = None, step: str | None = None):
+        self._sandbox = sandbox
+        self._workspace = workspace
+        self._env = env or {}
+        self._pipeline = pipeline
+        self._step = step
+
+    def __call__(self, action, conversation=None):
+        from openhands.tools.terminal import TerminalObservation
+        from openhands.tools.terminal.metadata import CmdOutputMetadata
+
+        if action.reset:
+            return TerminalObservation.from_text(
+                "[reset unsupported — stateless sandbox]",
+                command=action.command, exit_code=None, timeout=False,
+                metadata=CmdOutputMetadata(exit_code=-1))
+
+        if action.is_input:
+            return TerminalObservation.from_text(
+                "[input unsupported — stateless sandbox]",
+                command=action.command, exit_code=None, timeout=False,
+                metadata=CmdOutputMetadata(exit_code=-1))
+
+        request = SandboxExecutionRequest(
+            argv=command_argv(action.command), cwd=self._workspace,
+            env=self._env, timeout=action.timeout,
+            pipeline=self._pipeline, step=self._step)
+        result = self._sandbox.run(request)
+        output = result.stdout + result.stderr
+        return TerminalObservation.from_text(
+            output, is_error=not result.succeeded and not result.is_timeout,
+            command=action.command, exit_code=result.exit_code,
+            timeout=result.timed_out,
+            metadata=CmdOutputMetadata(
+                exit_code=result.exit_code if result.exit_code is not None else -1,
+                working_dir=self._workspace))
+
+    def close(self) -> None:
+        pass  # the sandbox is closed by Runtime; idempotent
+
+
+def register_sandbox_terminal(sandbox: "Sandbox", *, env: dict[str, str | None] | None = None,
+                              workspace: str = "", pipeline: str | None = None,
+                              step: str | None = None) -> None:
+    """Per-run re-registration of the `terminal` name (KD-4): a callable
+    factory that builds the SDK terminal with a `SandboxTerminalExecutor`.
+    Pipelines are sequential, so re-registering per agent step is safe."""
+    from openhands.sdk.tool import register_tool
+
+    resolved_env = resolve_sandbox_env(env)
+
+    def factory(conv_state, **params):
+        return TerminalTool.create(
+            conv_state,
+            executor=SandboxTerminalExecutor(
+                sandbox, workspace=workspace, env=resolved_env,
+                pipeline=pipeline, step=step))
+
+    register_tool("terminal", factory)

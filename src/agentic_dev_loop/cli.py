@@ -11,6 +11,7 @@ from pathlib import Path
 
 from .config import load_config
 from .graph import run_pipeline
+from .isolation import clean_stamps, isolation_state_dir
 from .registry import default_registry, load_extensions
 
 
@@ -49,6 +50,11 @@ def _core_parser() -> argparse.ArgumentParser:
                         help="preferred port for the live graph view "
                              "(default: 8321; falls back to a free port when "
                              "busy)")
+    parser.add_argument("--refresh", action="store_true",
+                        help="force re-provision of every setup: hook "
+                             "(bypasses the stamp cache)")
+    parser.add_argument("--clean-stamps", action="store_true",
+                        help="delete cached provision stamps and exit")
     _add_version_flag(parser)
     return parser
 
@@ -75,6 +81,13 @@ def main(argv: list[str] | None = None) -> int:
         _core_parser().parse_args(argv)
         return 2  # unreachable — parse_args exits first
     args = build_parser(known.pipeline).parse_args(argv)
+    if args.clean_stamps:
+        cfg = load_config(args.pipeline)
+        state = isolation_state_dir(cfg)
+        removed = clean_stamps(state)
+        print(f"Removed {removed} cached provision stamp(s) from "
+              f"{state / 'stamps'}", flush=True)
+        return 0
     success, _attempts = run_pipeline(args.pipeline, args)
     if not success:
         print("agentic-dev-loop: pipeline failed — exiting with code 1",

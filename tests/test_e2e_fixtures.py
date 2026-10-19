@@ -36,7 +36,9 @@ EXAMPLE = Path(__file__).resolve().parent.parent / "agentic-dev-loop"
 _COMMAND_QUEUE: list[tuple] = []
 
 
-def _fake_run_command(command, workspace, timeout, env=None):
+def _fake_sandbox_run(request):
+    """Script the example's mechanical test command through the FakeSandbox
+    (the sandbox boundary) — the consumer-repo copy has no `.venv-sandbox`."""
     if not _COMMAND_QUEUE:
         return 0, "", False
     behavior = _COMMAND_QUEUE[0]
@@ -67,7 +69,7 @@ def _passing_scripts(fake_agents, **overrides):
 
 
 @pytest.fixture
-def consumer_repo(tmp_path, monkeypatch, fake_agents):
+def consumer_repo(tmp_path, monkeypatch, fake_agents, fake_sandbox):
     """Byte-identical copy of the shipped example as a clean git repo,
     laid out like the real repo (README at the root, pipeline under
     agentic-dev-loop/) so additional_files (../README.md), state_dir and
@@ -80,6 +82,14 @@ def consumer_repo(tmp_path, monkeypatch, fake_agents):
     # once clear_attempt_artifacts deletes the produced files.
     shutil.copytree(EXAMPLE, repo / "agentic-dev-loop", dirs_exist_ok=True,
                     ignore=shutil.ignore_patterns(".pr"))
+    # The shipped example drops `state_dir` (the relocated default lives in the
+    # user home, out of the workspace). The e2e fixture replays historical
+    # artifact flows against it, so it declares an explicit in-repo state_dir
+    # under tmp_path — never the real home (Q1 / §7.1).
+    example_pipeline = repo / "agentic-dev-loop" / "pipeline.yaml"
+    example_pipeline.write_text(
+        example_pipeline.read_text().replace(
+            "agents_dir: sdk_agents", "agents_dir: sdk_agents\nstate_dir: .pr", 1))
     (repo / "README.md").write_text("# README\n")
     monkeypatch.chdir(repo)
     subprocess.run(["git", "init", "-q"], check=True)
@@ -93,9 +103,9 @@ def consumer_repo(tmp_path, monkeypatch, fake_agents):
     # docstring).
     monkeypatch.setattr("agentic_dev_loop.actions._listening_pids",
                         lambda *a, **k: [])
-    # Script the example's mechanical test command (see _fake_run_command).
+    # Script the example's mechanical test command (see _fake_sandbox_run).
     _script_test()
-    monkeypatch.setattr("agentic_dev_loop.stages._run_command", _fake_run_command)
+    fake_sandbox.script(_fake_sandbox_run)
     return repo
 
 

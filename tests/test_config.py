@@ -4,7 +4,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from agentic_dev_loop.config import Route, load_config
+from agentic_dev_loop.config import Route, default_state_dir, load_config
 
 # The plan's yosk-equivalent reference pipeline (009, YAML schema section),
 # verbatim except for two substitutions: 012 replaced the agent step named
@@ -120,7 +120,8 @@ def test_minimal_config_applies_defaults(tmp_path):
     cfg = _load(tmp_path, _base())
     assert cfg.extensions == []
     assert cfg.additional_files == []
-    assert cfg.state_dir == ".pr"
+    assert cfg.state_dir == default_state_dir(tmp_path / "pipeline.yaml")
+    assert cfg.isolation is None
     assert cfg.max_attempts == 3
     step = cfg.steps[0]
     assert step.action is None
@@ -372,3 +373,90 @@ def test_non_mapping_yaml_rejected(tmp_path):
     p.write_text("- just\n- a\n- list\n")
     with pytest.raises(ValueError, match="must be a mapping"):
         load_config(p)
+
+
+class TestIsolationConfig:
+    def test_defaults(self):
+        from agentic_dev_loop.config import IsolationConfig
+        iso = IsolationConfig()
+        assert iso.image is None
+        assert iso.refresh is False
+        assert iso.memory is None and iso.cpus is None
+        assert iso.allow_git_mutations is False
+        assert iso.state_dir == "~/.agentic-dev-loop/state"
+
+    def test_accepts_overrides(self, tmp_path):
+        data = _base() | {"isolation": {"image": "img@sha256:x", "refresh": True,
+                                        "memory": "8g", "cpus": 4.0,
+                                        "allow_git_mutations": True}}
+        iso = _load(tmp_path, data).isolation
+        assert iso.image == "img@sha256:x"
+        assert iso.refresh is True
+        assert iso.memory == "8g" and iso.cpus == 4.0
+        assert iso.allow_git_mutations is True
+
+    @pytest.mark.parametrize("memory", ["8g", "512m", "2k"])
+    def test_valid_memory(self, tmp_path, memory):
+        data = _base() | {"isolation": {"memory": memory}}
+        assert _load(tmp_path, data).isolation.memory == memory
+
+    @pytest.mark.parametrize("memory", ["8", "g", "8G", "8 g", ""])
+    def test_invalid_memory_rejected(self, tmp_path, memory):
+        data = _base() | {"isolation": {"memory": memory}}
+        with pytest.raises(ValidationError, match="must match"):
+            _load(tmp_path, data)
+
+    @pytest.mark.parametrize("cpus", [0, -1])
+    def test_nonpositive_cpus_rejected(self, tmp_path, cpus):
+        data = _base() | {"isolation": {"cpus": cpus}}
+        with pytest.raises(ValidationError, match="cpus must be > 0"):
+            _load(tmp_path, data)
+
+    def test_unknown_isolation_key_rejected(self, tmp_path):
+        data = _base() | {"isolation": {"bogus": 1}}
+        with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+            _load(tmp_path, data)
+
+    def test_round_trip(self, tmp_path):
+        data = _base() | {"isolation": {"image": "img", "refresh": True,
+                                        "memory": "4g", "cpus": 2.0}}
+        cfg = _load(tmp_path, data)
+        iso = cfg.isolation
+        roundtripped = type(iso).model_validate(iso.model_dump())
+        assert roundtripped == iso
+
+
+class TestStepEnvAndSetup:
+    def test_env_accepts_null_and_values(self, tmp_path):
+        data = _base()
+        data["steps"][0]["env"] = {"A": "x", "B": None}
+        step = _load(tmp_path, data).steps[0]
+        assert step.env == {"A": "x", "B": None}
+
+    def test_env_defaults_none(self, tmp_path):
+        assert _load(tmp_path, _base()).steps[0].env is None
+
+    def test_setup_allowed_on_command_step(self, tmp_path):
+        data = _base()
+        data["steps"] = [{"name": "t", "command": "make",
+                          "setup": "python -m venv .venv-sandbox",
+                          "on_pass": "success"}]
+        assert _load(tmp_path, data).steps[0].setup is not None
+
+    @pytest.mark.parametrize("step", [
+        {"name": "x", "agent": "dev", "setup": "npm i"},
+        {"name": "x", "action": "commit", "setup": "npm i"},
+    ])
+    def test_setup_rejected_on_non_command_steps(self, tmp_path, step):
+        data = _base()
+        data["steps"] = [step | {"on_pass": "success"}]
+        with pytest.raises(ValidationError,
+                           match="'setup' is only allowed on 'command' steps"):
+            _load(tmp_path, data)
+
+    def test_env_round_trip(self, tmp_path):
+        data = _base()
+        data["steps"][0]["env"] = {"A": "x", "B": None}
+        step = _load(tmp_path, data).steps[0]
+        rt = type(step).model_validate(step.model_dump())
+        assert rt.env == {"A": "x", "B": None}

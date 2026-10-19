@@ -31,14 +31,17 @@ from typing import TYPE_CHECKING
 from langgraph.graph import END
 from openhands.sdk import Conversation
 
-from .agents import load_agent
+from .agents import load_agent, register_sandbox_terminal
 from .config import TERMINALS, PipelineConfig, Route, StepConfig, route_target
+from .isolation import SandboxExecutionRequest, command_argv, resolve_sandbox_env
 from .outputs import CapturedOutput, Verdict
 from .proc import child_env, needs_shell, split_command
 from .registry import Registry
 
 if TYPE_CHECKING:
     from openhands.sdk import LLM
+
+    from .isolation import Sandbox
 
 DEFAULT_MAX_ITERATIONS = 500
 DEFAULT_COMMAND_TIMEOUT = 600.0  # seconds — a pytest-class suite budget
@@ -55,6 +58,7 @@ class Runtime:
     agents_dir: Path
     state_dir: Path
     workspace: Path
+    sandbox: Sandbox | None = None
 
 
 def prompt_dir(runtime: Runtime) -> str:
@@ -100,6 +104,13 @@ def run_agent(agent_name: str, message: str, runtime: Runtime,
     try:
         from openhands.sdk.conversation.state import ConversationExecutionStatus
 
+        if runtime.sandbox is not None:
+            register_sandbox_terminal(
+                runtime.sandbox,
+                env=step.env if step is not None else None,
+                workspace=str(runtime.workspace),
+                pipeline=runtime.cfg.name,
+                step=step.name if step is not None else None)
         agent = load_agent(runtime.agents_dir, agent_name, runtime.llm)
         conv = Conversation(agent=agent, workspace=str(runtime.workspace),
                             max_iteration_per_run=max_iterations)
@@ -135,18 +146,27 @@ def run_agent(agent_name: str, message: str, runtime: Runtime,
 
 
 def _run_command(command: str, workspace: Path, timeout: float,
-                 env: dict[str, str] | None = None) -> tuple[int | None, str, bool]:
+                 env: dict[str, str] | None = None,
+                 sandbox: Sandbox | None = None,
+                 pipeline: str | None = None,
+                 step: str | None = None) -> tuple[int | None, str, bool]:
     """Run a command step in the workspace, capturing combined stdout/stderr.
 
-    A command without shell metacharacters is ``shlex``-split and run
-    argv-style (``shell=False``); one that uses them runs via the shell
-    (``shell=True``) — backward compatible. Both paths get the scrubbed child
-    environment built by ``child_env`` (BR-4).
+    With a ``Sandbox`` the command routes through the isolation boundary: git
+    guard (inside ``Sandbox.run``) → ``SandboxExecutionRequest`` → exec. Without
+    one the unit-2 host-subprocess path runs unchanged (backward compatible):
+    no shell metacharacters → argv-style (``shell=False``); metacharacters →
+    ``shell=True``; both under the scrubbed ``child_env`` (BR-4).
 
     Returns ``(exit_code, output, timed_out)``. ``exit_code`` is None when the
-    command was SIGKILLed for exceeding ``timeout``; the whole process group is
-    killed (``start_new_session=True``) so grandchildren can't outlive the
-    step."""
+    command exceeded ``timeout`` (SIGKILLed host-side, or the container's
+    ``timeout(1)`` exit 124)."""
+    if sandbox is not None:
+        request = SandboxExecutionRequest(
+            argv=command_argv(command), cwd=str(workspace), env=env or {},
+            timeout=timeout, pipeline=pipeline, step=step)
+        result = sandbox.run(request)
+        return result.exit_code, result.stdout + result.stderr, result.timed_out
     if needs_shell(command):
         argv: str | list[str] = command
         shell = True
@@ -312,7 +332,11 @@ def make_command_node(runtime: Runtime, step: StepConfig):
     into the retry note — mirroring the agent FAIL branch, so a retried dev
     agent sees exactly what the gate emitted."""
     timeout = step.timeout if step.timeout is not None else DEFAULT_COMMAND_TIMEOUT
-    env = child_env(runtime.cfg.env_allowlist, runtime.cfg.llm.api_key_env)
+    sandbox = runtime.sandbox
+    if sandbox is not None:
+        env = resolve_sandbox_env(step.env)
+    else:
+        env = child_env(runtime.cfg.env_allowlist, runtime.cfg.llm.api_key_env)
 
     def node(state: dict) -> dict:
         attempt = state["attempt"]
@@ -320,7 +344,8 @@ def make_command_node(runtime: Runtime, step: StepConfig):
         print(f"[{subject}] Running command `{step.command}`...", flush=True)
         try:
             exit_code, output, timed_out = _run_command(
-                step.command, runtime.workspace, timeout, env)
+                step.command, runtime.workspace, timeout, env,
+                sandbox=sandbox, pipeline=runtime.cfg.name, step=step.name)
         except Exception:
             print(traceback.format_exc()[-4000:], file=sys.stderr, flush=True)
             return {"failed": True, "failed_step": step.name}

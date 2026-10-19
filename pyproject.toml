@@ -57,3 +57,8 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 agentic_dev_loop = ["py.typed"]
+
+[tool.pytest.ini_options]
+markers = [
+    "docker: real-Docker integration tests (require a running Linux daemon)",
+]

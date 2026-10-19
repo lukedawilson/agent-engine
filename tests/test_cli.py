@@ -20,6 +20,7 @@ llm:
   model: openai/deepseek-v4-pro
   base_url: https://api.deepseek.com
   api_key_env: TEST_LLM_KEY
+state_dir: .pr
 agents_dir: sdk_agents
 steps:
   - name: dev
@@ -34,6 +35,7 @@ llm:
   model: openai/deepseek-v4-pro
   base_url: https://api.deepseek.com
   api_key_env: TEST_LLM_KEY
+state_dir: .pr
 agents_dir: sdk_agents
 steps:
   - name: dev
@@ -81,7 +83,7 @@ def git(repo: Path, *args: str) -> str:
 
 
 @pytest.fixture
-def repo(tmp_path, monkeypatch):
+def repo(tmp_path, monkeypatch, fake_sandbox):
     """A real git repo with the plain pipeline + a plan doc."""
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -315,3 +317,47 @@ class TestViz:
         assert code == 0
         assert called == []
         assert swept == []
+
+
+CLEAN_YAML = """\
+name: clean-test
+llm:
+  model: openai/deepseek-v4-pro
+  base_url: https://api.deepseek.com
+  api_key_env: TEST_LLM_KEY
+state_dir: .pr
+agents_dir: sdk_agents
+isolation:
+  state_dir: {iso_state_dir}
+steps:
+  - name: dev
+    agent: dev
+    produces: implementation-summary.md
+    on_pass: success
+"""
+
+
+class TestRefreshAndCleanStamps:
+    def test_flags_parse(self, repo):
+        args = build_parser("pipeline.yaml").parse_args(
+            ["pipeline.yaml", "--refresh", "--clean-stamps", "--no-viz"])
+        assert args.refresh is True
+        assert args.clean_stamps is True
+
+    def test_flags_default_false(self, repo):
+        args = build_parser("pipeline.yaml").parse_args(["pipeline.yaml"])
+        assert args.refresh is False
+        assert args.clean_stamps is False
+
+    def test_clean_stamps_removes_and_exits_zero(self, repo, tmp_path):
+        from agentic_dev_loop.isolation import write_stamp
+
+        state = tmp_path / "iso-state"
+        write_stamp(state / "stamps", "k1")
+        write_stamp(state / "stamps", "k2")
+        yaml = CLEAN_YAML.format(iso_state_dir=str(state))
+        write_pipeline(repo, "clean.yaml", yaml)
+
+        assert main(["clean.yaml", "--clean-stamps"]) == 0
+        assert not (state / "stamps" / "k1").exists()
+        assert not (state / "stamps" / "k2").exists()

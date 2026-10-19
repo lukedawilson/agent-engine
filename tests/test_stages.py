@@ -16,8 +16,8 @@ from openhands.sdk.conversation.state import ConversationExecutionStatus
 from agentic_dev_loop.config import PipelineConfig
 from agentic_dev_loop.registry import default_registry
 from agentic_dev_loop.stages import (
-    Runtime, _run_command, build_context, make_agent_node, make_bump_node,
-    make_command_node, make_router, run_agent,
+    Runtime, _run_command, build_context, make_action_node, make_agent_node,
+    make_bump_node, make_command_node, make_router, run_agent,
 )
 
 
@@ -41,13 +41,13 @@ STEPS = [
 
 
 @pytest.fixture
-def runtime(tmp_path):
+def runtime(tmp_path, fake_sandbox):
     state_dir = tmp_path / ".pr"
     state_dir.mkdir()
     return Runtime(cfg=make_cfg(STEPS), registry=default_registry(),
                    llm=LLM(model="openai/test-model", api_key="sk-test"),
                    agents_dir=tmp_path / "agents", state_dir=state_dir,
-                   workspace=tmp_path)
+                   workspace=tmp_path, sandbox=fake_sandbox)
 
 
 def make_state(**over):
@@ -464,3 +464,52 @@ class TestRunAgent:
             lambda **kw: FakeConversation(ConversationExecutionStatus.ERROR, **kw))
         result = run_agent("dev", "msg", runtime)
         assert result.ok and result.truncated
+
+
+class TestSandboxedCommandNode:
+    """Command steps route through the Sandbox (BR-1.1); git mutations are
+    refused loudly (hard fail, retry loop never consulted); action steps never
+    touch the sandbox (FR-2.6)."""
+
+    def _node(self, runtime, command, **extra):
+        cfg = make_cfg([{"name": "test", "command": command,
+                         "on_pass": "success", **extra}])
+        rt = dataclasses.replace(runtime, cfg=cfg)
+        return make_command_node(rt, cfg.steps[0])
+
+    def test_routes_through_sandbox(self, runtime, fake_sandbox):
+        node = self._node(runtime, "echo routed")
+        update = node(make_state())
+        assert update == {"step_verdicts": {"test": "pass"}, "failed": False}
+        assert fake_sandbox.requests
+        assert fake_sandbox.requests[0].argv == ["echo", "routed"]
+
+    def test_sandbox_env_is_resolved(self, runtime, fake_sandbox):
+        cfg = make_cfg([{"name": "test", "command": "echo hi",
+                         "env": {"MY_VAR": "declared"}, "on_pass": "success"}])
+        rt = dataclasses.replace(runtime, cfg=cfg)
+        node = make_command_node(rt, cfg.steps[0])
+        node(make_state())
+        assert fake_sandbox.requests[0].env["MY_VAR"] == "declared"
+        assert fake_sandbox.requests[0].env["PATH"].startswith("/usr/local/bin")
+
+    def test_git_mutation_hard_fails_not_retried(self, runtime, fake_sandbox):
+        cfg = make_cfg([
+            {"name": "dev", "agent": "dev", "on_pass": "test"},
+            {"name": "test", "command": "git commit -m x",
+             "on_pass": "success", "on_fail": {"goto": "dev", "retry": True}},
+        ])
+        rt = dataclasses.replace(runtime, cfg=cfg)
+        node = make_command_node(rt, cfg.steps[1])
+        update = node(make_state())
+        # blocked is blocked — a hard failure, never a retry cycle
+        assert update == {"failed": True, "failed_step": "test"}
+        assert "notes" not in update
+
+    def test_commit_action_never_routed(self, runtime, fake_sandbox):
+        cfg = make_cfg([{"name": "commit", "action": "commit",
+                         "params": {"message": "m"}, "on_pass": "success"}])
+        rt = dataclasses.replace(runtime, cfg=cfg)
+        node = make_action_node(rt, cfg.steps[0])
+        node(make_state(commit_allowed=False))
+        assert fake_sandbox.requests == []

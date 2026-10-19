@@ -19,6 +19,7 @@ from langgraph.graph import END, START, StateGraph
 from . import viz
 from .actions import git_worktree_clean, kill_listeners_on_port
 from .config import load_config
+from .isolation import startup_sandbox
 from .llm import build_llm
 from .loaders import select_loader
 from .registry import Registry, default_registry, load_extensions
@@ -125,10 +126,27 @@ def run_pipeline(cfg_path, args, *, viz_bus=None) -> tuple[bool, int]:
     registry = default_registry()
     load_extensions(cfg.extensions, registry)
 
-    state_dir = base / cfg.state_dir
+    state_dir = Path(cfg.state_dir).expanduser()
+    if not state_dir.is_absolute():
+        state_dir = base / state_dir
+
+    # Eager startup (Q2): probe -> image -> create+start exec container ->
+    # pre-provision all declared setups, BEFORE the graph builds. Zero infra
+    # operations mid-run; the only sandbox call during steps is run(request).
+    sandbox = startup_sandbox(cfg, workspace=Path.cwd(),
+                               refresh=getattr(args, "refresh", False))
+    try:
+        return _run_pipeline(cfg, base, registry, state_dir, max_attempts,
+                             args, viz_bus, sandbox)
+    finally:
+        sandbox.close()
+
+
+def _run_pipeline(cfg, base, registry, state_dir, max_attempts, args, viz_bus,
+                  sandbox) -> tuple[bool, int]:
     runtime = Runtime(cfg=cfg, registry=registry, llm=build_llm(cfg.llm),
                       agents_dir=base / cfg.agents_dir, state_dir=state_dir,
-                      workspace=Path.cwd())
+                      workspace=Path.cwd(), sandbox=sandbox)
     state_dir.mkdir(parents=True, exist_ok=True)
 
     resume = getattr(args, "resume", None)

@@ -86,3 +86,82 @@ class TestLoadAgent:
         assert agent.tools == []
         assert agent.include_default_tools == ["FinishTool", "ThinkTool"]
         assert agent.filter_tools_regex is None
+
+
+from agentic_dev_loop.isolation import SandboxError
+
+
+class TestSandboxTerminalExecutor:
+    """The terminal seam (KD-4): each action is a fresh Sandbox.run through a
+    SandboxTerminalExecutor; is_input degrades; git mutations refuse loudly."""
+
+    def test_executes_through_sandbox(self, fake_sandbox, tmp_path):
+        from openhands.tools.terminal import TerminalAction
+
+        from agentic_dev_loop.agents import SandboxTerminalExecutor
+        ex = SandboxTerminalExecutor(fake_sandbox, workspace=str(tmp_path),
+                                     env={"PATH": "/bin"})
+        obs = ex(TerminalAction(command="echo hi"), None)
+        assert obs.exit_code == 0
+        assert "hi" in obs.text
+        assert len(fake_sandbox.requests) == 1
+        assert fake_sandbox.requests[0].argv == ["echo", "hi"]
+
+    def test_is_input_degrades(self, fake_sandbox, tmp_path):
+        from openhands.tools.terminal import TerminalAction
+
+        from agentic_dev_loop.agents import SandboxTerminalExecutor
+        ex = SandboxTerminalExecutor(fake_sandbox, workspace=str(tmp_path), env={})
+        obs = ex(TerminalAction(command="x", is_input=True), None)
+        assert obs.exit_code is None
+        assert "input unsupported" in obs.text
+        assert fake_sandbox.requests == []
+
+    def test_reset_degrades(self, fake_sandbox, tmp_path):
+        from openhands.tools.terminal import TerminalAction
+
+        from agentic_dev_loop.agents import SandboxTerminalExecutor
+        ex = SandboxTerminalExecutor(fake_sandbox, workspace=str(tmp_path), env={})
+        obs = ex(TerminalAction(command="", reset=True), None)
+        assert obs.exit_code is None
+        assert "reset unsupported" in obs.text
+        assert fake_sandbox.requests == []
+
+    def test_git_mutation_refuses(self, fake_sandbox, tmp_path):
+        from openhands.tools.terminal import TerminalAction
+
+        from agentic_dev_loop.agents import SandboxTerminalExecutor
+        ex = SandboxTerminalExecutor(fake_sandbox, workspace=str(tmp_path), env={})
+        with pytest.raises(SandboxError, match="AE-SBX-008"):
+            ex(TerminalAction(command="git commit -m x"), None)
+
+    def test_timeout_propagates(self, fake_sandbox, tmp_path):
+        from openhands.tools.terminal import TerminalAction
+
+        from agentic_dev_loop.agents import SandboxTerminalExecutor
+        ex = SandboxTerminalExecutor(fake_sandbox, workspace=str(tmp_path), env={})
+        fake_sandbox.script(lambda req: (None, "out", True))
+        obs = ex(TerminalAction(command="sleep 5", timeout=1), None)
+        assert obs.timeout is True
+
+
+class TestRegisterSandboxTerminal:
+    def test_resolves_to_sandbox_executor(self, fake_sandbox, tmp_path):
+        from openhands.sdk.tool.registry import resolve_tool
+        from openhands.sdk.tool.spec import Tool
+
+        from agentic_dev_loop.agents import (SandboxTerminalExecutor,
+                                             register_sandbox_terminal)
+        register_sandbox_terminal(fake_sandbox, workspace=str(tmp_path),
+                                  env={"X": None})
+
+        class Workspace:
+            working_dir = str(tmp_path)
+
+        class ConvState:
+            workspace = Workspace()
+            env_observation_persistence_dir = None
+
+        tools = resolve_tool(Tool(name="terminal"), ConvState())
+        assert len(tools) == 1
+        assert isinstance(tools[0].executor, SandboxTerminalExecutor)

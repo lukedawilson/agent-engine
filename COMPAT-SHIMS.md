@@ -34,3 +34,19 @@ guards both directions:
 4. Update the tested-range pin in `tests/test_sdk_compat.py` to the newly
    verified version.
 5. Full suite green.
+
+## Terminal sandbox seam (unit-3)
+
+The sandboxed terminal relies on an SDK extension point rather than an
+import-time monkeypatch: `SandboxTerminalExecutor(ToolExecutor)` passed as
+`TerminalTool.create(conv_state, executor=...)`, with the `terminal` registry
+name re-registered per run via `register_tool(name, factory)` where `factory`
+is a **callable returning `Sequence[ToolDefinition]`** (`agents.py`).
+
+- **Version range**: `openhands-sdk==1.17.0` (tested).
+- **Removal criterion**: the SDK drops the `executor=` kwarg on
+  `TerminalTool.create` or changes the callable-factory convention in
+  `register_tool` → replace the seam with an agentic-dev-loop-owned terminal
+  tool (the `terminal` name stops delegating to the SDK's `TerminalTool`).
+- **Pinning test**: `tests/test_sdk_compat.py::test_canary_sdk_terminal_seam_still_present`
+  fails loudly when the seam disappears (same upgrade procedure as the shims).

@@ -13,7 +13,6 @@ llm:
   api_key_env: OPENAI_API_KEY
   # timeout omitted → opinionated no-timeout default
 
-state_dir: .pr
 max_attempts: 10                     # CLI --max-attempts overrides
 agents_dir: sdk_agents               # resolved relative to the pipeline file's dir
 
@@ -24,8 +23,9 @@ steps:
     on_pass: test
 
   - name: test
-    command: .venv/bin/python -m pytest tests/ -q   # mechanical: exit code is the verdict
-    timeout: 600                                     # seconds; SIGKILLs the process group
+    command: .venv-sandbox/bin/python -m pytest tests/ -q -m "not docker"   # sandboxed: exit code is the verdict
+    setup: python -m venv .venv-sandbox && .venv-sandbox/bin/pip install -e ".[dev]"
+    timeout: 600
     on_pass: review
     on_fail: { goto: dev, retry: true }
 

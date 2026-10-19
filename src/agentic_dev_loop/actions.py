@@ -30,6 +30,15 @@ def _git(args: list[str], cwd: Path) -> subprocess.CompletedProcess:
                           env=child_env())
 
 
+def _trusted_hooks_dir() -> str:
+    """The agentic-dev-loop-managed hooks dir (Q3): repo hooks in ``.git/hooks``
+    never execute during the trusted commit action. Created empty; git runs
+    with ``-c core.hooksPath=<this dir>`` so there is no hook to run."""
+    d = Path("~/.agentic-dev-loop/state/hooks").expanduser()
+    d.mkdir(parents=True, exist_ok=True)
+    return str(d)
+
+
 def git_worktree_clean(path: Path) -> bool:
     """True only when `path` is a git repo with no uncommitted changes.
     Outside a repo there is no clean baseline — False (fail-safe, keeps the
@@ -172,12 +181,14 @@ def commit(state: dict, params: dict) -> dict:
         raise ValueError("commit action requires params.message "
                          "(a template rendered with {subject})")
     cwd = Path.cwd()
-    _git(["add", "-A"], cwd=cwd)
+    hooks = _trusted_hooks_dir()
+    _git(["-c", f"core.hooksPath={hooks}", "add", "-A"], cwd=cwd)
     if not _git(["status", "--porcelain"], cwd=cwd).stdout.strip():
         print(f"[{subject}] Nothing to commit.", flush=True)
         return {}
     message = params["message"].format(subject=subject)
-    result = _git(["commit", "-m", message], cwd=cwd)
+    result = _git(["-c", f"core.hooksPath={hooks}", "commit", "-m", message],
+                  cwd=cwd)
     if result.returncode != 0:
         # The work is built and verified — a git error is a loud warning,
         # not a pipeline failure.
