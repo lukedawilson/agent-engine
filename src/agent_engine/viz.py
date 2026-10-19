@@ -408,7 +408,7 @@ PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>agent-engine viz</title>
+<title>agentic-dev-loop viz</title>
 <style>
   :root { color-scheme: light; }
   * { box-sizing: border-box; }
@@ -494,7 +494,7 @@ PAGE = """<!doctype html>
   </div>
   <div id="divider"></div>
   <aside id="sidebar">
-    <h2 id="subject">agent-engine pipeline</h2>
+    <h2 id="subject">agentic-dev-loop pipeline</h2>
     <div id="attempt">attempt ?/?</div>
     <div id="thread">thread id: <code id="thread-id" title="click to select">\u2014</code></div>
     <div id="elapsed"></div>

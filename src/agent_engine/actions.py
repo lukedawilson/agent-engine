@@ -80,7 +80,7 @@ def _listening_pids(port: int, match: str | None = None,
     listeners left behind by earlier runs or agent subprocesses.
 
     `cwd` is positive-only: a pid whose cwd can't be determined is spared,
-    so a multi-instance setup (two agent-engine runs from different
+    so a multi-instance setup (two agentic-dev-loop runs from different
     workspaces) never kills the other run's server.
 
     Every token from ``lsof`` output is validated numeric before it can reach

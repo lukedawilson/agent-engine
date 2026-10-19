@@ -3,7 +3,7 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agent-engine"
+name = "agentic-dev-loop"
 version = "0.2.0"
 description = "Opinionated LangGraph engine for OpenHands agent pipelines"
 readme = "README.md"
@@ -41,10 +41,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/lukedawilson/agent-engine"
+Homepage = "https://github.com/lukedawilson/agentic-dev-loop"
 
 [project.scripts]
-agent-engine = "agent_engine.cli:main"
+agentic-dev-loop = "agent_engine.cli:main"
 
 [project.optional-dependencies]
 dev = [

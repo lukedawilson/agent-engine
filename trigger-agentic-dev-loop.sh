@@ -14,6 +14,6 @@ if [ -f "$ROOT/.env" ]; then
   set +a
 fi
 
-exec "$ROOT/.venv/bin/agent-engine" \
-  "$ROOT/agent-engine/pipeline.yaml" \
+exec "$ROOT/.venv/bin/agentic-dev-loop" \
+  "$ROOT/agentic-dev-loop/pipeline.yaml" \
   "$@"

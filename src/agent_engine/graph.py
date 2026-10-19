@@ -200,7 +200,7 @@ def run_pipeline(cfg_path, args, *, viz_bus=None) -> tuple[bool, int]:
             topology, nodes = viz.topology_mermaid(cfg)
             bus = viz.VizBus()
             if args.viz_port:
-                kill_listeners_on_port(args.viz_port, match="agent-engine",
+                kill_listeners_on_port(args.viz_port, match="agentic-dev-loop",
                                        cwd=runtime.workspace)
             httpd, _thread = viz.serve_viz(
                 bus, topology, start_state["subject"], args.viz_port, nodes)

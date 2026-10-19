@@ -22,7 +22,7 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agent-engine"
+name = "agentic-dev-loop"
 version = "{version}"
 description = "test"
 requires-python = ">=3.12"

@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Kernel-level sandboxing (unit-3, in progress).
 
+### Changed
+
+- Distribution renamed from `agent-engine` to `agentic-dev-loop`; the CLI
+  command renamed from `agent-engine` to `agentic-dev-loop`, and the shipped
+  example-pipeline directory and trigger script renamed to match. The Python
+  import (`agent_engine`) is unchanged.
+
 ## [0.2.0] - 2026-10-19
 
 ### Added

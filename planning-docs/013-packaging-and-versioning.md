@@ -1,6 +1,6 @@
 # 013 — Packaging & Versioning
 
-**Status**: Plan (side-quest — outside the AI-DLC workflow; not tracked in `aidlc-docs/`)
+**Status**: Completed — shipped: pyproject 0.2.0 + hygiene, `--version`, CHANGELOG, release.yml, /publish (T1–T5, T8 done). Distribution renamed to `agentic-dev-loop` (CLI renamed to `agentic-dev-loop`; import `agent_engine` unchanged). Outstanding: T6 cut v0.2.0 + T7 verify, after the §7 one-time PyPI/GitHub setup.
 **Date**: 2026-10-19
 **Trigger**: User — "Before we implement unit 3, we should do proper packaging and versioning. The current version (without kernel-level sandboxing) is v0.x.x, and a proper v1 has the kernel-level sandboxing (unit 3)."
 
@@ -41,12 +41,12 @@
 ## 3. Single source of truth for the version
 
 - `[project] version` in `pyproject.toml` is the **only** place the version is written.
-- Runtime reads it via `importlib.metadata.version("agent-engine")` — verified working with the local editable install (resolves `0.1.0` today).
+- Runtime reads it via `importlib.metadata.version("agentic-dev-loop")` — verified working with the local editable install (resolves `0.1.0` today).
 - **No** `__version__` constant in `src/agent_engine/__init__.py` — dual sources drift (this repo has been burned by silent staleness before; don't invite it).
-- If metadata is unavailable (running from a source checkout that was never installed), fail **loudly**: print a clear error naming the problem ("agent-engine is not installed — version unavailable; run `pip install -e .`"). No silent fallback to a hard-coded string.
+- If metadata is unavailable (running from a source checkout that was never installed), fail **loudly**: print a clear error naming the problem ("agentic-dev-loop is not installed — version unavailable; run `pip install -e .`"). No silent fallback to a hard-coded string.
 
 **`--version` flag** (new, TDD per repo rule — red/green/refactor):
-- `agent-engine --version` prints `agent-engine X.Y.Z` from metadata.
+- `agentic-dev-loop --version` prints `agentic-dev-loop X.Y.Z` from metadata.
 - Landed via `tests/test_cli.py` additions first (red), then the argparse wiring in `src/agent_engine/cli.py` (`_core_parser` / probe parser so it works even before config resolution), then refactor.
 - No mocks: `importlib.metadata` is a local call against the installed distribution.
 
@@ -59,7 +59,7 @@ Current gaps (verified against `pyproject.toml`):
 | `readme = "README.md"` | Confirmed (user) — use the existing `README.md`. Missing today, so the package has no long description on PyPI. |
 | `license = "Apache-2.0"` | Confirmed (user). Repo `LICENSE` is Apache-2.0. PEP 639 SPDX string form requires `setuptools >= 77` — bump `[build-system] requires` from `setuptools>=68` accordingly. |
 | `authors = [{ name = "Luke Wilson" }]` | Confirmed (user) — name resolved from GitHub profile `lukedawilson`. No public email on the profile; PEP 621 email is optional, so publish name-only unless the user wants an address listed (§10). |
-| `[project.urls]` | Confirmed (user) — homepage only for now: `Homepage = "https://github.com/lukedawilson/agent-engine"`. No Issues URL yet. |
+| `[project.urls]` | Confirmed (user) — homepage only for now: `Homepage = "https://github.com/lukedawilson/agentic-dev-loop"`. No Issues URL yet. |
 | `classifiers` | Full proposed list in §4.1. |
 | requires-python consistency | `pyproject` says `>=3.12`; **README says "≥ 3.11"** — README is wrong. `openhands-sdk 1.17.0` itself declares `Requires-Python: >=3.12`, so `>=3.12` is correct. Fix the README line. |
 | Build artifacts | `src/agent_engine.egg-info/`, `dist/`, `build/` already gitignored — nothing to do, but confirmed clean. |
@@ -71,7 +71,7 @@ Trove classifiers (ordered by convention; rationale in brackets; verified agains
 ```toml
 classifiers = [
     "Development Status :: 4 - Beta",                     # 0.2.0: solid, tested, but the defining v1 capability (kernel sandbox) is missing
-    "Environment :: Console",                              # CLI-driven: `agent-engine` console script
+    "Environment :: Console",                              # CLI-driven: `agentic-dev-loop` console script
     "Intended Audience :: Developers",
     "Operating System :: MacOS",                           # unit-3 FR-2.4 targets all three
     "Operating System :: Microsoft :: Windows",
@@ -156,8 +156,8 @@ For a product whose v1 headline is sandboxing, the release pipeline itself is at
 
 ## 7. One-time manual setup (user, before the first tag push)
 
-1. PyPI account (user) + the `agent-engine` project name — confirmed free (PyPI JSON API 404s on `agent-engine`).
-2. On PyPI: add a **pending trusted publisher** — owner `lukedawilson`, repository `agent-engine`, workflow `release.yml`, environment `pypi`.
+1. PyPI account (user) + the `agentic-dev-loop` project name — confirmed free (PyPI JSON API 404s on `agentic-dev-loop`).
+2. On PyPI: add a **pending trusted publisher** — owner `lukedawilson`, repository `agentic-dev-loop`, workflow `release.yml`, environment `pypi`.
 3. On GitHub: create the `pypi` deployment environment (Settings → Environments), initially with no required reviewers.
 4. On GitHub: add the `v*` tag protection rule (§6.1) before pushing the first tag.
 
@@ -172,8 +172,8 @@ After that, every `v*` tag push publishes automatically.
 | T3 | `--version` flag — TDD via `tests/test_cli.py`, then `cli.py` wiring (§3) | **yes** |
 | T4 | `CHANGELOG.md` with `[Unreleased]` + `[0.2.0]` | docs |
 | T5 | `.github/workflows/release.yml` (§6) | config |
-| T6 | Commit T2–T5, annotate `v0.2.0`, push → CI publishes `agent-engine 0.2.0` to PyPI + creates the first GitHub Release | — |
-| T7 | Verify: `pip install agent-engine` in a clean venv; `agent-engine --version`; PyPI page renders README/licence/classifiers; GitHub Release body = changelog | — |
+| T6 | Commit T2–T5, annotate `v0.2.0`, push → CI publishes `agentic-dev-loop 0.2.0` to PyPI + creates the first GitHub Release | — |
+| T7 | Verify: `pip install agentic-dev-loop` in a clean venv; `agentic-dev-loop --version`; PyPI page renders README/licence/classifiers; GitHub Release body = changelog | — |
 | T8 | Implement `/publish` command — release-cut automation: `tools/publish.py` (version resolution, pyproject bump, changelog render, commit/tag/push, `--dry-run`) + `tests/test_publish.py` (22 subprocess-git tests) + `.opencode/commands/publish.md` | **yes** ✅ done |
 
 Then unit-3 Code Generation proceeds with no further versioning work until its release-cut commit (bump to `1.0.0rc1` + changelog + tag `v1.0.0rc1` at Build-and-Test green).

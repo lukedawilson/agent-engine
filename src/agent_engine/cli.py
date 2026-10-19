@@ -17,25 +17,25 @@ from .registry import default_registry, load_extensions
 def _version() -> str:
     """The installed distribution version — the single source of truth."""
     try:
-        return importlib.metadata.version("agent-engine")
+        return importlib.metadata.version("agentic-dev-loop")
     except importlib.metadata.PackageNotFoundError:
-        print("agent-engine is not installed — version unavailable; "
+        print("agentic-dev-loop is not installed — version unavailable; "
               "run `pip install -e .`", file=sys.stderr)
         raise SystemExit(1)
 
 
 def _add_version_flag(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--version", action="version",
-                        version=f"agent-engine {_version()}")
+                        version=f"agentic-dev-loop {_version()}")
 
 
 def _core_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="agent-engine",
+        prog="agentic-dev-loop",
         description="Run an OpenHands agent pipeline defined in YAML. "
                     "Document-loader flags contributed by the pipeline's "
                     "extensions appear once PIPELINE is known — see "
-                    "`agent-engine PIPELINE --help`.")
+                    "`agentic-dev-loop PIPELINE --help`.")
     parser.add_argument("pipeline", type=Path,
                         help="path to the pipeline YAML")
     parser.add_argument("--resume", metavar="THREAD_ID", default=None,
@@ -77,6 +77,6 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser(known.pipeline).parse_args(argv)
     success, _attempts = run_pipeline(args.pipeline, args)
     if not success:
-        print("agent-engine: pipeline failed — exiting with code 1",
+        print("agentic-dev-loop: pipeline failed — exiting with code 1",
               file=sys.stderr)
     return 0 if success else 1

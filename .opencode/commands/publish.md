@@ -1,5 +1,5 @@
 ---
-description: Cut and publish an agent-engine release — bump version, update changelog, commit, tag, push; the v* tag push triggers release.yml (tests → PyPI → GitHub Release). Usage: /publish [--major|--minor|--patch|<version>] [--description "text"]
+description: Cut and publish an agentic-dev-loop release — bump version, update changelog, commit, tag, push; the v* tag push triggers release.yml (tests → PyPI → GitHub Release). Usage: /publish [--major|--minor|--patch|<version>] [--description "text"]
 ---
 
 Run the release script with the user's arguments. First show the dry-run so the

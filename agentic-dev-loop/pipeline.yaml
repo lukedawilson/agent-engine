@@ -1,4 +1,4 @@
-name: agent-engine-construction
+name: agentic-dev-loop-construction
 
 extensions:
   - agent_engine.extensions.aidlc:AidlcExtension   # bundled; loading IS choosing

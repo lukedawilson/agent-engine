@@ -81,14 +81,14 @@ class TestBuildContext:
         workspace is the repo root — the prompt path must reach the real
         state_dir; state_dir.name alone sends agents to the wrong directory
         (U18 burned 3 attempts on an unfindable ci-fix.md)."""
-        state_dir = tmp_path / "agent-engine" / ".pr"
+        state_dir = tmp_path / "agentic-dev-loop" / ".pr"
         state_dir.mkdir(parents=True)
         rt = Runtime(cfg=make_cfg(STEPS), registry=default_registry(),
                      llm=LLM(model="openai/test-model", api_key="sk-test"),
                      agents_dir=tmp_path / "agents", state_dir=state_dir,
                      workspace=tmp_path)
         ctx = build_context(rt, {}, "s", [])
-        assert "check agent writes: `agent-engine/.pr/ci-fix.md`" in ctx
+        assert "check agent writes: `agentic-dev-loop/.pr/ci-fix.md`" in ctx
 
     def test_output_paths_absolute_when_state_dir_outside_workspace(self, tmp_path):
         state_dir = tmp_path / "state" / ".pr"
@@ -142,7 +142,7 @@ class TestAgentNode:
         assert update["retry_target"] == "dev"  # on_fail's goto
 
     def test_empty_response_note_names_the_step(self, tmp_path, fake_agents):
-        state_dir = tmp_path / "agent-engine" / ".pr"
+        state_dir = tmp_path / "agentic-dev-loop" / ".pr"
         state_dir.mkdir(parents=True)
         rt = Runtime(cfg=make_cfg(STEPS), registry=default_registry(),
                      llm=LLM(model="openai/test-model", api_key="sk-test"),

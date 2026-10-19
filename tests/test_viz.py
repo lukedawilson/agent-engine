@@ -32,7 +32,7 @@ from agent_engine.viz import (MAX_LINE, PAGE, ConsoleCapture, HeartbeatThread,
                               serve_viz, topology_mermaid, translate)
 
 MERMAID = "graph TD;\n\tdev(dev)\n\ttest(test)\n"
-SELF_PIPELINE = Path(__file__).parent.parent / "agent-engine" / "pipeline.yaml"
+SELF_PIPELINE = Path(__file__).parent.parent / "agentic-dev-loop" / "pipeline.yaml"
 
 
 def tasks_start(name):
@@ -582,7 +582,7 @@ class TestServer:
         assert status == 200
         assert 'id="mermaid-container"' in body
         assert 'id="subject"' in body
-        assert "agent-engine pipeline" in body  # topic placeholder
+        assert "agentic-dev-loop pipeline" in body  # topic placeholder
 
     def test_topology_json_round_trip(self, server):
         _bus, _httpd, _thread, port = server

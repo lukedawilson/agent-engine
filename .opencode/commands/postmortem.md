@@ -1,5 +1,5 @@
 ---
-description: Run a blameless postmortem for an incident — interactive section-by-section drafting with the user, ending in a doc under aidlc-docs/incidents/ plus rule propagation (AGENTS.md, agent-engine agents, commands). Use after an outage, data loss, destructive-tooling incident, or near-miss.
+description: Run a blameless postmortem for an incident — interactive section-by-section drafting with the user, ending in a doc under aidlc-docs/incidents/ plus rule propagation (AGENTS.md, agentic-dev-loop agents, commands). Use after an outage, data loss, destructive-tooling incident, or near-miss.
 ---
 
 # Postmortem
@@ -66,7 +66,7 @@ The user's corrections override the agent's framing, always. If the user says
 ## Phase 4 — Propagate and file
 
 1. File the doc at `aidlc-docs/incidents/YYYY-MM-DD-<slug>.md`.
-2. Propagate the Process actions: repo `AGENTS.md`, agent-engine agents where
+2. Propagate the Process actions: repo `AGENTS.md`, agentic-dev-loop agents where
    appropriate, new slash commands if a workflow is missing. Ask before
    touching each, unless the user already directed it.
 3. Record any deferred product/tech work the incident surfaced in the

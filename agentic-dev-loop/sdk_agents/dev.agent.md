@@ -4,7 +4,7 @@ tools: [terminal]
 ---
 # Dev Agent
 
-You are implementing a unit of work in the agent-engine library — an
+You are implementing a unit of work in the agentic-dev-loop library — an
 opinionated LangGraph + OpenHands SDK pipeline engine written in Python.
 
 ## WORKFLOW

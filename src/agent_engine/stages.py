@@ -61,8 +61,8 @@ def prompt_dir(runtime: Runtime) -> str:
     """state_dir as agents must address it. Agents resolve prompt paths
     against their workspace, so a bare `state_dir.name` only reaches the real
     state_dir when the pipeline file sits at the workspace root — yosk runs
-    agent-engine/pipeline.yaml from the repo root, where `.pr` and
-    `agent-engine/.pr` diverge. Workspace-relative when under the workspace,
+    agentic-dev-loop/pipeline.yaml from the repo root, where `.pr` and
+    `agentic-dev-loop/.pr` diverge. Workspace-relative when under the workspace,
     the absolute path when outside it."""
     try:
         return str(runtime.state_dir.relative_to(runtime.workspace))

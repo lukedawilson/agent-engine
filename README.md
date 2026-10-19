@@ -1,4 +1,4 @@
-# agent-engine
+# agentic-dev-loop
 
 An opinionated library for building **stage-gated autonomous dev pipelines**.
 A pipeline is a YAML file of steps; each step runs an OpenHands agent (with a
@@ -15,7 +15,8 @@ for agent execution and [LangGraph](https://github.com/langchain-ai/langgraph)
 ## Install & test
 
 ```bash
-pip install -e .          # from this repo
+pip install agentic-dev-loop  # published release
+pip install -e .              # from this repo (development)
 python -m pytest tests/ -q
 ```
 
@@ -25,10 +26,10 @@ Requires Python ≥ 3.12.
 
 ```bash
 export OPENAI_API_KEY=...   # whatever env var your pipeline's api_key_env names
-agent-engine agent-engine/pipeline.yaml --plan plan.md
-agent-engine agent-engine/pipeline.yaml --ai-dlc-unit U2
-agent-engine agent-engine/pipeline.yaml --resume <thread-id> --max-attempts 5
-./trigger-agent-engine.sh --plan plan.md   # same thing, from the repo root
+agentic-dev-loop agentic-dev-loop/pipeline.yaml --plan plan.md
+agentic-dev-loop agentic-dev-loop/pipeline.yaml --ai-dlc-unit U2
+agentic-dev-loop agentic-dev-loop/pipeline.yaml --resume <thread-id> --max-attempts 5
+./trigger-agentic-dev-loop.sh --plan plan.md   # same thing, from the repo root
 ```
 
 Exit code is `0` on pipeline success, `1` otherwise. Each run prints its
@@ -52,7 +53,7 @@ every candidate; pass the full slug to disambiguate.
 
 ## What a run looks like
 
-The shipped self-loop example (`agent-engine/`, launched from the repo root
+The shipped self-loop example (`agentic-dev-loop/`, launched from the repo root
 so the pipeline constructs this library itself) is:
 
 ```
@@ -85,10 +86,10 @@ Every stage boundary is checkpointed to `<state_dir>/loop-checkpoints.sqlite`
 
 ## pipeline.yaml reference
 
-Verbatim from `agent-engine/pipeline.yaml` (comments added):
+Verbatim from `agentic-dev-loop/pipeline.yaml` (comments added):
 
 ```yaml
-name: agent-engine-construction
+name: agentic-dev-loop-construction
 extensions:
   - agent_engine.extensions.aidlc:AidlcExtension
 additional_files:
@@ -248,10 +249,10 @@ Duplicate CLI option strings across loaders are a load-time error naming both.
 
 ## The example consumer
 
-`agent-engine/` is a complete, runnable consumer that turns the library on
+`agentic-dev-loop/` is a complete, runnable consumer that turns the library on
 its own repo: the pipeline above, its three agent definitions (`sdk_agents/`),
 and this README wired in as shared context. Run it from the repo root with
-`./trigger-agent-engine.sh --plan plan.md`. The e2e suite
+`./trigger-agentic-dev-loop.sh --plan plan.md`. The e2e suite
 (`tests/test_e2e_fixtures.py`) replays historical failure fixtures against
 it — markdown-decorated verdicts, stale-artifact hygiene, verdict-first
 truncation, unclear-verdict retry, dirty-worktree commit skip, and

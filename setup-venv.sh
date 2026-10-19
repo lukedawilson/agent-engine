@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# setup-venv.sh — create/repair the .venv that ./trigger-agent-engine.sh needs.
+# setup-venv.sh — create/repair the .venv that ./trigger-agentic-dev-loop.sh needs.
 #
 # Idempotent. Safe to re-run after a breakage or on a fresh checkout.
 #
@@ -113,20 +113,20 @@ fi
 "$VENV/bin/pip" install -e ".[dev]"
 
 # ---------------------------------------------------------------------------
-# 6. Smoke check the entry point that trigger-agent-engine.sh execs.
+# 6. Smoke check the entry point that trigger-agentic-dev-loop.sh execs.
 # ---------------------------------------------------------------------------
-if [ ! -x "$VENV/bin/agent-engine" ]; then
-  echo "error: .venv/bin/agent-engine was not created" >&2
+if [ ! -x "$VENV/bin/agentic-dev-loop" ]; then
+  echo "error: .venv/bin/agentic-dev-loop was not created" >&2
   exit 1
 fi
 
 cat <<EOF
 
 setup complete:
-  .venv/bin/agent-engine  ->  $(command -v "$VENV/bin/agent-engine")
+  .venv/bin/agentic-dev-loop  ->  $(command -v "$VENV/bin/agentic-dev-loop")
   .venv/bin/python        ->  $("$VENV/bin/python" -c 'import sysconfig; print(sysconfig.get_platform())')
 
 next steps:
   export OPENAI_API_KEY=...          # the pipeline fails fast without it
-  ./trigger-agent-engine.sh --ai-dlc-unit U2
+  ./trigger-agentic-dev-loop.sh --ai-dlc-unit U2
 EOF

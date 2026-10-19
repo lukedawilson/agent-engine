@@ -16,7 +16,7 @@ from openhands.sdk.tool.builtins.finish import FinishAction
 from agent_engine.agents import load_agent
 from agent_engine.outputs import CaptureError, CapturedOutput
 
-AGENTS_DIR = Path(__file__).parent.parent / "agent-engine" / "sdk_agents"
+AGENTS_DIR = Path(__file__).parent.parent / "agentic-dev-loop" / "sdk_agents"
 
 
 def _agent_event(text: str) -> MessageEvent:

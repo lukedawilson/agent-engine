@@ -1,4 +1,4 @@
-# agent-engine — instructions for agents
+# agentic-dev-loop — instructions for agents
 
 ## Default development mode — ASK BEFORE CODING
 

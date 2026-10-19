@@ -199,7 +199,7 @@ def changelog_source(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="publish",
-        description="Cut and publish an agent-engine release.",
+        description="Cut and publish an agentic-dev-loop release.",
     )
     selector = parser.add_mutually_exclusive_group(required=True)
     selector.add_argument(

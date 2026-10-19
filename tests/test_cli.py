@@ -139,7 +139,7 @@ class TestVersion:
             main(["--version"])
         assert e.value.code == 0
         assert capsys.readouterr().out.strip() == (
-            f"agent-engine {importlib.metadata.version('agent-engine')}"
+            f"agentic-dev-loop {importlib.metadata.version('agentic-dev-loop')}"
         )
 
     def test_version_flag_with_pipeline(self, repo, capsys):
@@ -147,7 +147,7 @@ class TestVersion:
             main(["pipeline.yaml", "--version"])
         assert e.value.code == 0
         assert capsys.readouterr().out.strip() == (
-            f"agent-engine {importlib.metadata.version('agent-engine')}"
+            f"agentic-dev-loop {importlib.metadata.version('agentic-dev-loop')}"
         )
 
     def test_version_flag_in_core_help(self, repo, capsys):
@@ -249,7 +249,7 @@ class TestViz:
         assert captured["subject"] == "plan plan.md"
         assert captured["port"] == 8321
         assert opened == ["http://127.0.0.1:8321"]
-        assert sweep_calls == [(8321, "agent-engine", repo.resolve())]
+        assert sweep_calls == [(8321, "agentic-dev-loop", repo.resolve())]
         assert order == ["sweep", "serve"]
 
         events = []

@@ -74,7 +74,7 @@ class Registry:
         against the SDK's global registry). The name is validated first
         (BR-3): a non-empty identifier that does not collide with any name
         already in the SDK registry — the SDK silently overwrites duplicates,
-        so agent-engine rejects before ``register_tool`` ever runs."""
+        so agentic-dev-loop rejects before ``register_tool`` ever runs."""
         from openhands.sdk.tool import register_tool
         from openhands.sdk.tool import registry as sdk_registry
 
