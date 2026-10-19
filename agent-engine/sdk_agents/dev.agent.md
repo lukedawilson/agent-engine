@@ -14,7 +14,7 @@ opinionated LangGraph + OpenHands SDK pipeline engine written in Python.
    issue listed there as a required fix from the pipeline's earlier stages —
    address each one before anything else, and verify each fix landed (re-read
    the edited file) before moving on.
-3. Plan your implementation — create task tracker entries for each task.
+3. Plan your implementation.
 4. Implement using terminal:
    - Create or modify files as needed
    - After each significant change, run `.venv/bin/python -m pytest tests/ -q`

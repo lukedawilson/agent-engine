@@ -34,6 +34,7 @@ from openhands.sdk import Conversation
 from .agents import load_agent
 from .config import TERMINALS, PipelineConfig, Route, StepConfig, route_target
 from .outputs import CapturedOutput, Verdict
+from .proc import child_env, needs_shell, split_command
 from .registry import Registry
 
 if TYPE_CHECKING:
@@ -92,7 +93,7 @@ def run_agent(agent_name: str, message: str, runtime: Runtime,
     Any failure — setup or run — is reported to <state_dir>/last-error.md.
 
     For steps declaring outputs (produces/artifact), the final response is
-    captured from conv.events (before conv.close()) and written by the
+    captured from conv.state.events (before conv.close()) and written by the
     pipeline to the declared artifact path — the agent never files its own
     report."""
     conv = None
@@ -133,16 +134,27 @@ def run_agent(agent_name: str, message: str, runtime: Runtime,
             conv.close()
 
 
-def _run_command(command: str, workspace: Path,
-                 timeout: float) -> tuple[int | None, str, bool]:
-    """Run a shell command in the workspace, capturing combined stdout/stderr.
+def _run_command(command: str, workspace: Path, timeout: float,
+                 env: dict[str, str] | None = None) -> tuple[int | None, str, bool]:
+    """Run a command step in the workspace, capturing combined stdout/stderr.
+
+    A command without shell metacharacters is ``shlex``-split and run
+    argv-style (``shell=False``); one that uses them runs via the shell
+    (``shell=True``) — backward compatible. Both paths get the scrubbed child
+    environment built by ``child_env`` (BR-4).
 
     Returns ``(exit_code, output, timed_out)``. ``exit_code`` is None when the
     command was SIGKILLed for exceeding ``timeout``; the whole process group is
     killed (``start_new_session=True``) so grandchildren can't outlive the
     step."""
+    if needs_shell(command):
+        argv: str | list[str] = command
+        shell = True
+    else:
+        argv = split_command(command)
+        shell = False
     proc = subprocess.Popen(
-        command, cwd=workspace, shell=True, start_new_session=True,
+        argv, cwd=workspace, shell=shell, env=env, start_new_session=True,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     try:
         out, _ = proc.communicate(timeout=timeout)
@@ -300,6 +312,7 @@ def make_command_node(runtime: Runtime, step: StepConfig):
     into the retry note — mirroring the agent FAIL branch, so a retried dev
     agent sees exactly what the gate emitted."""
     timeout = step.timeout if step.timeout is not None else DEFAULT_COMMAND_TIMEOUT
+    env = child_env(runtime.cfg.env_allowlist, runtime.cfg.llm.api_key_env)
 
     def node(state: dict) -> dict:
         attempt = state["attempt"]
@@ -307,7 +320,7 @@ def make_command_node(runtime: Runtime, step: StepConfig):
         print(f"[{subject}] Running command `{step.command}`...", flush=True)
         try:
             exit_code, output, timed_out = _run_command(
-                step.command, runtime.workspace, timeout)
+                step.command, runtime.workspace, timeout, env)
         except Exception:
             print(traceback.format_exc()[-4000:], file=sys.stderr, flush=True)
             return {"failed": True, "failed_step": step.name}

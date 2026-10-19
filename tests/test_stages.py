@@ -16,8 +16,8 @@ from openhands.sdk.conversation.state import ConversationExecutionStatus
 from agent_engine.config import PipelineConfig
 from agent_engine.registry import default_registry
 from agent_engine.stages import (
-    Runtime, build_context, make_agent_node, make_bump_node, make_command_node,
-    make_router, run_agent,
+    Runtime, _run_command, build_context, make_agent_node, make_bump_node,
+    make_command_node, make_router, run_agent,
 )
 
 
@@ -272,6 +272,31 @@ class TestCommandNode:
         assert "retry_target" not in update
         (note,) = update["notes"]
         assert "attempt 1" in note
+
+
+class TestRunCommandHybrid:
+    """Command steps classify their command string: no shell metacharacters
+    → shlex-split argv (shell=False); metacharacters → shell=True (BR-4)."""
+
+    def test_simple_command_runs_argv_style(self, runtime):
+        exit_code, output, timed_out = _run_command(
+            "printf '%s' 'hello world'", runtime.workspace, 10)
+        assert exit_code == 0 and not timed_out
+        assert output == "hello world"
+
+    def test_shell_metachar_command_runs_via_shell(self, runtime):
+        exit_code, output, timed_out = _run_command(
+            "printf '%s\n' 'A B' | tr a-z A-Z", runtime.workspace, 10)
+        assert exit_code == 0 and not timed_out
+        assert "A B" in output
+
+    def test_shell_variable_expansion(self, runtime):
+        exit_code, output, timed_out = _run_command(
+            "printf '%s' $STAGE_TEST_MARKER", runtime.workspace, 10,
+            env={"PATH": os.environ.get("PATH", ""),
+                 "STAGE_TEST_MARKER": "expanded"})
+        assert exit_code == 0 and not timed_out
+        assert output == "expanded"
 
 
 class TestCommandRouter:

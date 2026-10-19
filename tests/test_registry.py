@@ -4,6 +4,7 @@ import pytest
 
 from agent_engine import actions
 from agent_engine.registry import Registry, default_registry, load_extensions
+from sample_ext import SampleTool
 
 
 class _Loader:
@@ -38,6 +39,30 @@ class TestActionRegistration:
         reg.add_action("x", lambda s, p: {})
         with pytest.raises(ValueError, match="'x'"):
             reg.add_action("x", lambda s, p: {})
+
+
+class TestToolRegistration:
+    def test_empty_name_rejected(self):
+        with pytest.raises(ValueError, match="valid identifier"):
+            Registry().add_tool("", SampleTool)
+
+    def test_whitespace_name_rejected(self):
+        with pytest.raises(ValueError, match="valid identifier"):
+            Registry().add_tool("  sample  ", SampleTool)
+
+    def test_collision_with_sdk_registry_rejected(self):
+        reg = Registry()
+        reg.add_tool("proc_unique_tool", SampleTool)
+        with pytest.raises(ValueError, match="already"):
+            reg.add_tool("proc_unique_tool", SampleTool)
+
+    def test_collision_via_extension_names_the_extension_and_owner(self):
+        load_extensions(["sample_ext:CollisionExtension"], Registry())
+        with pytest.raises(ValueError) as excinfo:
+            load_extensions(["sample_ext:CollisionExtension"], Registry())
+        message = str(excinfo.value)
+        assert "collision-extension" in message
+        assert "sample_ext" in message
 
 
 class TestDocumentLoaderRegistration:

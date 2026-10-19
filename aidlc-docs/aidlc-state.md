@@ -3,7 +3,7 @@
 ## Project Information
 - **Project Type**: Brownfield
 - **Start Date**: 2026-10-17T10:58:41Z
-- **Current Stage**: CONSTRUCTION - Unit 2 Infrastructure Design approved (2026-10-18); next = Unit 2 Code Generation
+- **Current Stage**: CONSTRUCTION - Unit 2 complete (approved 2026-10-19); next = Unit 3 Functional Design
 
 ## Workspace State
 - **Existing Code**: Yes
@@ -51,13 +51,13 @@
 - [x] Code Generation — approved 2026-10-18 (user: "Seems to work. Commit and push, mark unit complete")
 - [x] Build and Test — full suite green: 373 passed (mechanical `test` command substance)
 
-### unit-2 (SDK hardening) — IN PROGRESS
+### unit-2 (SDK hardening) — COMPLETE
 Scope FR-1.1 (tool-surface semantics — `tools:` as sole capability allowlist; no `filter_tools_regex`), FR-1.4 (task_tracker instruction removed), FR-1.5 (command-step shell hardening), FR-1.6 (action-step subprocess hardening), FR-1.7 (extension tool-registration validation)
 - [x] Functional Design — approved 2026-10-18 (FD-1 drop task_tracker instruction; FD-2 capabilities + FinishTool + ThinkTool; FD-2b drop regex; FD-3 hybrid shell; FD-4 any-registered-name collision; FD-5 deeper subprocess hardening)
 - [x] NFR Requirements — approved 2026-10-18 (NFR-1=C hybrid env; refined: LLM key included by default; `env_allowlist` optional key)
 - [x] Infrastructure Design — approved 2026-10-18 (all 7 categories N/A; container infra deferred to unit-3)
-- [ ] Code Generation — plan approved 2026-10-18; generation delegated to user's dev loop (self-hosting via `./trigger-agent-engine.sh --ai-dlc-unit U2`)
-- [ ] Build and Test
+- [x] Code Generation — complete 2026-10-19 (dev loop self-hosted: `proc.py` + registry/actions/stages/config/agents hardening + `env_allowlist` + tests)
+- [x] Build and Test — full suite green: 391 passed (mechanical `test` command substance)
 
 ### unit-3 (kernel isolation, opt-in) — NOT STARTED
 Scope FR-2.1–FR-2.6 (container sandboxing via Docker Engine API; fail-fast when unavailable; macOS/Linux/Windows; profile defaults at FD; host-side commit)

@@ -52,6 +52,16 @@ class ToolExtension:
         registry.add_tool("sample", SampleTool)
 
 
+class CollisionExtension:
+    """Registers a uniquely-named tool so a second load collides — pins the
+    load-time collision rejection (BR-3.2)."""
+
+    name = "collision-extension"
+
+    def register(self, registry):
+        registry.add_tool("collision_probe", SampleTool)
+
+
 class EmptyDocsLoader:
     """Loader whose resolve returns no docs — pins the U3 empty-load guard
     at the run_pipeline call site."""

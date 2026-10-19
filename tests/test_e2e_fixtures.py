@@ -36,7 +36,7 @@ EXAMPLE = Path(__file__).resolve().parent.parent / "agent-engine"
 _COMMAND_QUEUE: list[tuple] = []
 
 
-def _fake_run_command(command, workspace, timeout):
+def _fake_run_command(command, workspace, timeout, env=None):
     if not _COMMAND_QUEUE:
         return 0, "", False
     behavior = _COMMAND_QUEUE[0]

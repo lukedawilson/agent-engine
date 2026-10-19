@@ -8,17 +8,26 @@ dev agent's b4acb62a swept up an unrelated .gitignore edit).
 """
 
 import os
+import shutil
 import subprocess
 import sys
 import time
 from pathlib import Path
 
+from .proc import child_env, is_pid_token
+
 
 def _git(args: list[str], cwd: Path) -> subprocess.CompletedProcess:
     """Best-effort git invocation — callers inspect returncode/stdout rather
-    than raising, so a git problem never crashes a verified run."""
-    return subprocess.run(["git", *args], cwd=cwd, capture_output=True,
-                          text=True, check=False)
+    than raising, so a git problem never crashes a verified run. ``git`` is
+    resolved via ``shutil.which`` and run argv-style with a scrubbed child
+    environment (BR-5)."""
+    git = shutil.which("git")
+    if git is None:
+        return subprocess.CompletedProcess(["git", *args], 127, "", "")
+    return subprocess.run([git, *args], cwd=cwd, capture_output=True,
+                          text=True, check=False, shell=False,
+                          env=child_env())
 
 
 def git_worktree_clean(path: Path) -> bool:
@@ -45,11 +54,18 @@ def _parse_cwd_output(out: str) -> str | None:
 def _pid_cwd(pid: str) -> str | None:
     """The working directory of `pid`, or None on any failure (lsof missing,
     the process gone, or an unreadable cwd). Positive-only attribution: a pid
-    whose cwd can't be determined is spared by the caller, never killed."""
+    whose cwd can't be determined is spared by the caller, never killed.
+    Only a validated pid token reaches ``lsof`` (BR-5.2)."""
+    if not is_pid_token(pid):
+        return None
+    lsof = shutil.which("lsof")
+    if lsof is None:
+        return None
     try:
         out = subprocess.run(
-            ["lsof", "-a", "-p", pid, "-d", "cwd", "-Fn"],
-            capture_output=True, text=True, check=False).stdout
+            [lsof, "-a", "-p", pid, "-d", "cwd", "-Fn"],
+            capture_output=True, text=True, check=False, shell=False,
+            env=child_env()).stdout
     except FileNotFoundError:
         return None
     return _parse_cwd_output(out)
@@ -65,26 +81,38 @@ def _listening_pids(port: int, match: str | None = None,
 
     `cwd` is positive-only: a pid whose cwd can't be determined is spared,
     so a multi-instance setup (two agent-engine runs from different
-    workspaces) never kills the other run's server."""
+    workspaces) never kills the other run's server.
+
+    Every token from ``lsof`` output is validated numeric before it can reach
+    ``ps``/``kill`` (BR-5.2); binaries resolve via ``shutil.which`` and run
+    argv-style with a scrubbed environment (BR-5.1, BR-5.3, BR-5.4)."""
+    lsof = shutil.which("lsof")
+    if lsof is None:
+        return []
     out = subprocess.run(
-        ["lsof", "-nP", "-ti", f"tcp:{port}", "-sTCP:LISTEN"],
-        capture_output=True, text=True, check=False).stdout
+        [lsof, "-nP", "-ti", f"tcp:{port}", "-sTCP:LISTEN"],
+        capture_output=True, text=True, check=False, shell=False,
+        env=child_env()).stdout
     self_pid = str(os.getpid())
+    ps = shutil.which("ps")
     pids = []
-    for pid in out.split():
-        if pid == self_pid:
+    for token in out.split():
+        if not is_pid_token(token) or token == self_pid:
             continue
         if match is not None:
+            if ps is None:
+                continue
             cmd = subprocess.run(
-                ["ps", "-p", pid, "-o", "command="],
-                capture_output=True, text=True, check=False).stdout
+                [ps, "-p", token, "-o", "command="],
+                capture_output=True, text=True, check=False, shell=False,
+                env=child_env()).stdout
             if match not in cmd:
                 continue
         if cwd is not None:
-            pid_cwd = _pid_cwd(pid)
+            pid_cwd = _pid_cwd(token)
             if pid_cwd is None or Path(pid_cwd).resolve() != Path(cwd).resolve():
                 continue
-        pids.append(pid)
+        pids.append(token)
     return pids
 
 
@@ -101,14 +129,16 @@ def kill_listeners_on_port(port: int, match: str | None = None,
     `term_timeout` — a server that ignores TERM must not hold the port
     indefinitely. Port freedom is judged by re-running lsof, so zombies
     (dead, unreaped children) never look like survivors."""
-    try:
-        pids = _listening_pids(port, match, cwd)
-    except FileNotFoundError:
+    if shutil.which("lsof") is None:
         print(f"WARNING: lsof not found — cannot sweep orphaned listeners on "
               f"port {port}.", file=sys.stderr, flush=True)
         return
+    kill = shutil.which("kill")
+    pids = _listening_pids(port, match, cwd)
     for pid in pids:
-        subprocess.run(["kill", pid], capture_output=True, check=False)
+        if kill is not None:
+            subprocess.run([kill, pid], capture_output=True, check=False,
+                           shell=False, env=child_env())
     survivors = pids
     deadline = time.monotonic() + term_timeout
     while survivors and time.monotonic() < deadline:
@@ -116,7 +146,9 @@ def kill_listeners_on_port(port: int, match: str | None = None,
         if survivors:
             time.sleep(0.05)
     for pid in survivors:
-        subprocess.run(["kill", "-9", pid], capture_output=True, check=False)
+        if kill is not None:
+            subprocess.run([kill, "-9", pid], capture_output=True, check=False,
+                           shell=False, env=child_env())
 
 
 def commit(state: dict, params: dict) -> dict:

@@ -20,6 +20,12 @@ def load_agent(agents_dir: Path | str, name: str, llm: LLM) -> "Agent":
     factory (frontmatter tool names resolved against the registry, unknown →
     ValueError; the markdown body is delivered as the system prompt suffix).
 
+    Tool surface (BR-1): the frontmatter `tools:` list is the exact
+    capability allowlist — every name must resolve to a registered SDK tool.
+    `FinishTool` (done signal) and `ThinkTool` (reasoning scaffold) are added
+    by the SDK as default infra, never part of the allowlist and never
+    removable via `tools:`. There is no regex or default-tools knob.
+
     Two pipeline policies on top of the SDK's native AgentDefinition loader:
     the file must exist (fail fast — the SDK's dir loader would silently
     skip it) and its frontmatter name must match its filename. A file with

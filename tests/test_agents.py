@@ -76,3 +76,13 @@ class TestLoadAgent:
         make_agent(agents_dir, "bad", "name: bad\ntools: [no_such_tool]\n", "# Body")
         with pytest.raises(ValueError):
             load_agent(agents_dir, "bad", llm)
+
+    def test_empty_tools_builds_infra_only(self, agents_dir, llm):
+        """`tools: []` yields no capability tools — only the SDK-default
+        infra (FinishTool + ThinkTool) and no regex filtering (BR-1.3,
+        BR-1.4, FD-2b)."""
+        make_agent(agents_dir, "bare", "name: bare\ntools: []\n", "# Body")
+        agent = load_agent(agents_dir, "bare", llm)
+        assert agent.tools == []
+        assert agent.include_default_tools == ["FinishTool", "ThinkTool"]
+        assert agent.filter_tools_regex is None

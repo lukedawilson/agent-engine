@@ -195,3 +195,9 @@
 
 ## Construction — unit-2 Code Generation — delegated to user's dev loop
 - 2026-10-18T00:00:00Z — User response (raw): "I'll run the dev loop myself, so just create the artefacts and stop" — unit-2 code generation (Part 2) is delegated to the user's dev loop (self-hosting via `./trigger-agent-engine.sh --ai-dlc-unit U2`). Assistant creates design/plan artefacts only and writes no application code. All unit-2 design artefacts (FD, NFR, Infrastructure Design) + the code-generation plan are in place; the dev agent executes the plan's 14 TDD steps.
+
+## Construction — unit-2 capture-path defects fixed (blocking the dev loop)
+- 2026-10-19T00:00:00Z — Root-caused why the dev loop retried to exhaustion: `_final_agent_text` read `conv.events`, which the SDK never provides (the events live on `conv.state.events`), so every agent response was captured empty ("no final response"). Fixed by delegating to the SDK's own `get_agent_final_response(conv.state.events)`; added a real-Conversation integration test (`TestLLM` scripted to finish) so synthetic fixtures can't mask it again. Also fixed `--max-attempts` being dropped on `--resume` (re-applied via `graph.update_state`). Both committed (`34b4891`, `4062fdf`).
+
+## Construction — unit-2 Code Generation complete (dev loop succeeded)
+- 2026-10-19T00:00:00Z — Dev loop completed on attempt 16 (first with the capture fix): dev → test → review → qa all passed, qa VERDICT: PASS, outcome=success. Full suite green: 391 passed. Auto-commit skipped by policy (worktree dirty at run start) — unit-2 code committed manually by user. Files: new `src/agent_engine/proc.py` + `tests/test_proc.py`; modified `registry.py`, `actions.py`, `stages.py`, `config.py`, `agents.py`, `sdk_agents/dev.agent.md`, and test files.

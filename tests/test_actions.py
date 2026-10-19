@@ -13,8 +13,9 @@ from pathlib import Path
 
 import pytest
 
-from agent_engine.actions import (_listening_pids, _parse_cwd_output, commit,
-                                  git_worktree_clean, kill_listeners_on_port)
+from agent_engine.actions import (_listening_pids, _parse_cwd_output, _pid_cwd,
+                                  commit, git_worktree_clean,
+                                  kill_listeners_on_port)
 
 lsof_required = pytest.mark.skipif(
     shutil.which("lsof") is None, reason="lsof required")
@@ -216,6 +217,14 @@ class TestPidCwd:
         assert _parse_cwd_output("garbage\n") is None
         assert _parse_cwd_output("") is None
 
+    def test_injection_shaped_pid_tokens_never_reach_lsof(self):
+        """A non-numeric pid token is rejected before it can reach lsof
+        (BR-5.2) — the subprocess is never invoked."""
+        assert _pid_cwd("1;rm -rf") is None
+        assert _pid_cwd("-9") is None
+        assert _pid_cwd("") is None
+        assert _pid_cwd(" 123") is None
+
 
 class TestGitWorktreeClean:
     def test_clean_repo(self, tmp_path):
@@ -318,14 +327,13 @@ class TestCommitNode:
         repo = tmp_path / "repo"
         init_git_repo(repo)
         (repo / "feature.cs").write_text("// constructed by the pipeline")
+        # Force `git commit` to fail deterministically without relying on
+        # inherited env vars (the commit action scrubs its child env): a
+        # pre-commit hook that always fails.
+        hook = repo / ".git" / "hooks" / "pre-commit"
+        hook.write_text("#!/bin/sh\nexit 1\n")
+        hook.chmod(0o755)
         monkeypatch.chdir(repo)
-        # Force `git commit` to fail deterministically: env-scoped config
-        # overrides every config file, and an empty ident is fatal.
-        monkeypatch.setenv("GIT_CONFIG_COUNT", "2")
-        monkeypatch.setenv("GIT_CONFIG_KEY_0", "user.name")
-        monkeypatch.setenv("GIT_CONFIG_VALUE_0", "")
-        monkeypatch.setenv("GIT_CONFIG_KEY_1", "user.email")
-        monkeypatch.setenv("GIT_CONFIG_VALUE_1", "")
 
         update = commit({"subject": "unit U2", "commit_allowed": True}, COMMIT_PARAMS)
 

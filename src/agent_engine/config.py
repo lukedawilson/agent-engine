@@ -120,6 +120,7 @@ class PipelineConfig(BaseModel):
     name: str
     extensions: list[str] = []
     additional_files: list[str] = []
+    env_allowlist: list[str] = []
     llm: LlmConfig
     state_dir: str = ".pr"
     max_attempts: int = 3

@@ -48,6 +48,7 @@ class Registry:
         self.document_loaders: list[DocumentLoader] = []
         self.cli_option_owners: dict[str, str] = {}  # option string -> loader name
         self.cli_dests: dict[str, str] = {}  # argparse dest -> loader name
+        self._loading_extension: str | None = None
 
     def add_action(self, name: str, fn: Callable) -> None:
         """Register a node-shaped action: (state, params) -> state update."""
@@ -70,8 +71,29 @@ class Registry:
 
     def add_tool(self, name: str, tool: type) -> None:
         """Register an SDK tool class (agent frontmatter names resolve
-        against the SDK's global registry)."""
+        against the SDK's global registry). The name is validated first
+        (BR-3): a non-empty identifier that does not collide with any name
+        already in the SDK registry — the SDK silently overwrites duplicates,
+        so agent-engine rejects before ``register_tool`` ever runs."""
         from openhands.sdk.tool import register_tool
+        from openhands.sdk.tool import registry as sdk_registry
+
+        if not name or name != name.strip():
+            raise ValueError(
+                f"tool name {name!r} is not a valid identifier — a non-empty "
+                "name with no leading/trailing whitespace is required")
+        if name in sdk_registry.list_registered_tools():
+            existing = sdk_registry.get_tool_module_qualnames().get(name)
+            existing = f" (already owned by {existing!r})" if existing else ""
+            owner = self._loading_extension
+            if owner is not None:
+                raise ValueError(
+                    f"extension {owner!r} tried to register tool {name!r}, which "
+                    f"is already in the SDK registry{existing} — refusing to "
+                    "silently overwrite it")
+            raise ValueError(
+                f"tool name {name!r} is already in the SDK registry{existing} — "
+                "refusing to silently overwrite it")
         register_tool(name, tool)
 
 
@@ -104,4 +126,8 @@ def load_extensions(refs: list[str], registry: Registry) -> None:
             ext = cls()
         except Exception as e:
             raise ValueError(f"Cannot instantiate extension {ref!r}: {e}") from e
-        ext.register(registry)
+        registry._loading_extension = getattr(ext, "name", None)
+        try:
+            ext.register(registry)
+        finally:
+            registry._loading_extension = None

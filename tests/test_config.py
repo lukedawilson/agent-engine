@@ -134,6 +134,14 @@ def test_minimal_config_applies_defaults(tmp_path):
     assert step.on_fail is None
 
 
+def test_env_allowlist_defaults_to_empty_and_loads(tmp_path):
+    """The subprocess env allowlist is optional and additive (NFR-2.5) —
+    absent → empty, present → the exact list."""
+    assert _load(tmp_path, _base()).env_allowlist == []
+    data = _base() | {"env_allowlist": ["MY_VAR", "OTHER_VAR"]}
+    assert _load(tmp_path, data).env_allowlist == ["MY_VAR", "OTHER_VAR"]
+
+
 def test_produces_accepts_a_list(tmp_path):
     data = _base()
     data["steps"][0]["produces"] = ["a.md", "b.md"]

@@ -94,7 +94,7 @@ def test_conflicting_decisions_are_ambiguous(text: str):
     assert result.error == VerdictError.AMBIGUOUS
 
 
-@given(st.text(alphabet=st.characters(blacklist_characters="\r"), min_size=1, max_size=500))
+@given(st.text(alphabet=st.characters(blacklist_categories=("Cs",), blacklist_characters="\r"), min_size=1, max_size=500))
 def test_capture_write_round_trip(text: str):
     """CapturedOutput.write → read is the identity on raw_text."""
     with tempfile.TemporaryDirectory() as td:
