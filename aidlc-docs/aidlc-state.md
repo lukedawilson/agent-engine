@@ -16,7 +16,7 @@
 - **Structure patterns**: See code-generation.md Critical Rules
 
 ## Intent
-- **Primary Intent**: Guardrails and sandboxing for the agent-engine pipeline library, in two stages:
+- **Primary Intent**: Guardrails and sandboxing for the agentic-dev-loop pipeline library, in two stages:
   1. SDK-level hardening — harden the existing tooling injection via what the OpenHands SDK provides
   2. Kernel-level sandboxing — kernel-enforced sandboxing for guardrails (namespaces/cgroups/seccomp via Docker)
 
@@ -64,7 +64,7 @@ Scope FR-2.1–FR-2.6 (always-on sandbox; Docker backend on ALL platforms — na
 
 - [x] Functional Design — approved 2026-10-19 (FD-1 conservative default profile; FD-3c git-mutation block; FD-4 always-on directive; FD-5 interface-level fakes; artifacts in aidlc-docs/construction/unit-3/functional-design/ — amended in place during NFR stage)
 - [x] NFR Requirements — approved 2026-10-19 (NFR-1 per-step env; NFR-2 persistent-per-run; NFR-3 docker CLI; NFR-5 setup hook provision phase + stamp caching; NFR-6 CI ubuntu+windows; major directive: drop native backend, keep interface; artifacts in aidlc-docs/construction/unit-3/nfr-requirements/)
-- [x] Infrastructure Design — approved 2026-10-19 (ID-1 own dev image via CI/GHCR; ID-2 any compliant daemon, API ≥1.43, Linux-containers mode on Windows; ID-3 ~/.agent-engine/state, one stamp/key; ID-4 caps 4g/2cpu exec, 8g/4cpu provision, per-pipeline override; ID-5 JSONL audit + 5MB rotation; ID-6 GitHub-hosted ubuntu+windows CI; ID-7 repo-shipped docs/setup.md user guide; ID-8 terminology = kernel-level sandboxing; artifacts in aidlc-docs/construction/unit-3/infrastructure-design/ + construction/shared-infrastructure.md)
+- [x] Infrastructure Design — approved 2026-10-19 (ID-1 own dev image via CI/GHCR; ID-2 any compliant daemon, API ≥1.43, Linux-containers mode on Windows; ID-3 ~/.agentic-dev-loop/state, one stamp/key; ID-4 caps 4g/2cpu exec, 8g/4cpu provision, per-pipeline override; ID-5 JSONL audit + 5MB rotation; ID-6 GitHub-hosted ubuntu+windows CI; ID-7 repo-shipped docs/setup.md user guide; ID-8 terminology = kernel-level sandboxing; artifacts in aidlc-docs/construction/unit-3/infrastructure-design/ + construction/shared-infrastructure.md)
 - [ ] Code Generation — Part 1 plan approved 2026-10-19 under docs-first directive (raw: "Get the docs ready for the agent-engine to implement, but do NOT write code"); implementation handoff spec at aidlc-docs/construction/unit-3/code/implementation-spec.md; code execution DEFERRED to implementing agent
 - [ ] Code Generation
 - [ ] Build and Test

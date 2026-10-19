@@ -12,18 +12,18 @@ test first, watch it fail, implement, watch it pass.
 
 ## 1. Scope
 
-- **Create**: `src/agent_engine/isolation.py`, `tests/test_isolation.py`,
+- **Create**: `src/agentic_dev_loop/isolation.py`, `tests/test_isolation.py`,
   `tests/test_isolation_pbt.py`, `tests/test_isolation_integration.py`, `Dockerfile`,
   `.github/workflows/ci.yml`, `.github/workflows/publish-image.yml`, `docs/setup.md`,
   `aidlc-docs/construction/unit-3/code/` summaries (this dir).
-- **Modify**: `src/agent_engine/{config,stages,agents,graph,cli,actions}.py` — `actions.py`
+- **Modify**: `src/agentic_dev_loop/{config,stages,agents,graph,cli,actions}.py` — `actions.py`
   gets exactly ONE change: the commit action gains the trusted hooksPath (§7). All other
   actions stay host-side, in-process, untouched. Also `tests/{test_config,test_stages,
   test_agents,test_cli,test_e2e_fixtures,test_graph,conftest}.py`, `COMPAT-SHIMS.md`,
-  `tests/test_sdk_compat.py`, `README.md`, `agent-engine/pipeline.yaml` (this repo's own
+  `tests/test_sdk_compat.py`, `README.md`, `agentic-dev-loop/pipeline.yaml` (this repo's own
   pipeline migrated to the sandboxed world, §7.1), `.gitignore` (add `.venv-sandbox/`).
 - **Never touch**: action-step routing (`stages.make_action_node` and the action registry
-  stay in-process host-side); `src/agent_engine/proc.py` unit-2 behavior.
+  stay in-process host-side); `src/agentic_dev_loop/proc.py` unit-2 behavior.
 
 ## 2. `isolation.py` — exact API surface
 
@@ -161,9 +161,9 @@ def clean_stamps(state_dir: Path) -> int                     # delete stamps/*, 
 ### 2.5 Constants
 
 ```python
-DEFAULT_DEV_IMAGE = "ghcr.io/lukedawilson/agent-engine/dev"
+DEFAULT_DEV_IMAGE = "ghcr.io/lukedawilson/agentic-dev-loop/dev"
 DEFAULT_DEV_IMAGE_REF = ""   # digest-pinned; filled after first publish (KD-2), e.g.
-                             # "ghcr.io/lukedawilson/agent-engine/dev@sha256:..."
+                             # "ghcr.io/lukedawilson/agentic-dev-loop/dev@sha256:..."
 DEFAULT_EXEC_MEMORY, DEFAULT_EXEC_CPUS = "4g", 2.0
 DEFAULT_PROVISION_MEMORY, DEFAULT_PROVISION_CPUS = "8g", 4.0
 ENGINE_API_FLOOR = "1.43"
@@ -171,7 +171,7 @@ SANDBOX_ENV_BASE = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": "/root",
                     "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "TERM": "xterm"}
 ```
 
-Image ref resolution at runtime: `AGENT_ENGINE_DEV_IMAGE` env override (tag OR digest) →
+Image ref resolution at runtime: `AGENTIC_DEV_LOOP_DEV_IMAGE` env override (tag OR digest) →
 else `DEFAULT_DEV_IMAGE_REF` → if empty string, **fail fast AE-SBX-005** (no silent fallback).
 Once pinned, pull is `docker pull <image>@<digest>`; an env-override TAG also pulls by tag.
 Timeout exit code convention: `timeout(1)` inside the container exits **124**.
@@ -247,7 +247,7 @@ class IsolationConfig(BaseModel):
     memory: str | None = None                     # override exec container memory
     cpus: float | None = None                     # override exec container cpus
     allow_git_mutations: bool = False             # BR-6 knob
-    state_dir: str = "~/.agent-engine/state"      # stamps + audit. HOST-ONLY: this dir is
+    state_dir: str = "~/.agentic-dev-loop/state"      # stamps + audit. HOST-ONLY: this dir is
     # NEVER mounted into the sandbox (Q1). Not run state.
     # validators: memory matches ^\d+[kmg]$; cpus > 0; state_dir expanduser at use.
 
@@ -255,7 +255,7 @@ class PipelineConfig(BaseModel):                  # line 117 — ADD:
     isolation: IsolationConfig | None = None      # None ⇒ defaults (always-on regardless)
 
     # Q1 — state_dir default RELOCATION (existing field, line 125): default changes from
-    # ".pr" to "~/.agent-engine/runs/<pipeline-hash>/" where pipeline-hash = sha256 hex
+    # ".pr" to "~/.agentic-dev-loop/runs/<pipeline-hash>/" where pipeline-hash = sha256 hex
     # (first 12 chars) of the absolute pipeline-file path. Checkpoint DB + last-error.md
     # therefore live OUTSIDE the workspace mount — unreachable by the sandbox.
     # Explicit `state_dir:` configs keep working unchanged (backward compatible); authors
@@ -285,7 +285,7 @@ Every message is `AE-SBX-<NNN>: <what happened>. <action>` — action always poi
 | AE-SBX-002 | daemon unreachable | start your Docker engine — docs/setup.md §1 |
 | AE-SBX-003 | API < 1.43 | found X, require ≥ 1.43 (Engine 24) — upgrade — docs/setup.md §1 |
 | AE-SBX-004 | OSType ≠ linux | switch Docker Desktop to Linux containers — docs/setup.md §1 |
-| AE-SBX-005 | no digest pinned AND no env override | pinned digest not yet published; set AGENT_ENGINE_DEV_IMAGE — docs/setup.md §2 |
+| AE-SBX-005 | no digest pinned AND no env override | pinned digest not yet published; set AGENTIC_DEV_LOOP_DEV_IMAGE — docs/setup.md §2 |
 | AE-SBX-006 | pull failed after retries | last pull error + docs/setup.md §5 |
 | AE-SBX-007 | post-pull digest mismatch | supply-chain check failed; refuse to continue |
 | AE-SBX-008 | git mutation blocked | named command + `isolation.allow_git_mutations: true` — docs/setup.md §3 |
@@ -332,7 +332,7 @@ def _terminal_factory_for(sandbox) -> Callable:
 - Pipelines are sequential ⇒ per-run re-registration of the `terminal` name is safe.
 - `COMPAT-SHIMS.md`: new entry "TerminalTool.create(executor=) + registry callable factory"
   — version range `openhands-sdk==1.17.0` (tested), removal criterion = SDK drops the kwarg
-  or changes the factory convention → replace with agent-engine-owned terminal tool;
+  or changes the factory convention → replace with agentic-dev-loop-owned terminal tool;
   pinning test in `test_sdk_compat.py` (inspect.signature canary per existing procedure).
 - Consequence (accepted): no persistent shell session — each action is a fresh exec;
   C-c/soft-timeout semantics degrade to hard timeouts (recorded in FD).
@@ -365,7 +365,7 @@ def _terminal_factory_for(sandbox) -> Callable:
   in-process, host-side, never routed through the sandbox (guard test required).
 - `actions.py` commit action — THE ONLY actions.py CHANGE (Q3): run
   `git add -A` and `git commit` with `-c core.hooksPath=<trusted>` where trusted =
-  an agent-engine-managed dir (`~/.agent-engine/state/hooks` created empty, or
+  an agentic-dev-loop-managed dir (`~/.agentic-dev-loop/state/hooks` created empty, or
   `<state>/hooks`) — repo hooks in `.git/hooks` never execute. `git_worktree_clean`
   and `kill_listeners_on_port` untouched.
 - `cli.py`: `_core_parser()` gains `--refresh` (sets `isolation.refresh=True`) and
@@ -375,11 +375,11 @@ def _terminal_factory_for(sandbox) -> Callable:
 
 ### 7.1 This repo's own pipeline.yaml migration (user requirement, 2026-10-19)
 
-`agent-engine/pipeline.yaml` must keep working under always-on sandboxing. Changes:
+`agentic-dev-loop/pipeline.yaml` must keep working under always-on sandboxing. Changes:
 
 | Item | Today | Migrated |
 | --- | --- | --- |
-| `state_dir: .pr` (line 16) | explicit, INSIDE workspace | drop the line → new default `~/.agent-engine/runs/<hash>/` (out of mount) |
+| `state_dir: .pr` (line 16) | explicit, INSIDE workspace | drop the line → new default `~/.agentic-dev-loop/runs/<hash>/` (out of mount) |
 | test step command | `.venv/bin/python -m pytest tests/ -q` (HOST venv — unexecutable in the Linux container) | `.venv-sandbox/bin/python -m pytest tests/ -q -m "not docker"` (docker-marked tests run in CI, and the sandbox has no docker CLI) |
 | test step `setup:` | none | `python -m venv .venv-sandbox && .venv-sandbox/bin/pip install -e ".[dev]"` (provision container: network ON, stamp-cached; venv persists via the workspace bind mount; dev/review/qa agents can also use `.venv-sandbox/bin/python` because provision completes at startup, Q2) |
 | `.gitignore` | has `.pr/` | keep `.pr/` (belt-and-braces if someone re-declares it) + add `.venv-sandbox/` |
@@ -399,7 +399,7 @@ never write to the real user home via the new default. Unit tests asserting the 
   (service start step), verify `docker version` before the marked tests.
 
 `publish-image.yml` (on: workflow_dispatch, push to main when Dockerfile changed):
-- docker/build-push-action → `ghcr.io/lukedawilson/agent-engine/dev:latest` + digest
+- docker/build-push-action → `ghcr.io/lukedawilson/agentic-dev-loop/dev:latest` + digest
   manifest; step prints the digest for pinning into `DEFAULT_DEV_IMAGE_REF` (KD-2: paste the
   digest into `isolation.py` in the same PR as the first publish).
 
@@ -415,10 +415,10 @@ CMD ["sleep", "infinity"]
 ## 9. docs/setup.md — ID-7 outline (six sections)
 
 1. **Prerequisites** — engine install per OS (Docker Desktop macOS/Windows; Docker Engine/OrbStack/Colima/podman Linux); Windows: Linux-containers mode.
-2. **First run** — digest-verified pull on first use; `AGENT_ENGINE_DEV_IMAGE` override for pre-publish dev loop; what the pinned digest means.
-3. **pipeline.yaml** — walkthrough: `isolation:` (image, refresh, memory/cpus, allow_git_mutations, state_dir = host-only stamps/audit), per-step `env:` (null = inherit), per-step `setup:` (command steps only), git-mutation default block and the knob, the new `state_dir` default (`~/.agent-engine/runs/<pipeline-hash>/` — checkpoint DB + last-error.md live there, out of the sandbox; explicit `state_dir` inside a workspace is author's accepted risk).
-4. **Caching** — stamp caching (skip-on-match, all setups run at startup), `--refresh` / `isolation.refresh`, `--clean-stamps`, where stamps live (`~/.agent-engine/state/stamps/`).
-5. **Troubleshooting** — every AE-SBX message with cause + fix; audit log location (`~/.agent-engine/state/sandbox-audit.jsonl`); run-state location (`~/.agent-engine/runs/`); Linux-host note: bind-mounted writes land root-owned (KD-7), `sudo chown -R $USER` recovery.
+2. **First run** — digest-verified pull on first use; `AGENTIC_DEV_LOOP_DEV_IMAGE` override for pre-publish dev loop; what the pinned digest means.
+3. **pipeline.yaml** — walkthrough: `isolation:` (image, refresh, memory/cpus, allow_git_mutations, state_dir = host-only stamps/audit), per-step `env:` (null = inherit), per-step `setup:` (command steps only), git-mutation default block and the knob, the new `state_dir` default (`~/.agentic-dev-loop/runs/<pipeline-hash>/` — checkpoint DB + last-error.md live there, out of the sandbox; explicit `state_dir` inside a workspace is author's accepted risk).
+4. **Caching** — stamp caching (skip-on-match, all setups run at startup), `--refresh` / `isolation.refresh`, `--clean-stamps`, where stamps live (`~/.agentic-dev-loop/state/stamps/`).
+5. **Troubleshooting** — every AE-SBX message with cause + fix; audit log location (`~/.agentic-dev-loop/state/sandbox-audit.jsonl`); run-state location (`~/.agentic-dev-loop/runs/`); Linux-host note: bind-mounted writes land root-owned (KD-7), `sudo chown -R $USER` recovery.
 6. **Security notes** — kernel-level sandboxing terminology (ID-8), threat model summary, residual risks (setup-output mutation inside sandbox; explicit in-workspace state_dir choice). Git hooks during commit are MITIGATED (trusted hooksPath, Q3) — not a residual.
 
 README: add a short "Sandboxed execution" section linking `docs/setup.md`.
@@ -450,3 +450,8 @@ Markers: register `docker` in pyproject (`[tool.pytest.ini_options] markers`).
 - **TDD**: red first, every step; plan checkboxes updated same-interaction.
 - **Brownfield**: modify in place; never create `*_new.py`; verify no duplicates at the end.
 - **COMPAT-SHIMS**: follow `COMPAT-SHIMS.md` upgrade procedure; add the terminal-seam entry.
+
+## Amendment (2026-10-19) — package rename
+
+- Repo/package renamed `agent-engine` → `agentic-dev-loop` (GitHub repo `lukedawilson/agentic-dev-loop`, PyPI `agentic-dev-loop`, wheel v0.2.0).
+- Applied throughout this spec: module paths `src/agent_engine/` → `src/agentic_dev_loop/`; env override `AGENT_ENGINE_DEV_IMAGE` → `AGENTIC_DEV_LOOP_DEV_IMAGE`; default image `ghcr.io/lukedawilson/agentic-dev-loop/dev`; user state dirs `~/.agent-engine/*` → `~/.agentic-dev-loop/*`; pipeline dir reference `agent-engine/pipeline.yaml` → `agentic-dev-loop/pipeline.yaml`. No design change.

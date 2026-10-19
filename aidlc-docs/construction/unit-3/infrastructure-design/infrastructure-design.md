@@ -27,11 +27,11 @@ or Kata/Firecracker microVMs are a future `runtime:` knob on the same
 | # | Logical component | Infrastructure choice | Source |
 | --- | --- | --- | --- |
 | 1 | Docker daemon | Any compliant engine (Docker Desktop, OrbStack, Colima, Rancher Desktop, podman docker-compat) via `docker` CLI; engine API floor ≥ 1.43 (Engine 24); Windows requires Linux-containers mode | ID-2, BR-4 |
-| 2 | Pinned dev image | `ghcr.io/lukedawilson/agent-engine/dev` — python + node + git, built/published by CI, digest-pinned in code, rebuilt on toolchain bumps | ID-1, NFR-3.7 |
+| 2 | Pinned dev image | `ghcr.io/lukedawilson/agentic-dev-loop/dev` — python + node + git, built/published by CI, digest-pinned in code, rebuilt on toolchain bumps | ID-1, NFR-3.7 |
 | 3 | Image registry | GHCR (public repo → anonymous pulls); digest verified after pull; bounded retry on pull/daemon-wait only (BR-10) | ID-1, NFR-3.7 |
 | 4 | Execution container | Per-run container: `--network none --read-only --cap-drop ALL`, tmpfs scratch at `/tmp` + `/root`, rw bind mounts for workspace + state_dir; lazy create, `docker exec` per request, destroy at pipeline end + all error paths | BR-3, BR-5, BR-8, BR-13 |
 | 5 | Provision container | Short-lived, network ON (bridge w/ DNS), rw rootfs, `--cap-drop ALL`, same bind mounts; destroyed after `setup:` completes | BR-13 |
-| 6 | Bind mounts / state_dir | Host `state_dir` defaults to `~/.agent-engine/state`; stamps under `state_dir/stamps/` (one per setup key); audit at `state_dir/sandbox-audit.jsonl`; no named volumes — containers are ephemeral | ID-3, ID-5 |
+| 6 | Bind mounts / state_dir | Host `state_dir` defaults to `~/.agentic-dev-loop/state`; stamps under `state_dir/stamps/` (one per setup key); audit at `state_dir/sandbox-audit.jsonl`; no named volumes — containers are ephemeral | ID-3, ID-5 |
 | 7 | CI workflows | GitHub-hosted `ubuntu-latest` + `windows-latest`; publishes the dev image to GHCR; runs the full suite + Docker-backend integration tests | ID-6 |
 | 8 | Audit log sink | Host-side JSONL + existing Python logger; 5 MB rotation with one rolled file | ID-5, BR-11 |
 
@@ -41,7 +41,7 @@ or Kata/Firecracker microVMs are a future `runtime:` knob on the same
 | --- | --- | --- |
 | Deployment Environment | PARTIAL | Dev-machine matrix (macOS/Windows/Linux) + GitHub-hosted CI runners. No cloud deployment. |
 | Compute | YES | Docker daemon on dev machines + CI. Default caps: execution `--memory 4g --cpus 2`, provision `--memory 8g --cpus 4`; per-pipeline override in `isolation:` | ID-4 |
-| Storage | YES | `~/.agent-engine/state` (stamps + audit), bind-mounted workspace, daemon-local image storage, ephemeral containers only | ID-3 |
+| Storage | YES | `~/.agentic-dev-loop/state` (stamps + audit), bind-mounted workspace, daemon-local image storage, ephemeral containers only | ID-3 |
 | Messaging | N/A | Synchronous local pipeline; no queues or events. |
 | Networking | YES | Execution = `--network none`; provision = default bridge; image pull host-side via `docker` CLI. No port publishing ever (viz is host-side). |
 | Monitoring | PARTIAL | Host-side audit JSONL + logger; no cloud observability (desktop tool — justified). |
@@ -55,7 +55,7 @@ or Kata/Firecracker microVMs are a future `runtime:` knob on the same
 
 ## Image & supply chain (ID-1)
 
-- Default: `ghcr.io/lukedawilson/agent-engine/dev` pinned by immutable digest; per-pipeline `isolation.image` override (digest required for non-tag references per SECURITY-07).
+- Default: `ghcr.io/lukedawilson/agentic-dev-loop/dev` pinned by immutable digest; per-pipeline `isolation.image` override (digest required for non-tag references per SECURITY-07).
 - CI publish job builds from a committed Dockerfile and pushes `latest` + digest-tagged manifests; the harness consumes the digest constant, bumped in the same commit as the toolchain change.
 - Pull path: host-side `docker pull <image>@<digest>` with bounded retry (BR-10); digest re-verified via `docker inspect` after pull.
 
@@ -67,7 +67,7 @@ or Kata/Firecracker microVMs are a future `runtime:` knob on the same
 ## Storage layout (ID-3)
 
 ```text
-~/.agent-engine/state/
+~/.agentic-dev-loop/state/
 ├── stamps/                # one marker per setup key (setup_cmd + lockfile hashes)
 └── sandbox-audit.jsonl    # one JSON record per sandboxed execution (rotates at 5 MB)
 ```
@@ -107,7 +107,7 @@ dev image, and the pipeline.yaml contract. The guide is **written at Code
 Generation**; the infra design fixes its outline:
 
 1. **Prerequisites** — install a compliant Docker engine per OS (Docker Desktop on macOS/Windows incl. Linux-containers mode; Docker Engine / OrbStack / Colima / podman on Linux); verify with `docker run hello-world`; engine API ≥ 1.43.
-2. **First run** — what happens automatically: load-time probe, digest-verified image pull (bounded retry), `~/.agent-engine/state/` creation; troubleshooting pull failures (offline, auth, digest mismatch).
+2. **First run** — what happens automatically: load-time probe, digest-verified image pull (bounded retry), `~/.agentic-dev-loop/state/` creation; troubleshooting pull failures (offline, auth, digest mismatch).
 3. **Writing pipeline.yaml** — walkthrough of the `isolation:` section (image override, resource caps, refresh), per-step `env:` (fixed safe base + declared vars only; `null` = inherit from host; LLM key handling), per-step `setup:` (command steps only; runs in the provision container with network ON; outputs land in the workspace; stamp-cached), and git-mutation blocking (`allow_git_mutations`).
 4. **Stamp caching & refresh** — how the stamp key is computed (setup cmd + lockfile hashes), when setup re-runs, `isolation.refresh` / `--refresh`, `--clean-stamps`.
 5. **Troubleshooting** — every fail-fast message (no daemon, engine too old, Windows-containers mode), where the audit log lives, OOM at the resource caps.
@@ -120,7 +120,11 @@ Generation**; the infra design fixes its outline:
 
 ## Amendment (2026-10-19) — loop-mechanics hardening
 
-- **Mount table**: execution + provision containers mount ONLY the workspace (Q1). isolation state_dir (`~/.agent-engine/state`) is host-only — stamps/audit unreachable by the sandbox.
-- **Storage layout**: NEW user-level runs dir `~/.agent-engine/runs/<pipeline-hash>/` holds checkpoint DB + last-error.md (PipelineConfig.state_dir default, Q1).
+- **Mount table**: execution + provision containers mount ONLY the workspace (Q1). isolation state_dir (`~/.agentic-dev-loop/state`) is host-only — stamps/audit unreachable by the sandbox.
+- **Storage layout**: NEW user-level runs dir `~/.agentic-dev-loop/runs/<pipeline-hash>/` holds checkpoint DB + last-error.md (PipelineConfig.state_dir default, Q1).
 - **Lifecycle**: container create+start and all provision runs move to startup (eager, Q2); per-request `docker exec` only during steps.
 - **Commit action**: `git -c core.hooksPath=<trusted dir>` (Q3) — hooks residual mitigated.
+
+## Amendment (2026-10-19) — package rename
+
+- Package references updated `agent-engine` → `agentic-dev-loop` throughout (module paths, default image `ghcr.io/lukedawilson/agentic-dev-loop/dev`, env var `AGENTIC_DEV_LOOP_DEV_IMAGE`, user state dirs `~/.agentic-dev-loop/*`). No design change.

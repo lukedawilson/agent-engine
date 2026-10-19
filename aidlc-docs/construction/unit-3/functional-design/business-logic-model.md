@@ -95,5 +95,9 @@ flowchart LR
 
 - **Load time (eager startup, Q2)**: probe → image ensure → execution container create+start → pre-provision ALL declared setups (stamp-cached) → graph build. Zero infra operations mid-run.
 - **Mount invariant (Q1)**: payload builders take workspace only; mount set == {workspace}; PBT-03 single-mount invariant replaces the two-mount one.
-- **Run state (Q1)**: PipelineConfig.state_dir default → `~/.agent-engine/runs/<pipeline-hash>/`.
+- **Run state (Q1)**: PipelineConfig.state_dir default → `~/.agentic-dev-loop/runs/<pipeline-hash>/`.
 - Git guard unchanged; commit action adds trusted hooksPath (Q3) — see business-rules.md.
+
+## Amendment (2026-10-19) — package rename
+
+- Package references updated `agent-engine` → `agentic-dev-loop` throughout (module paths, default image `ghcr.io/lukedawilson/agentic-dev-loop/dev`, env var `AGENTIC_DEV_LOOP_DEV_IMAGE`, user state dirs `~/.agentic-dev-loop/*`). No design change.

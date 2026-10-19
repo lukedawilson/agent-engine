@@ -19,7 +19,7 @@ Per DDD standards: descent audit applied; domain-standards extension enforced. T
 
 ## New Entity
 
-### `Sandbox` (NEW — descent step 3, `src/agent_engine/isolation.py`)
+### `Sandbox` (NEW — descent step 3, `src/agentic_dev_loop/isolation.py`)
 
 The isolation boundary: owns the sandboxed execution lifecycle (persistent-per-run container → per-request exec → destroy → result). Rich behaviour, not a data holder:
 
@@ -53,7 +53,7 @@ Behaviour: `succeeded` / `is_timeout` predicates. Exit-code-is-the-verdict seman
 
 ## New Module — pure translation functions (descent step 0)
 
-`src/agent_engine/isolation.py` also hosts the platform-independent pure functions — the bulk of NFR-7 testability:
+`src/agentic_dev_loop/isolation.py` also hosts the platform-independent pure functions — the bulk of NFR-7 testability:
 
 | Function | Signature | Notes |
 | --- | --- | --- |
@@ -69,21 +69,21 @@ All pure — the PBT-03 targets. ~~`bwrap_argv` / `landlock_ruleset` / `seccomp_
 
 ## Modified Entities
 
-### `PipelineConfig` (entity — modified, `src/agent_engine/config.py`)
+### `PipelineConfig` (entity — modified, `src/agentic_dev_loop/config.py`)
 
 - Gains the optional `isolation:` section (profile overrides, image override, `refresh` flag). **Amended:** no backend override (single backend).
 - Behaviour: `effective_profile()` resolves defaults + overrides; unknown keys fail at load (BR-5.3).
 - Always-on: absence of the section means opinionated defaults (BR-2.4) — the section configures the sandbox, it never enables/disables it.
 
-### `StepConfig` (entity — modified, `src/agent_engine/config.py`)
+### `StepConfig` (entity — modified, `src/agentic_dev_loop/config.py`)
 
 - Gains optional `env:` (mapping VAR → value | null=inherit) and optional `setup:` (command steps only; agent/action steps reject it at load — BR-13.1).
 
-### `StagesRuntime._run_command` (module function — modified, `src/agent_engine/stages.py`)
+### `StagesRuntime._run_command` (module function — modified, `src/agentic_dev_loop/stages.py`)
 
 - Routes command steps through `Sandbox.run` instead of a host subprocess (BR-1.1). The step's declared env (`resolve_sandbox_env`) feeds the request env (BR-9.1/NFR-1). Steps with `setup:` run the provision phase first (stamp-cached, BR-13).
 
-### `StagesRuntime.run_agent` / terminal-tool wiring (modified, `src/agent_engine/stages.py`)
+### `StagesRuntime.run_agent` / terminal-tool wiring (modified, `src/agentic_dev_loop/stages.py`)
 
 - The agent's `terminal` tool becomes a trusted host-side wrapper that delegates to `Sandbox.run` (BR-1.1). The tool stays an SDK capability tool — only its execution path changes. The agent step's declared env applies to its terminal; no setup, no network for the terminal (BR-13.6).
 
@@ -139,3 +139,7 @@ No delegating entity; no service-named value object; no per-endpoint service; no
 - **Sandbox lifecycle**: create/start at construction (eager, Q2); run() = exec only; close() idempotent destroy. No lazy-create state on the entity.
 - **Commit action (actions.py)**: gains trusted hooksPath (Q3) — the ONLY actions.py change.
 - **PipelineConfig.state_dir** default relocates out of the workspace (Q1) — descent-audit rows for PipelineConfig/state_dir updated accordingly.
+
+## Amendment (2026-10-19) — package rename
+
+- Package references updated `agent-engine` → `agentic-dev-loop` throughout (module paths, default image `ghcr.io/lukedawilson/agentic-dev-loop/dev`, env var `AGENTIC_DEV_LOOP_DEV_IMAGE`, user state dirs `~/.agentic-dev-loop/*`). No design change.

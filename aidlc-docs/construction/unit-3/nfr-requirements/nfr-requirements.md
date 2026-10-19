@@ -55,5 +55,9 @@ NFR assessment identified material requirements across security (dominant), perf
 
 - **NFR-3.2**: mount minimization — sandbox mount set = workspace only (Q1).
 - **NFR-3.3**: lifecycle = eager startup (Q2); startup latency = probe + pull(cached) + create + provision(stamp-cached); per-exec ~100-300ms unchanged.
-- **NFR-3.9**: state_dir DEFAULT changes (`.pr` → `~/.agent-engine/runs/<pipeline-hash>/`); explicit configs keep working. Migration note for existing pipelines.
+- **NFR-3.9**: state_dir DEFAULT changes (`.pr` → `~/.agentic-dev-loop/runs/<pipeline-hash>/`); explicit configs keep working. Migration note for existing pipelines.
 - **NFR-3.4**: fail-fast set unchanged; provision failure now aborts at startup (AE-SBX-009).
+
+## Amendment (2026-10-19) — package rename
+
+- Package references updated `agent-engine` → `agentic-dev-loop` throughout (module paths, default image `ghcr.io/lukedawilson/agentic-dev-loop/dev`, env var `AGENTIC_DEV_LOOP_DEV_IMAGE`, user state dirs `~/.agentic-dev-loop/*`). No design change.

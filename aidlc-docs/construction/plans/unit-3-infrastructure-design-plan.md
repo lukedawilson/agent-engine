@@ -16,7 +16,7 @@ infrastructure mapping are:
 7. **CI workflows** — ubuntu + windows runners exercising the Docker backend.
 8. **Audit log sink** — host-side record of sandboxed executions (BR-11).
 
-Repo facts: `lukedawilson/agent-engine` is **PUBLIC** on GitHub; no `.github/workflows/` exists yet (first CI ships with unit-3).
+Repo facts: `lukedawilson/agentic-dev-loop` is **PUBLIC** on GitHub; no `.github/workflows/` exists yet (first CI ships with unit-3).
 
 ## Category Applicability Analysis (mandated 7 categories)
 
@@ -48,7 +48,7 @@ Repo is PUBLIC, so GHCR anonymous pulls would work. Options: publish our own ima
 
 **Q:** Where should the pinned default dev image (python + node + git) come from?
 
-[Answer]: A — publish our own `agent-engine/dev` image to GHCR via a CI job; digest-pinned in code, rebuilt when toolchain bumps ship. Provision stays fast (toolchain baked in); anonymous pulls OK (public repo).
+[Answer]: A — publish our own `agentic-dev-loop/dev` image to GHCR via a CI job; digest-pinned in code, rebuilt when toolchain bumps ship. Provision stays fast (toolchain baked in); anonymous pulls OK (public repo).
 
 ### ID-2 — Docker engine baseline & mode detection (Compute / Deployment Environment)
 
@@ -62,7 +62,7 @@ Which engines do we support: any modern docker-CLI-compatible daemon, or a certi
 
 **Q:** Where does state_dir live by default, and what is the stamp-cache eviction policy?
 
-[Answer]: A — `~/.agent-engine/state` (Path.home()-based, per-user). Stamps under `state_dir/stamps/`, one stamp per setup key; growth bounded by distinct setups used; manual cleanup via a CLI clean command. Provision outputs stay in the workspace (not state_dir).
+[Answer]: A — `~/.agentic-dev-loop/state` (Path.home()-based, per-user). Stamps under `state_dir/stamps/`, one stamp per setup key; growth bounded by distinct setups used; manual cleanup via a CLI clean command. Provision outputs stay in the workspace (not state_dir).
 
 ### ID-4 — Container resource caps (Compute)
 
@@ -101,3 +101,4 @@ Which engines do we support: any modern docker-CLI-compatible daemon, or a certi
 - 2026-10-19T13:41:15Z — plan created at Infrastructure Design stage start.
 - 2026-10-19T14:05:00Z — change request during review: user setup guide added as a unit-3 deliverable (ID-7, answer A).
 - 2026-10-19T14:20:00Z — change request during review: terminology amended to "kernel-level sandboxing" (ID-8).
+- 2026-10-19T18:45:00Z — package-rename amendment batch (docs-only): repo renamed on GitHub (`lukedawilson/agentic-dev-loop`); image path, state dirs, and module references updated throughout this plan.

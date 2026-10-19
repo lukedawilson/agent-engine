@@ -12,7 +12,7 @@ unit-3 Infrastructure Design (2026-10-19). Units 1-2 had no infrastructure
 
 ## 2. Pinned dev image + GHCR registry
 
-- **What**: `ghcr.io/lukedawilson/agent-engine/dev` (python + node + git), digest-pinned in code; published by CI on main; per-pipeline `isolation.image` override.
+- **What**: `ghcr.io/lukedawilson/agentic-dev-loop/dev` (python + node + git), digest-pinned in code; published by CI on main; per-pipeline `isolation.image` override.
 - **Who uses it**: all sandboxed pipelines on all machines (default image), CI.
 - **Governed by**: SECURITY-07 (digest pinning + post-pull verification); publish flow in CI `publish-image.yml` (ships with unit-3).
 
@@ -23,7 +23,7 @@ unit-3 Infrastructure Design (2026-10-19). Units 1-2 had no infrastructure
 
 ## 4. Per-user state directory
 
-- **What**: `~/.agent-engine/state/` — provision stamps (`stamps/`) and the sandbox audit log (`sandbox-audit.jsonl`).
+- **What**: `~/.agentic-dev-loop/state/` — provision stamps (`stamps/`) and the sandbox audit log (`sandbox-audit.jsonl`).
 - **Who uses it**: all pipelines on a machine; shared across projects (one stamp per setup key).
 
 ## Change process
@@ -33,4 +33,8 @@ unit-3 Infrastructure Design (2026-10-19). Units 1-2 had no infrastructure
 
 ## 5. Per-user run state (added 2026-10-19, Q1)
 
-- `~/.agent-engine/runs/<pipeline-hash>/` — default PipelineConfig.state_dir: checkpoint DB + last-error.md + per-run artifacts, OUTSIDE the sandbox mount.
+- `~/.agentic-dev-loop/runs/<pipeline-hash>/` — default PipelineConfig.state_dir: checkpoint DB + last-error.md + per-run artifacts, OUTSIDE the sandbox mount.
+
+## Amendment (2026-10-19) — package rename
+
+- Package references updated `agent-engine` → `agentic-dev-loop` throughout (module paths, default image `ghcr.io/lukedawilson/agentic-dev-loop/dev`, env var `AGENTIC_DEV_LOOP_DEV_IMAGE`, user state dirs `~/.agentic-dev-loop/*`). No design change.

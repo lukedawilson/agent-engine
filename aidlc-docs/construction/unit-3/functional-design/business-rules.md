@@ -143,4 +143,8 @@
 - **BR-13**: provision runs at STARTUP for every declared setup (eager, Q2) — stamp-cached, `--refresh` respected; never at the step boundary. Mount set {workspace}.
 - **BR-7**: git-hook residual RECLASSIFIED accepted → mitigated: the trusted commit action runs git with `-c core.hooksPath=<trusted dir>` (Q3); agent-influenced `.git/hooks` never execute host-side.
 - **BR-1.3/BR-2**: execution container created + started at startup (eager lifecycle, Q2); mid-run failure = command result or daemon death (AE-SBX-012).
-- **NEW**: PipelineConfig.state_dir default relocates to `~/.agent-engine/runs/<pipeline-hash>/` — checkpoint DB + last-error.md out of the sandbox; explicit configs keep working (author accepts exposure if they point it inside the workspace).
+- **NEW**: PipelineConfig.state_dir default relocates to `~/.agentic-dev-loop/runs/<pipeline-hash>/` — checkpoint DB + last-error.md out of the sandbox; explicit configs keep working (author accepts exposure if they point it inside the workspace).
+
+## Amendment (2026-10-19) — package rename
+
+- Package references updated `agent-engine` → `agentic-dev-loop` throughout (module paths, default image `ghcr.io/lukedawilson/agentic-dev-loop/dev`, env var `AGENTIC_DEV_LOOP_DEV_IMAGE`, user state dirs `~/.agentic-dev-loop/*`). No design change.

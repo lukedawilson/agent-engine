@@ -5,10 +5,10 @@
 ```mermaid
 flowchart LR
     subgraph HOST["Host machine (macOS / Windows / Linux)"]
-        AE["agent-engine Python process"]
+        AE["agentic-dev-loop Python process"]
         CLI["docker CLI"]
         WS["workspace/"]
-        SD["~/.agent-engine/state/"]
+        SD["~/.agentic-dev-loop/state/"]
     end
     subgraph DAEMON["Docker daemon (any compliant engine)"]
         IMG[("pinned dev image<br/>ghcr.io/.../dev@digest")]
@@ -32,7 +32,7 @@ writes from sandboxed work land in the bind-mounted workspace (and state_dir).
 
 ```mermaid
 sequenceDiagram
-    participant AE as agent-engine (host)
+    participant AE as agentic-dev-loop (host)
     participant CLI as docker CLI
     participant D as Docker daemon
     participant R as Registry (GHCR)
@@ -105,7 +105,7 @@ must direct users to it, not just to the installer pages:
 1. Install a compliant Docker engine (links/messages per platform) — Docker Desktop (macOS/Windows), or Docker Engine / OrbStack / Colima / podman on Linux.
 2. Windows only: ensure Linux-containers mode is active.
 3. Start the daemon. On first run the harness pulls the pinned dev image (digest-verified, retried); later runs reuse the local image cache.
-4. `~/.agent-engine/state/` is created on first use; `--clean-stamps` removes cached provision stamps.
+4. `~/.agentic-dev-loop/state/` is created on first use; `--clean-stamps` removes cached provision stamps.
 
 ## Failure modes mapped to behavior
 
@@ -124,3 +124,7 @@ must direct users to it, not just to the installer pages:
 - **Runtime sequence (eager startup, Q2)**: probe → pull (digest verify) → create+start exec container → provision all declared setups → graph build → steps (exec only) → destroy. No lazy container creation; no step-boundary provision.
 - **Mount set**: workspace only (Q1); run state/audit/stamps are host-only.
 - **Failure table**: + provision failure at startup aborts before any step executes (AE-SBX-009).
+
+## Amendment (2026-10-19) — package rename
+
+- Package references updated `agent-engine` → `agentic-dev-loop` throughout (module paths, default image `ghcr.io/lukedawilson/agentic-dev-loop/dev`, env var `AGENTIC_DEV_LOOP_DEV_IMAGE`, user state dirs `~/.agentic-dev-loop/*`). No design change.
