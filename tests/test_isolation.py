@@ -14,7 +14,7 @@ import pytest
 
 from agentic_dev_loop.config import IsolationConfig
 from agentic_dev_loop.isolation import (
-    AUDIT_MAX_BYTES, CmdResult, DEFAULT_DEV_IMAGE_REF,
+    AUDIT_MAX_BYTES, CmdResult, DEFAULT_DEV_IMAGE, DEFAULT_DEV_IMAGE_REF,
     DockerBackend, EffectiveProfile, ProbeResult, SandboxError,
     SandboxExecutionRequest, SandboxExecutionResult, append_audit_record,
     clean_stamps, docker_create_payload, docker_provision_payload,
@@ -93,6 +93,14 @@ class TestEffectiveProfile:
         assert p.drop_all_capabilities and p.git_mutations_blocked
         assert p.image == DEFAULT_DEV_IMAGE_REF
         assert p.memory == "4g" and p.cpus == 2.0
+
+    def test_default_ref_is_digest_pinned(self):
+        """KD-2: the shipped default must name the published dev image by
+        digest — AE-SBX-005 fails fast while the constant is empty, and an
+        unpinned tag would silently drift to `latest`."""
+        assert DEFAULT_DEV_IMAGE_REF.startswith(
+            DEFAULT_DEV_IMAGE + "@sha256:"
+        ), "DEFAULT_DEV_IMAGE_REF must hold the published dev-image digest"
 
     def test_overrides(self):
         iso = IsolationConfig(image="img@sha256:abc", memory="8g", cpus=4.0,

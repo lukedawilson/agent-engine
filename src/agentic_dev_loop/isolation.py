@@ -42,7 +42,7 @@ DEFAULT_DEV_IMAGE = "ghcr.io/lukedawilson/agentic-dev-loop/dev"
 # Digest-pinned; filled after first publish (KD-2). An empty ref fails fast at
 # runtime unless AGENTIC_DEV_LOOP_DEV_IMAGE overrides it — never a silent
 # `latest` fallback.
-DEFAULT_DEV_IMAGE_REF = ""
+DEFAULT_DEV_IMAGE_REF = "ghcr.io/lukedawilson/agentic-dev-loop/dev@sha256:469d2d9c82f6cbb9821b98cd31329d4b7773de914ebe15d90815c0128bd80ac5"
 IMAGE_ENV_OVERRIDE = "AGENTIC_DEV_LOOP_DEV_IMAGE"
 
 DEFAULT_EXEC_MEMORY = "4g"
