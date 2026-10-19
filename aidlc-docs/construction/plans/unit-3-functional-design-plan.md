@@ -1,20 +1,22 @@
-# Functional Design Plan — unit-3 (kernel isolation, opt-in)
+# Functional Design Plan — unit-3 (kernel isolation, always-on)
+
+> **Amended 2026-10-19 (FD-4, user directive):** isolation is **always-on**, not opt-in — the title and context above originally read "opt-in". No usable runtime ⇒ fail fast on every run. The `isolation:` section configures the always-on sandbox; it can never disable it.
 
 ## Unit Context (from unit-of-work.md)
 
-Opt-in container sandboxing of the agent-influence channels (the `terminal` tool + command steps), via the Docker Engine API. Action steps, LangGraph runtime, LLM calls, viz server, and commit stay host-side. Fail-fast when isolation is requested but no runtime is available. Scope: FR-2.1–FR-2.6, NFR-3/4/7.
+**Always-on** sandboxing (amended) of the agent-influence channels (the `terminal` tool + command steps), via the `Sandbox` surface: Docker backend on macOS/Windows, native (bubblewrap/Landlock/seccomp) backend on Linux. Action steps, LangGraph runtime, LLM calls, viz server, and commit stay host-side. Fail-fast whenever no usable runtime is available. Scope: FR-2.1–FR-2.6, NFR-3/4/7.
 
 ## FD Steps
 
-- [ ] Analyze unit-3 context and story-map assignments (FR-2.1–FR-2.6)
-- [ ] Domain exposition (DOMAIN-01 — six probe dimensions, answered)
-- [ ] Resolve FD open questions (below)
-- [ ] Generate `aidlc-docs/construction/unit-3/functional-design/business-logic-model.md`
-- [ ] Generate `aidlc-docs/construction/unit-3/functional-design/business-rules.md`
-- [ ] Generate `aidlc-docs/construction/unit-3/functional-design/domain-entities.md`
-- [ ] Validate against DDD rules (descent audit; no protocols; no single-impl interfaces)
-- [ ] Security-baseline compliance check (least privilege, image pinning, credential hygiene, audit)
-- [ ] Identify PBT properties (PBT-03) for the new pure functions (config serialisation, request/result round-trip)
+- [x] Analyze unit-3 context and story-map assignments (FR-2.1–FR-2.6)
+- [x] Domain exposition (DOMAIN-01 — six probe dimensions, answered)
+- [x] Resolve FD open questions (below)
+- [x] Generate `aidlc-docs/construction/unit-3/functional-design/business-logic-model.md`
+- [x] Generate `aidlc-docs/construction/unit-3/functional-design/business-rules.md`
+- [x] Generate `aidlc-docs/construction/unit-3/functional-design/domain-entities.md`
+- [x] Validate against DDD rules (descent audit; no protocols; no single-impl interfaces)
+- [x] Security-baseline compliance check (least privilege, image pinning, credential hygiene, audit)
+- [x] Identify PBT properties (PBT-03) for the new pure functions (config serialisation, request/result round-trip)
 
 ## Domain Exposition (DOMAIN-01)
 
@@ -62,7 +64,7 @@ C) **Nothing blocked by default** — the profile is fully opt-in per-restrictio
 
 X) Other
 
-[Answer]: 
+[Answer]: A — network-egress blocked + writes restricted to the bind-mounted workspace/state_dir (most conservative default)
 
 ---
 
@@ -76,7 +78,37 @@ B) **Docker on macOS/Windows + native namespace isolation on Linux** — no daem
 
 X) Other
 
-[Answer]: 
+[Answer]: B — Docker on macOS/Windows + native namespace isolation on Linux. Two backends ⇒ the shared Sandbox interface is extracted now (second implementation = last responsible moment per DDD). FR-2.2 scope amendment required: the abstraction is the Sandbox surface (not the Docker Engine API per se); the Docker Engine API remains the macOS/Windows backend. See FD-2b follow-up.
+
+### FD-2 constraint (user-raised): Linux-side testability without a Linux box
+
+- **Pure/translation logic** (profile → bwrap argv, profile → Docker create payload, mount-path translation, seccomp/Landlock rule serialisation, backend selection) is platform-independent and unit-tested everywhere — this is the bulk of NFR-7.
+- **Native-backend integration tests** (real isolation) run on a **GitHub Actions Linux runner** (opt-in, marked; userns/Landlock available; on ubuntu-24.04 a `sysctl kernel.apparmor_restrict_unprivileged_userns=0` setup step may be needed) and/or an optional **local lima VM**.
+- **macOS dev loop** (self-hosted agent) exercises the Docker backend locally; the native backend is validated in CI.
+- **Backend selection** (native on Linux when available, fail-fast otherwise) is itself unit-tested via a fake availability probe — no Linux kernel required.
+- CI workflow for the Linux integration tests is delivered as part of unit-3 (code-generation / build-and-test plan).
+
+### Question FD-2b (follow-up): native backend toolchain source
+
+FR-2.2 says "image-defined toolchain", which holds for the Docker backend but not obviously for the native one.
+
+A) **Host toolchain inside namespaces** — bwrap read-only bind of the host toolchain (/usr etc.), tmpfs scratch, read-write bind of workspace/state_dir, Landlock + seccomp. No image at all on Linux (recommended)
+
+B) **Image rootfs everywhere** — pull/extract the same Linux dev image on Linux and pivot into its rootfs; preserves image-defined toolchain semantics on all platforms
+
+X) Other
+
+[Answer]: A — host toolchain inside namespaces; no image on Linux (matches the no-daemon motivation).
+
+### Question FD-2c (follow-up): Linux availability failure mode
+
+A) **Native-only on Linux, fail fast** — bwrap/kernel features unusable ⇒ fail fast, refuse to run; explicit backend selection in config for users who want Docker on Linux (recommended)
+
+B) **Native-first, Docker fallback** — prefer native; if unusable and a daemon is present, use Docker; fail fast only when neither is usable
+
+X) Other
+
+[Answer]: A — native-only on Linux, fail fast. (Implies an explicit backend-selection knob in config — feeds FD-4.)
 
 ---
 
@@ -88,19 +120,43 @@ B) Some other surface (describe)
 
 X) Other
 
-[Answer]: 
+[Answer]: A confirmed with a refinement (see FD-3b/3c): the `commit` **action** stays host-side (FR-2.6 unchanged); the NEW requirement is that agents must not be able to commit from inside the sandbox unless the pipeline author allows it (FD-3c).
 
----
+### Question FD-3c (new, from FD-3b): agent-initiated git mutations inside the sandbox
 
-### Question FD-4 (FR-2.2 / FR-2.5): opt-in config shape
+The sandboxed terminal tool + command steps see the mounted workspace including `.git/`. Block agent-initiated repo mutations by default, with an author-controlled allow.
 
-A) **`isolation:` block** — e.g. `isolation: { image: "ghcr.io/...", profile: default }`; omitting it (or `isolation: false`) keeps today's unsandboxed behavior (recommended)
+A) **Block all repo-mutating git operations by default** — commit, push, reset, branch/tag create/delete, stash, merge, rebase, worktree add …; reads (status/log/diff) always allowed; one profile knob re-allows mutations per-pipeline. Most thorough — partial blocking invites bypass (recommended)
 
-B) **Boolean flag + separate profile section** — `isolation: true` plus a top-level `sandbox_profile:` key
+B) **Block `commit` only** by default (push already dies on the network-off default); other mutations allowed; one knob re-allows commit
 
 X) Other
 
-[Answer]: 
+[Answer]: A — block all repo-mutating git operations by default (commit, push, reset, branch/tag create/delete, stash, merge, rebase, worktree add …); reads always allowed; one profile knob re-allows mutations per-pipeline.
+
+---
+
+### Question FD-4 (FR-2.2 / FR-2.5): config shape
+
+**Superseded by the always-on directive (user, 2026-10-19).** Isolation is mandatory, not opt-in — the original opt-in shapes (A/B below) are void. The `isolation:` section, if any, is *configuration* of the always-on sandbox, never a way to disable it.
+
+~~A) **`isolation:` block** — e.g. `isolation: { image: "ghcr.io/...", profile: default }`; omitting it (or `isolation: false`) keeps today's unsandboxed behavior (recommended)~~
+
+~~B) **Boolean flag + separate profile section** — `isolation: true` plus a top-level `sandbox_profile:` key~~
+
+X) Other
+
+[Answer]: Always-on (see FD-4b).
+
+### Question FD-4b (re-posed for always-on): does the always-on sandbox config section carry opinionated defaults, or must every pipeline declare it?
+
+A) **Optional `isolation:` section with opinionated defaults** — default profile = FD-1 answer (network-off + write-restricted + git-mutations-blocked), default image pinned by the harness, backend auto-detected with an override knob (FD-2c). Minimal pipelines need no section; the sandbox is active regardless. (recommended)
+
+B) **Mandatory `isolation:` section** — every pipeline must declare the section explicitly; fail fast on missing. No silent defaults.
+
+X) Other
+
+[Answer]: A — optional `isolation:` section with opinionated defaults (default profile = FD-1 answer, default image pinned, backend auto-detected with override knob); the sandbox is active regardless of whether the section is present.
 
 ---
 
@@ -114,4 +170,4 @@ B) **Fake Docker Engine API HTTP client** — mock at the HTTP layer
 
 X) Other
 
-[Answer]: 
+[Answer]: A — fake at the Sandbox interface level (the extracted interface from FD-2 gives the fake its shape); pure translation logic tested everywhere; real-backend integration tests marked and opt-in (Docker: any machine with a daemon; native namespace: CI Linux runner or lima VM), never silently skipped.

@@ -3,7 +3,7 @@
 ## Project Information
 - **Project Type**: Brownfield
 - **Start Date**: 2026-10-17T10:58:41Z
-- **Current Stage**: CONSTRUCTION - Unit 2 complete (approved 2026-10-19); next = Unit 3 Functional Design
+- **Current Stage**: CONSTRUCTION - Unit 3 Functional Design approved (2026-10-19); next = Unit 3 NFR Requirements
 
 ## Workspace State
 - **Existing Code**: Yes
@@ -59,7 +59,12 @@ Scope FR-1.1 (tool-surface semantics — `tools:` as sole capability allowlist; 
 - [x] Code Generation — complete 2026-10-19 (dev loop self-hosted: `proc.py` + registry/actions/stages/config/agents hardening + `env_allowlist` + tests)
 - [x] Build and Test — full suite green: 391 passed (mechanical `test` command substance)
 
-### unit-3 (kernel isolation, opt-in) — NOT STARTED
-Scope FR-2.1–FR-2.6 (container sandboxing via Docker Engine API; fail-fast when unavailable; macOS/Linux/Windows; profile defaults at FD; host-side commit)
+### unit-3 (kernel isolation, always-on) — IN PROGRESS
+Scope FR-2.1–FR-2.6 (always-on sandbox; Docker backend on macOS/Windows, native bwrap+Landlock+seccomp backend on Linux; fail-fast when no runtime; host-side commit; agent git-mutation blocking)
 
+- [x] Functional Design — approved 2026-10-19 (FD-1 conservative default profile; FD-2 two backends, one Sandbox surface; FD-3c git-mutation block; FD-4 always-on directive; FD-5 interface-level fakes; artifacts in aidlc-docs/construction/unit-3/functional-design/)
+- [ ] NFR Requirements — next
+- [ ] Infrastructure Design
+- [ ] Code Generation
+- [ ] Build and Test
 - [ ] Operations (placeholder)
