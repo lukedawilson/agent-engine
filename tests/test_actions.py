@@ -209,6 +209,11 @@ class TestPidCwd:
             "p42312\nfcwd\nn/Users/luke/dev/work/agent-engine\n") == \
             "/Users/luke/dev/work/agent-engine"
 
+    def test_parses_path_without_fcwd_linux_format(self):
+        """Linux lsof -Fn omits the fd line: `p<PID>` then `n<path>`."""
+        assert _parse_cwd_output("p42312\nn/var/tmp/somewhere\n") == \
+            "/var/tmp/somewhere"
+
     def test_none_when_no_path_line(self):
         assert _parse_cwd_output("p42312\nfcwd\n") is None
         assert _parse_cwd_output("p42312\n") is None

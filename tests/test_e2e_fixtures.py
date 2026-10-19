@@ -231,6 +231,7 @@ class TestExampleExtensionless:
         """The example's agents name only bundled tools — the dev agent
         builds against the default registry with no consumer extensions.
         (Real SDK factory, fake-key LLM — no network.)"""
+        monkeypatch.setenv("OPENAI_API_KEY", "fake-key")
         registry = default_registry()
         cfg = load_config(EXAMPLE / "pipeline.yaml")
         agent = load_agent(EXAMPLE / "sdk_agents", "dev", build_llm(cfg.llm))

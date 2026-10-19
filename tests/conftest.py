@@ -2,6 +2,17 @@
 network boundary (the ONLY permitted stub per repo mock policy); everything
 else runs real: real files, real git, real checkpoint DB."""
 
+import sys
+from pathlib import Path
+
+# `viz_demo.py` lives at the repo root (a demo script, not part of the
+# package), and plain `pytest` does not put the working directory on
+# sys.path (unlike `python -m pytest`). Insert the repo root — idempotently —
+# so the suite passes under any invocation, including CI.
+_REPO_ROOT = str(Path(__file__).resolve().parents[1])
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
 import pytest
 
 from agent_engine.stages import AgentResult

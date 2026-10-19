@@ -40,14 +40,18 @@ def git_worktree_clean(path: Path) -> bool:
 
 def _parse_cwd_output(out: str) -> str | None:
     """The cwd path from `lsof -a -p PID -d cwd -Fn` output, or None when the
-    payload doesn't carry one. The format is `p<PID>` / `fcwd` / `n<path>` —
-    the path is the `n` line immediately after `fcwd`."""
+    payload doesn't carry one. Two formats occur in the wild: macOS prints
+    `p<PID>` / `fcwd` / `n<path>` (the path is the `n` line immediately after
+    `fcwd`); Linux omits the fd line and prints `p<PID>` / `n<path>` (the
+    path is the first `n` line)."""
     lines = out.splitlines()
     for i, line in enumerate(lines):
         if line == "fcwd" and i + 1 < len(lines):
             nxt = lines[i + 1]
             if nxt.startswith("n"):
                 return nxt[1:]
+        if line.startswith("n"):
+            return line[1:]
     return None
 
 
