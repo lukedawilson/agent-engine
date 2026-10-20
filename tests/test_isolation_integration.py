@@ -110,6 +110,60 @@ class TestGitGuardE2E:
         assert not isinstance(result, SandboxError)
 
 
+class TestNetworkedContainerE2E:
+    """014: `network: true` steps run in a second, bridge-network container.
+    The distinguishing observable is the interface set — network-none has only
+    loopback; the bridge container additionally gets a routable eth0. This is
+    deterministic (no external egress required)."""
+
+    @pytest.fixture
+    def networked_backend(self, tmp_path):
+        reason = _docker_available()
+        if reason is not None:
+            pytest.skip(reason)
+        inspect = SubprocessRunner().run(
+            ["docker", "image", "inspect", TEST_IMAGE, "--format", "{{.Id}}"],
+            timeout=30)
+        if inspect.exit_code != 0:
+            pytest.skip(f"integration image {TEST_IMAGE!r} not present locally")
+        ws = tmp_path / "ws"
+        ws.mkdir()
+        profile = resolve_effective_profile(IsolationConfig(image=TEST_IMAGE))
+        b = DockerBackend(image=TEST_IMAGE, workspace=str(ws),
+                          iso_state_dir=str(tmp_path / "state"), profile=profile,
+                          network=True)
+        b.ensure_image()
+        b.create_execution_container()
+        yield b, ws
+        b.close()
+
+    def test_networked_container_has_bridge_interface(self, networked_backend):
+        b, ws = networked_backend
+        req = SandboxExecutionRequest(
+            argv=["python", "-c",
+                  "import socket; print(' '.join(sorted(n for _, n in socket.if_nameindex())))"],
+            cwd=ws,
+            env={"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": "/tmp"},
+            network=True)
+        result = b.run(req)
+        assert result.exit_code == 0, result.stderr
+        names = result.stdout.split()
+        assert "lo" in names
+        assert any(name != "lo" for name in names)
+
+    def test_default_container_still_network_none(self, networked_backend):
+        b, ws = networked_backend
+        req = SandboxExecutionRequest(
+            argv=["python", "-c",
+                  "import socket; print(' '.join(sorted(n for _, n in socket.if_nameindex())))"],
+            cwd=ws,
+            env={"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": "/tmp"},
+            network=False)
+        result = b.run(req)
+        assert result.exit_code == 0, result.stderr
+        assert result.stdout.split() == ["lo"]
+
+
 class TestProvisionE2E:
     def test_provision_stamp_skip_refresh(self, backend, tmp_path):
         b, ws = backend

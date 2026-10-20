@@ -30,7 +30,7 @@ flowchart LR
 | Feature | What it gives you |
 | --- | --- |
 | **Stage-gated agent loop** | Agents do the work, test stages verify it, and the pipeline only advances when each stage passes its gates — looping back with full context when one fails. |
-| **Kernel-level sandboxing** | Agent work and command stages run isolated from your machine: no network access, no writes outside your workspace. No sandbox available → the run stops instead of degrading. |
+| **Kernel-level sandboxing** | Agent work and command stages run isolated from your machine: [no network access **by default** — authors opt specific stages in](#per-stage-networking), no writes outside your workspace. No sandbox available → the run stops instead of degrading. |
 | **Crash-safe resume** | Interrupt a run at any time and pick it up later — finished stages stay finished, and you resume from exactly where it stopped. |
 | **Live graph visualisation** | Follow every run in the browser: stage status, pass/fail verdicts, retry cycles, and live console output as it happens. |
 | **Extensible** | Plug in your own actions, tools, and document loaders to adapt the loop to your projects. |
@@ -152,9 +152,34 @@ steps:
 | `agent:` / `command:` / `action:` | Exactly one per step. Agents live in `agents_dir` as `<name>.agent.md`; commands run sandboxed (mechanical, never an LLM call); actions are registered host-side functions. |
 | `produces:` / `artifact:` + `verdicts:` | Hygiene-tracked outputs vs verdict-parsed routing. The **last** `VERDICT:` line wins; stale artifacts are deleted at each attempt start. |
 | `on_pass:` / `on_fail:` | A step name, terminal `success`/`failure`, or `{goto: X, retry: true}`. No loops happen unless you write them. |
-| `env:` / `setup:` (command steps) | Declared env inside the sandbox (fixed safe base + declared vars only); `setup:` provisions the sandbox (network ON, stamp-cached, `--refresh` forces). |
+| `env:` / `setup:` / `network:` | `env:` declares step vars (fixed safe base + declared vars only); `setup:` provisions the sandbox (command steps, network ON, stamp-cached); `network: true` grants egress to a command or agent step (default off) — see [Per-stage networking](#per-stage-networking). |
 | `isolation:` (optional) | Configures the sandbox — image override, resource caps, `allow_git_mutations`. It can never disable it. |
 | `state_dir` | Defaults to `~/.agentic-dev-loop/runs/<pipeline-hash>/` — artifacts and checkpoints live outside the sandbox mount. |
+
+### Per-stage networking
+
+The sandbox is network-off by default. A step that legitimately needs egress —
+a QA step that curls a service it booted, an agent that must hit an API or
+fetch package metadata mid-conversation — declares it explicitly:
+
+```yaml
+steps:
+  - name: fetch-docs
+    command: curl -fsSL https://example.com/spec.json -o spec.json
+    network: true            # egress for this step only
+```
+
+- **Default off.** Every step runs with `--network none` unless it declares
+  `network: true`. A networked step runs in a second, otherwise-identical
+  sandbox container (`--read-only`, `--cap-drop ALL`, single workspace mount)
+  on the Docker bridge network — the default network-none container is always
+  created too, so no infrastructure work happens mid-run.
+- **Command and agent steps** may declare it. Action steps are host-side and
+  never take it (a load-time error).
+- **Author opt-in is the control.** A networked step gives its agent raw
+  egress for that stage; the default stays network-off everywhere. Reserve it
+  for stages that need it (QA, integration). The residual risk is documented
+  in [docs/setup.md](docs/setup.md).
 
 ## Development environment
 

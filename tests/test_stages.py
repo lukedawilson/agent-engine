@@ -511,6 +511,16 @@ class TestSandboxedCommandNode:
         assert fake_sandbox.requests[0].env["MY_VAR"] == "declared"
         assert fake_sandbox.requests[0].env["PATH"].startswith("/usr/local/bin")
 
+    def test_network_defaults_off(self, runtime, fake_sandbox):
+        node = self._node(runtime, "echo routed")
+        node(make_state())
+        assert fake_sandbox.requests[0].network is False
+
+    def test_network_true_reaches_request(self, runtime, fake_sandbox):
+        node = self._node(runtime, "curl https://example.com", network=True)
+        node(make_state())
+        assert fake_sandbox.requests[0].network is True
+
     def test_git_mutation_hard_fails_not_retried(self, runtime, fake_sandbox):
         cfg = make_cfg([
             {"name": "dev", "agent": "dev", "on_pass": "test"},

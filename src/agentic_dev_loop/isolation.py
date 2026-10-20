@@ -85,6 +85,7 @@ class SandboxExecutionRequest:
     cwd: str  # absolute container-side path (== host mount path)
     env: dict[str, str]  # resolved sandbox env (already scrubbed)
     timeout: float | None = None  # seconds; None = no limit
+    network: bool = False  # route to the bridge-network exec container when True
     # Host-side audit metadata (BR-11) — never sent into the container.
     pipeline: str | None = None
     step: str | None = None
@@ -280,17 +281,27 @@ def host_user_flag() -> str | None:
     return None
 
 
+def exec_container_name(run_id: str, network: bool = False) -> str:
+    """The execution container name for a network mode. Networked requests
+    land in a second, bridge-network container; the default is the always-on
+    network-none container (014 per-stage networking)."""
+    return f"{run_id}-exec-net" if network else f"{run_id}-exec"
+
+
 def docker_create_payload(*, run_id: str, image: str, profile: EffectiveProfile,
-                          workspace: str) -> list[str]:
+                          workspace: str, network: bool = False) -> list[str]:
     """Exact ``docker run -d --rm`` argv for the execution container (§3.3, KD-8).
-    Single mount {workspace} (Q1); --network none, --read-only, --cap-drop ALL;
-    --user host uid:gid (host-owned bind mounts, AE-SBX-009 root cause) with
+    Single mount {workspace} (Q1); ``--network none`` (bridge when ``network``
+    is true — 014 per-stage networking), --read-only, --cap-drop ALL; --user
+    host uid:gid (host-owned bind mounts, AE-SBX-009 root cause) with
     HOME=/tmp (the rootfs is read-only; /tmp is a 1777 tmpfs). ``--rm`` lets the
     daemon auto-remove the container the instant it exits, however it exits
     (D1) — a SIGKILLed CLI never reaches close()."""
     payload = [
-        "docker", "run", "--detach", "--rm", "--name", f"{run_id}-exec",
-        "--network", "none", "--read-only", "--cap-drop", "ALL",
+        "docker", "run", "--detach", "--rm", "--name",
+        exec_container_name(run_id, network),
+        "--network", "bridge" if network else "none",
+        "--read-only", "--cap-drop", "ALL",
         "--memory", profile.memory, "--cpus", str(profile.cpus),
         "--tmpfs", "/tmp", "--tmpfs", "/root",
     ]
@@ -410,20 +421,27 @@ def _request_digest(argv: list[str], cwd: str, env: dict[str, str]) -> str:
 
 
 class DockerBackend(Sandbox):
-    """Docker-based sandbox: one persistent execution container per run
-    (eagerly created + started, Q2), ``docker exec`` per request, destroyed on
-    close(). The injected ``runner`` callable is the unit-test seam."""
+    """Docker-based sandbox: a persistent network-none execution container per
+    run, plus — when any step declares ``network: true`` — a second
+    bridge-network container (eagerly created + started, Q2). ``docker exec``
+    per request routes to the container matching its network mode; both are
+    destroyed on close(). The injected ``runner`` callable is the unit-test
+    seam."""
 
     def __init__(self, *, image: str, workspace: str, iso_state_dir: str,
-                 profile: EffectiveProfile, runner: CommandRunner | None = None):
+                 profile: EffectiveProfile, runner: CommandRunner | None = None,
+                 network: bool = False):
         self._image = image
         self._workspace = workspace
         self._iso_state_dir = Path(iso_state_dir)  # host-only (audit)
         self._profile = profile
         self._runner = runner or _default_runner
         self._run_id = uuid.uuid4().hex
-        self._container = f"{self._run_id}-exec"
+        self._container = exec_container_name(self._run_id, network=False)
+        self._network_container = exec_container_name(self._run_id, network=True)
+        self._network_enabled = network
         self._started = False
+        self._network_started = False
 
     # -- infrastructure (startup) -------------------------------------------
 
@@ -456,16 +474,32 @@ class DockerBackend(Sandbox):
     def create_execution_container(self) -> None:
         """Eager create + start via ``docker run -d --rm`` (Q2, D1) — never
         lazy; ``run -d`` is create + start in one call, so there is no
-        separate ``docker start``."""
+        separate ``docker start``. When any step declares ``network: true`` a
+        second, otherwise-identical bridge-network container is started so no
+        infrastructure work happens mid-run (014 per-stage networking)."""
         payload = docker_create_payload(
             run_id=self._run_id, image=self._image, profile=self._profile,
-            workspace=self._workspace)
+            workspace=self._workspace, network=False)
         res = self._runner.run(payload, timeout=60)
         if res.exit_code != 0:
             raise SandboxError(
                 f"AE-SBX-010: container run failed: "
                 f"{res.stderr.strip() or res.stdout.strip()}")
         self._started = True
+        if not self._network_enabled:
+            return
+        net_payload = docker_create_payload(
+            run_id=self._run_id, image=self._image, profile=self._profile,
+            workspace=self._workspace, network=True)
+        net_res = self._runner.run(net_payload, timeout=60)
+        if net_res.exit_code != 0:
+            # reclaim the already-started network-none container — never leak it.
+            self._runner.run(["docker", "rm", "-f", self._container], timeout=60)
+            self._started = False
+            raise SandboxError(
+                f"AE-SBX-013: networked container run failed: "
+                f"{net_res.stderr.strip() or net_res.stdout.strip()}")
+        self._network_started = True
 
     def provision(self, setup_cmd: str, stamp_key: str, stamp_dir: str,
                   force: bool) -> None:
@@ -488,11 +522,17 @@ class DockerBackend(Sandbox):
 
     def run(self, request: SandboxExecutionRequest) -> SandboxExecutionResult:
         _guard_git(request, self._profile.git_mutations_blocked)
+        container = self._network_container if request.network else self._container
+        if request.network and not self._network_started:
+            raise SandboxError(
+                "AE-SBX-013: networked execution requested but no networked "
+                "container is running — declare `network: true` on the step "
+                "(docs/setup.md §3)")
         start = time.monotonic()
         exec_argv = ["docker", "exec"]
         for key, value in request.env.items():
             exec_argv += ["-e", f"{key}={value}"]
-        exec_argv += ["-w", self._workspace, self._container]
+        exec_argv += ["-w", self._workspace, container]
         runner_timeout = None
         if request.timeout is not None:
             exec_argv += ["/usr/bin/timeout", str(math.ceil(request.timeout))]
@@ -504,7 +544,7 @@ class DockerBackend(Sandbox):
         result = SandboxExecutionResult(
             exit_code=res.exit_code, stdout=res.stdout, stderr=res.stderr,
             duration_seconds=duration, backend="docker", timed_out=timed_out)
-        self._audit(request, result)
+        self._audit(request, result, container)
         if res.exit_code is None:
             raise SandboxError(
                 f"AE-SBX-012: Docker daemon lost mid-run: "
@@ -516,12 +556,18 @@ class DockerBackend(Sandbox):
         daemon may already have auto-removed the container by the time close()
         runs, so a nonzero stop/rm exit code ("no such container") is treated
         as success, never raised (D2)."""
-        if not self._started:
-            return
-        self._runner.run(["docker", "stop", "-t", "5", self._container], timeout=60)
-        # rm -f returns rc != 0 when --rm already removed it — ignore, never raise.
-        self._runner.run(["docker", "rm", "-f", self._container], timeout=60)
-        self._started = False
+        if self._started:
+            self._runner.run(["docker", "stop", "-t", "5", self._container],
+                             timeout=60)
+            # rm -f returns rc != 0 when --rm already removed it — ignore, never raise.
+            self._runner.run(["docker", "rm", "-f", self._container], timeout=60)
+            self._started = False
+        if self._network_started:
+            self._runner.run(["docker", "stop", "-t", "5", self._network_container],
+                             timeout=60)
+            self._runner.run(["docker", "rm", "-f", self._network_container],
+                             timeout=60)
+            self._network_started = False
 
     # -- internal -----------------------------------------------------------
 
@@ -538,14 +584,14 @@ class DockerBackend(Sandbox):
                 "failed; refusing to continue")
 
     def _audit(self, request: SandboxExecutionRequest,
-               result: SandboxExecutionResult) -> None:
+               result: SandboxExecutionResult, container: str) -> None:
         append_audit_record(self._iso_state_dir, {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "pipeline": request.pipeline or "",
             "step": request.step or "",
             "request_digest": _request_digest(request.argv, request.cwd, request.env),
             "backend": "docker",
-            "container_id": self._container,
+            "container_id": container,
             "exit_code": result.exit_code,
             "timed_out": result.timed_out,
             "duration_seconds": result.duration_seconds,
@@ -710,9 +756,10 @@ def startup_sandbox(cfg: PipelineConfig, *, workspace: Path,
     profile = resolve_effective_profile(cfg.isolation)
     image = resolve_image_ref(profile.image)
     iso_state_dir = isolation_state_dir(cfg)
+    needs_network = any(step.network for step in cfg.steps)
     backend = DockerBackend(
         image=image, workspace=str(workspace), iso_state_dir=str(iso_state_dir),
-        profile=profile, runner=runner)
+        profile=profile, runner=runner, network=needs_network)
     backend.ensure_image()
     backend.create_execution_container()
     if refresh is None:

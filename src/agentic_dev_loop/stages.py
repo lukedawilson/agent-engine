@@ -110,7 +110,8 @@ def run_agent(agent_name: str, message: str, runtime: Runtime,
                 env=step.env if step is not None else None,
                 workspace=str(runtime.workspace),
                 pipeline=runtime.cfg.name,
-                step=step.name if step is not None else None)
+                step=step.name if step is not None else None,
+                network=step.network if step is not None else False)
         agent = load_agent(runtime.agents_dir, agent_name, runtime.llm)
         conv = Conversation(agent=agent, workspace=str(runtime.workspace),
                             max_iteration_per_run=max_iterations)
@@ -151,7 +152,8 @@ def _run_command(command: str, workspace: Path, timeout: float,
                  env: dict[str, str] | None = None,
                  sandbox: Sandbox | None = None,
                  pipeline: str | None = None,
-                 step: str | None = None) -> tuple[int | None, str, bool]:
+                 step: str | None = None,
+                 network: bool = False) -> tuple[int | None, str, bool]:
     """Run a command step in the workspace, capturing combined stdout/stderr.
 
     With a ``Sandbox`` the command routes through the isolation boundary: git
@@ -166,7 +168,7 @@ def _run_command(command: str, workspace: Path, timeout: float,
     if sandbox is not None:
         request = SandboxExecutionRequest(
             argv=command_argv(command), cwd=str(workspace), env=env or {},
-            timeout=timeout, pipeline=pipeline, step=step)
+            timeout=timeout, pipeline=pipeline, step=step, network=network)
         result = sandbox.run(request)
         return result.exit_code, result.stdout + result.stderr, result.timed_out
     if needs_shell(command):
@@ -346,7 +348,8 @@ def make_command_node(runtime: Runtime, step: StepConfig):
         try:
             exit_code, output, timed_out = _run_command(
                 step.command, runtime.workspace, timeout, env,
-                sandbox=sandbox, pipeline=runtime.cfg.name, step=step.name)
+                sandbox=sandbox, pipeline=runtime.cfg.name, step=step.name,
+                network=step.network)
         except Exception:
             print(traceback.format_exc()[-4000:], file=sys.stderr, flush=True)
             return {"failed": True, "failed_step": step.name}

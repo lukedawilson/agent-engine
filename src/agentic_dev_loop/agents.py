@@ -64,12 +64,14 @@ class SandboxTerminalExecutor(ToolExecutor):
 
     def __init__(self, sandbox: "Sandbox", *, workspace: str = "",
                  env: dict[str, str] | None = None,
-                 pipeline: str | None = None, step: str | None = None):
+                 pipeline: str | None = None, step: str | None = None,
+                 network: bool = False):
         self._sandbox = sandbox
         self._workspace = workspace
         self._env = env or {}
         self._pipeline = pipeline
         self._step = step
+        self._network = network
 
     def __call__(self, action, conversation=None):
         from openhands.tools.terminal import TerminalObservation
@@ -90,7 +92,7 @@ class SandboxTerminalExecutor(ToolExecutor):
         request = SandboxExecutionRequest(
             argv=command_argv(action.command), cwd=self._workspace,
             env=self._env, timeout=action.timeout,
-            pipeline=self._pipeline, step=self._step)
+            pipeline=self._pipeline, step=self._step, network=self._network)
         result = self._sandbox.run(request)
         output = result.stdout + result.stderr
         return TerminalObservation.from_text(
@@ -107,7 +109,8 @@ class SandboxTerminalExecutor(ToolExecutor):
 
 def register_sandbox_terminal(sandbox: "Sandbox", *, env: dict[str, str | None] | None = None,
                               workspace: str = "", pipeline: str | None = None,
-                              step: str | None = None) -> None:
+                              step: str | None = None,
+                              network: bool = False) -> None:
     """Per-run re-registration of the `terminal` name (KD-4): a callable
     factory that builds the SDK terminal with a `SandboxTerminalExecutor`.
     Pipelines are sequential, so re-registering per agent step is safe."""
@@ -120,6 +123,6 @@ def register_sandbox_terminal(sandbox: "Sandbox", *, env: dict[str, str | None] 
             conv_state,
             executor=SandboxTerminalExecutor(
                 sandbox, workspace=workspace, env=resolved_env,
-                pipeline=pipeline, step=step))
+                pipeline=pipeline, step=step, network=network))
 
     register_tool("terminal", factory)

@@ -73,6 +73,8 @@ def _step_summary(step: StepConfig) -> str:
         parts = [f"action={step.action}"]
         if step.params:
             parts.append(f"params={step.params}")
+    if step.network:
+        parts.append("network=True")
     return ", ".join(parts)
 
 

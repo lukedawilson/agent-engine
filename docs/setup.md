@@ -70,6 +70,11 @@ isolation:
   that runs in the **provision container with network ON** at startup, before
   any step executes. Outputs land in the bind-mounted workspace. Agent and
   action steps reject `setup:` at load.
+- **`network:` (command and agent steps)** — `network: true` grants the step
+  egress by running it in a second, otherwise-identical bridge-network
+  container (`--read-only`, `--cap-drop ALL`, single workspace mount). Default
+  is `false` — every step stays network-off unless it opts in. Action steps
+  reject `network:` at load (they are host-side).
 - **Git mutations** are blocked by default inside the sandbox (commit, push,
   branch/tag create/delete, rebase, …); reads (`status`/`log`/`diff`) always
   work. `allow_git_mutations: true` re-allows them per-pipeline.
@@ -108,6 +113,7 @@ Every fail-fast error points here (`AE-SBX-<NNN>`):
 | AE-SBX-009 | `setup:` command failed | inspect its output tail; stamp not written |
 | AE-SBX-010 | container create/start/exec failure | inspect the docker error |
 | AE-SBX-012 | daemon lost mid-run | restart the engine; cleanup is best-effort |
+| AE-SBX-013 | networked container create/route failure | inspect the docker error; a step declared `network: true` but no bridge container started (§3) |
 
 The audit trail of every sandboxed execution is at
 `~/.agentic-dev-loop/state/sandbox-audit.jsonl` (rotates at 5 MB); run state
@@ -121,11 +127,13 @@ bind-mounted writes can land root-owned in your workspace. Recover with
 
 This is **kernel-level sandboxing** — the host kernel enforces the boundary via
 namespaces, cgroups, capability checks and seccomp-BPF syscall filters. The
-execution container runs `--network none` (no egress), `--read-only` rootfs,
-`--cap-drop ALL`, with writes only on the single bind-mounted workspace. The
-network exists only in the trusted provision phase. The Docker socket is never
-mounted. Action steps, the LangGraph runtime, LLM calls, the viz server, and
-the commit action stay host-side.
+execution container runs `--network none` (no egress) by default, `--read-only`
+rootfs, `--cap-drop ALL`, with writes only on the single bind-mounted
+workspace. A step that declares `network: true` runs in a second,
+otherwise-identical bridge-network container; network access otherwise exists
+only in the trusted provision phase. The Docker socket is never mounted.
+Action steps, the LangGraph runtime, LLM calls, the viz server, and the commit
+action stay host-side.
 
 Git hooks during the commit action are **mitigated**, not a residual risk: the
 commit action runs `git -c core.hooksPath=<trusted dir>`, so repo hooks in
@@ -133,3 +141,11 @@ commit action runs `git -c core.hooksPath=<trusted dir>`, so repo hooks in
 inside the writable workspace (the git-mutation guard and the dirty-at-start
 commit gate limit persistence), and an explicit in-workspace `state_dir`
 choice is the author's accepted exposure.
+
+A `network: true` command step is an agent-influence channel: an agent can
+plant files (e.g. tests) that the networked command step then executes,
+granting the agent indirect egress. A `network: true` agent step grants direct
+egress for that stage. The networked container stays `--read-only` +
+`--cap-drop ALL`, so the blast radius is data exfiltration and reachability,
+not host compromise. Pipeline authors should reserve networked stages for
+those that need them (QA, integration).

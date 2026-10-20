@@ -460,3 +460,36 @@ class TestStepEnvAndSetup:
         step = _load(tmp_path, data).steps[0]
         rt = type(step).model_validate(step.model_dump())
         assert rt.env == {"A": "x", "B": None}
+
+
+class TestStepNetwork:
+    def test_network_defaults_false(self, tmp_path):
+        step = _load(tmp_path, _base()).steps[0]
+        assert step.network is False
+
+    def test_network_on_command_step(self, tmp_path):
+        data = _base()
+        data["steps"] = [{"name": "fetch", "command": "curl https://example.com",
+                          "network": True, "on_pass": "success"}]
+        assert _load(tmp_path, data).steps[0].network is True
+
+    def test_network_on_agent_step(self, tmp_path):
+        data = _base()
+        data["steps"] = [{"name": "qa", "agent": "qa", "network": True,
+                          "on_pass": "success"}]
+        assert _load(tmp_path, data).steps[0].network is True
+
+    def test_network_on_action_step_rejected(self, tmp_path):
+        data = _base()
+        data["steps"] = [{"name": "commit", "action": "commit", "network": True,
+                          "on_pass": "success"}]
+        with pytest.raises(ValidationError,
+                           match="'network' is only allowed on 'agent' or "
+                                 "'command' steps"):
+            _load(tmp_path, data)
+
+    def test_network_false_on_action_step_allowed(self, tmp_path):
+        data = _base()
+        data["steps"] = [{"name": "commit", "action": "commit", "network": False,
+                          "on_pass": "success"}]
+        assert _load(tmp_path, data).steps[0].network is False

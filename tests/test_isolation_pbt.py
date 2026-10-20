@@ -12,8 +12,9 @@ from hypothesis import assume, given, strategies as st
 
 from agentic_dev_loop.isolation import (
     EffectiveProfile, ProbeResult, SandboxExecutionRequest, SandboxExecutionResult,
-    docker_create_payload, is_git_mutation, resolve_effective_profile,
-    resolve_sandbox_env, select_backend, setup_stamp_key, translate_mount_path,
+    docker_create_payload, exec_container_name, is_git_mutation,
+    resolve_effective_profile, resolve_sandbox_env, select_backend,
+    setup_stamp_key, translate_mount_path,
 )
 
 profiles = st.builds(
@@ -67,6 +68,27 @@ class TestResolveSandboxEnvScrub:
     def test_no_host_leak_without_declaration(self, host):
         env = resolve_sandbox_env(None, host_env=host)
         assert set(env) == {"PATH", "HOME", "LANG", "LC_ALL", "TERM"}
+
+
+class TestNetworkModePayload:
+    @given(profile=profiles, workspace=st.text(min_size=1), run_id=st.text(min_size=1))
+    def test_default_is_network_none(self, profile, workspace, run_id):
+        p = docker_create_payload(run_id=run_id, image="img", profile=profile,
+                                  workspace=workspace, network=False)
+        assert "--network" in p and "none" in p
+        assert "--name" in p and p[p.index("--name") + 1] == exec_container_name(run_id)
+
+    @given(profile=profiles, workspace=st.text(min_size=1), run_id=st.text(min_size=1))
+    def test_network_true_swaps_mode_and_name(self, profile, workspace, run_id):
+        p = docker_create_payload(run_id=run_id, image="img", profile=profile,
+                                  workspace=workspace, network=True)
+        assert "--network" in p and "bridge" in p
+        assert "--name" in p and p[p.index("--name") + 1] == exec_container_name(
+            run_id, network=True)
+        # the rest of the hardening invariants still hold for the networked container
+        assert "--read-only" in p and "--cap-drop" in p and "ALL" in p
+        mounts = [p[i + 1] for i, a in enumerate(p) if a == "-v"]
+        assert mounts == [f"{workspace}:{workspace}"]
 
 
 class TestSetupStampKey:

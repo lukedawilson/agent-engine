@@ -85,6 +85,7 @@ class StepConfig(BaseModel):
     timeout: float | None = Field(default=None, gt=0)  # seconds, command steps only
     env: dict[str, str | None] | None = None  # NFR-1: null = inherit host value
     setup: str | None = None  # BR-13: command steps only
+    network: bool = False  # per-stage egress (command + agent steps; action steps reject)
     on_pass: RouteTarget | None = None
     on_fail: RouteTarget | None = None
 
@@ -141,6 +142,11 @@ class StepConfig(BaseModel):
         if self.setup is not None and self.command is None:
             raise ValueError(
                 f"step {self.name!r}: 'setup' is only allowed on 'command' steps"
+            )
+        if self.network and self.action is not None:
+            raise ValueError(
+                f"step {self.name!r}: 'network' is only allowed on 'agent' or "
+                "'command' steps"
             )
         return self
 

@@ -19,9 +19,9 @@ from agentic_dev_loop.isolation import (
     DockerBackend, EffectiveProfile, ProbeResult, SandboxError,
     SandboxExecutionRequest, SandboxExecutionResult, append_audit_record,
     clean_stamps, docker_create_payload, docker_provision_payload,
-    is_git_mutation, probe_docker, read_stamp, resolve_effective_profile,
-    resolve_image_ref, resolve_sandbox_env, select_backend, setup_stamp_key,
-    translate_mount_path, write_stamp,
+    exec_container_name, is_git_mutation, probe_docker, read_stamp,
+    resolve_effective_profile, resolve_image_ref, resolve_sandbox_env,
+    select_backend, setup_stamp_key, translate_mount_path, write_stamp,
 )
 
 
@@ -311,6 +311,30 @@ class TestPayloads:
         assert "--user" not in create
         assert "--user" not in provision
 
+    def test_networked_create_payload(self, tmp_path):
+        """014: `network: true` swaps the network mode AND the container name,
+        but nothing else — the networked container is otherwise identical
+        (read-only, cap-dropped, single mount)."""
+        ws = str(tmp_path)
+        p = docker_create_payload(run_id="r1", image="img",
+                                  profile=self._profile(), workspace=ws,
+                                  network=True)
+        assert "--network" in p and "bridge" in p
+        assert "none" not in p
+        assert "--name" in p and f"{p[p.index('--name') + 1]}" == "r1-exec-net"
+        assert "--read-only" in p
+        assert "--cap-drop" in p and "ALL" in p
+        mounts = [p[i + 1] for i, a in enumerate(p) if a == "-v"]
+        assert mounts == [f"{ws}:{ws}"]
+
+
+class TestExecContainerName:
+    def test_default_is_network_none(self):
+        assert exec_container_name("abc") == "abc-exec"
+
+    def test_networked_suffix(self):
+        assert exec_container_name("abc", network=True) == "abc-exec-net"
+
 
 class TestSelectBackend:
     def test_totality(self):
@@ -374,13 +398,14 @@ class TestResolveImageRef:
 # ---------------------------------------------------------------------------
 
 
-def _backend(tmp_path, runner, *, image="img@sha256:abc", git_blocked=True):
+def _backend(tmp_path, runner, *, image="img@sha256:abc", git_blocked=True,
+              network=False):
     return DockerBackend(
         image=image, workspace=str(tmp_path / "ws"),
         iso_state_dir=str(tmp_path / "state"),
         profile=EffectiveProfile(True, True, True, True, git_blocked,
                                  image, "4g", 2.0),
-        runner=runner)
+        runner=runner, network=network)
 
 
 class TestEnsureImage:
@@ -432,6 +457,30 @@ class TestCreateExecutionContainer:
         assert "--network" in runner.calls[0] and "none" in runner.calls[0]
         assert len(runner.calls) == 1
 
+    def test_networked_second_container_eagerly_created(self, tmp_path):
+        """014: when any step declares network, startup creates BOTH the
+        network-none container and a bridge-network container — zero infra
+        work is deferred to the run phase."""
+        runner = FakeRunner(ok("cid-none"), ok("cid-net"))
+        backend = _backend(tmp_path, runner, network=True)
+        backend.create_execution_container()
+        assert len(runner.calls) == 2
+        none_argv, net_argv = runner.calls
+        assert "--network" in none_argv and "none" in none_argv
+        assert none_argv[none_argv.index("--name") + 1].endswith("-exec")
+        assert "--network" in net_argv and "bridge" in net_argv
+        assert net_argv[net_argv.index("--name") + 1].endswith("-exec-net")
+
+    def test_networked_container_failure_is_loud_and_reclaims_main(self, tmp_path):
+        runner = FakeRunner(ok("cid-none"), fail(125, "network bridge unavailable"))
+        backend = _backend(tmp_path, runner, network=True)
+        with pytest.raises(SandboxError, match="AE-SBX-013"):
+            backend.create_execution_container()
+        assert backend._started is False
+        # the already-started network-none container is reclaimed, never leaked
+        rm = [c for c in runner.calls if c[1] == "rm"]
+        assert rm and backend._container in rm[-1]
+
 
 class TestRun:
     def test_exec_argv_assembly(self, tmp_path):
@@ -456,6 +505,34 @@ class TestRun:
         backend.run(req)
         assert backend._container in runner.calls[-1]
         assert "/usr/bin/timeout" not in runner.calls[-1]
+
+    def test_networked_request_routes_to_network_container(self, tmp_path):
+        """014: an exec routes to the bridge-network container iff the request
+        declares network — the default stays network-none."""
+        runner = FakeRunner(ok(""), ok(""))
+        backend = _backend(tmp_path, runner, network=True)
+        backend._container = "c1"
+        backend._network_container = "c1-net"
+        backend._started = True
+        backend._network_started = True
+        req = SandboxExecutionRequest(argv=["curl", "https://example.com"],
+                                      cwd=str(tmp_path / "ws"), env={},
+                                      network=True)
+        backend.run(req)
+        assert "c1-net" in runner.calls[-1]
+        assert "c1" not in runner.calls[-1]
+
+    def test_networked_request_without_network_container_is_loud(self, tmp_path):
+        runner = FakeRunner()
+        backend = _backend(tmp_path, runner, network=True)
+        backend._container = "c1"
+        backend._started = True  # network container never started
+        req = SandboxExecutionRequest(argv=["curl", "https://example.com"],
+                                      cwd=str(tmp_path / "ws"), env={},
+                                      network=True)
+        with pytest.raises(SandboxError, match="AE-SBX-013"):
+            backend.run(req)
+        assert not runner.calls  # never reached docker exec
 
     def test_exit_124_is_timeout(self, tmp_path):
         runner = FakeRunner(CmdResult(124, "out", ""))
@@ -544,6 +621,18 @@ class TestClose:
         backend._container = "c1"
         backend.close()  # must not raise
         assert not backend._started
+
+    def test_closes_network_container_too(self, tmp_path):
+        runner = FakeRunner(ok(""), ok(""), ok(""), ok(""))
+        backend = _backend(tmp_path, runner, network=True)
+        backend._container = "c1"
+        backend._network_container = "c1-net"
+        backend._started = True
+        backend._network_started = True
+        backend.close()
+        stopped = [c[-1] for c in runner.calls if c[1] == "stop"]
+        assert stopped == ["c1", "c1-net"]
+        assert not backend._started and not backend._network_started
 
 
 # ---------------------------------------------------------------------------
@@ -646,6 +735,42 @@ class TestStartupSandbox:
             # stamp written host-side
             stamps = tmp_path / "iso-state" / "stamps"
             assert list(stamps.iterdir())
+        finally:
+            sandbox.close()
+
+    def test_network_declaration_starts_second_container(self, tmp_path, monkeypatch):
+        """014: declaring `network: true` on any step makes eager startup
+        create the bridge-network container in addition to the default
+        network-none one — the default (no declaration) stays single-container."""
+        from agentic_dev_loop.config import PipelineConfig
+        from agentic_dev_loop.isolation import startup_sandbox
+
+        ws = tmp_path / "ws"
+        ws.mkdir()
+        cfg = PipelineConfig.model_validate({
+            "name": "p", "llm": {"model": "m", "api_key_env": "K"},
+            "agents_dir": "agents",
+            "steps": [{"name": "dev", "agent": "dev", "on_pass": "test"},
+                      {"name": "test", "command": "make", "network": True,
+                       "on_pass": "success"}],
+            "isolation": {"state_dir": str(tmp_path / "iso-state")},
+        })
+        monkeypatch.setattr("agentic_dev_loop.isolation.shutil.which",
+                            lambda *a: "/usr/bin/docker")
+        monkeypatch.setenv("AGENTIC_DEV_LOOP_DEV_IMAGE", "img:tag")
+        runner = FakeRunner(
+            ok("1.54"),           # probe version
+            ok("linux"),          # probe ostype
+            ok(""),               # image inspect
+            ok(""),               # docker run -d --rm (network-none exec)
+            ok(""),               # docker run -d --rm (networked exec)
+        )
+        sandbox = startup_sandbox(cfg, workspace=ws, runner=runner)
+        try:
+            run_argv = [c for c in runner.calls if c[1] == "run"]
+            assert len(run_argv) == 2
+            assert "--network" in run_argv[0] and "none" in run_argv[0]
+            assert "--network" in run_argv[1] and "bridge" in run_argv[1]
         finally:
             sandbox.close()
 

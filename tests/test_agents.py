@@ -144,6 +144,23 @@ class TestSandboxTerminalExecutor:
         obs = ex(TerminalAction(command="sleep 5", timeout=1), None)
         assert obs.timeout is True
 
+    def test_network_reaches_request(self, fake_sandbox, tmp_path):
+        from openhands.tools.terminal import TerminalAction
+
+        from agentic_dev_loop.agents import SandboxTerminalExecutor
+        ex = SandboxTerminalExecutor(fake_sandbox, workspace=str(tmp_path),
+                                     env={}, network=True)
+        ex(TerminalAction(command="curl https://example.com"), None)
+        assert fake_sandbox.requests[0].network is True
+
+    def test_network_defaults_off(self, fake_sandbox, tmp_path):
+        from openhands.tools.terminal import TerminalAction
+
+        from agentic_dev_loop.agents import SandboxTerminalExecutor
+        ex = SandboxTerminalExecutor(fake_sandbox, workspace=str(tmp_path), env={})
+        ex(TerminalAction(command="echo hi"), None)
+        assert fake_sandbox.requests[0].network is False
+
 
 class TestRegisterSandboxTerminal:
     def test_resolves_to_sandbox_executor(self, fake_sandbox, tmp_path):

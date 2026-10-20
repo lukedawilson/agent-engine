@@ -100,6 +100,17 @@ class TestDryRun:
                      "--no-viz", "--resume", "some-thread-id",
                      "--refresh", "--max-attempts", "5"]) == 0
 
+    def test_network_step_surfaced_in_summary(self, repo, capsys):
+        (repo / "pipeline.yaml").write_text(
+            DRY_RUN_YAML.replace(
+                "    command: .venv-sandbox/bin/python -m pytest tests/ -q\n",
+                "    command: .venv-sandbox/bin/python -m pytest tests/ -q\n"
+                "    network: true\n"))
+        assert main(["pipeline.yaml", "--dry-run", "--plan", "plan.md"]) == 0
+        out = capsys.readouterr().out
+        assert "test [command]" in out
+        assert "network=True" in out
+
 
 class TestDryRunHelp:
     def test_help_documents_flag(self, repo, capsys):
