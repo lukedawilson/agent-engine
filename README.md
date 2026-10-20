@@ -51,7 +51,7 @@ LLM timeout (agent runs are long).
 | LLM API key | The env var named by your pipeline's `api_key_env` (e.g. `OPENAI_API_KEY`) must be set — a missing key fails fast, naming it. |
 
 ```bash
-pip install agentic-dev-loop==1.0.0a2   # pin the current alpha release explicitly
+pip install agentic-dev-loop==1.0.0a3   # pin the current alpha release explicitly
 agentic-dev-loop --version
 ```
 
