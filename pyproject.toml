@@ -34,6 +34,11 @@ classifiers = [
 dependencies = [
     "openhands-sdk ~=1.17.0",
     "openhands-tools ~=1.17.0",
+    # openhands-sdk declares agent-client-protocol>=0.8.1 with NO upper bound;
+    # the 1.0.0rc pre-releases drop acp.helpers (breaks sdk 1.17.0 imports).
+    # Without this cap, --pre installs resolve to the broken rc. See AGENTS.md
+    # error-handling rules + COMPAT-SHIMS.md for the SDK-compat pattern.
+    "agent-client-protocol<1.0.0",
     "langgraph>=1.2",
     "langgraph-checkpoint-sqlite>=3.0",
     "pydantic>=2.0",
