@@ -5,6 +5,8 @@ stateless pure functions shared by the command-step and action-step
 surfaces; property tests exercise the invariants that keep the subprocess
 boundary fail-safe (BR-4, BR-5)."""
 
+import os
+import pytest
 import signal
 import string
 import subprocess
@@ -155,6 +157,7 @@ class TestKillProcessTree:
         def kill(self):
             self.log.append("kill")
 
+    @pytest.mark.skipif(not hasattr(os, "killpg"), reason="POSIX-only: os.killpg does not exist on Windows")
     def test_posix_reaps_the_whole_process_group(self, monkeypatch):
         killed = []
         monkeypatch.setattr(
