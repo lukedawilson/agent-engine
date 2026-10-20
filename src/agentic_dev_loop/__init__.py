@@ -1,1 +1,1 @@
-"""Opinionated LangGraph engine for OpenHands agent pipelines."""
+"""Turn an LLM into a gated, sandboxed, resumable construction loop over your codebase."""
