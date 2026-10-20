@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0a4] - 2026-10-20
+
+### Changed
+
+- fix: harden sandbox request VO and kernel-proof network-none test
+- feat: construct plan 014-per-stage-networking.md (agent dev loop)
+
 ## [1.0.0a3] - 2026-10-20
 
 ### Changed
