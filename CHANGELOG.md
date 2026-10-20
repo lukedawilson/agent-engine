@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0a3] - 2026-10-20
+
+### Changed
+
+- docs: plan per-stage networking (014)
+- fix: cap agent-client-protocol below 1.0.0 — its rc drops acp.helpers
+- Fix opencode publish command double-cutting
+
 ## [1.0.0rc1] - 2026-10-20
 
 ### Changed
