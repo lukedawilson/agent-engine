@@ -6,6 +6,7 @@ on:
     branches: ["main"]
     paths:
       - "Dockerfile"
+      - "Dockerfile.dotnet"
 
 permissions:
   contents: read
@@ -23,18 +24,28 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push
+      - name: Build and push (dev)
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           platforms: linux/amd64,linux/arm64
           tags: ghcr.io/lukedawilson/agentic-dev-loop/dev:latest
-      - name: Report digest for pinning
+      - name: Build and push (dev-dotnet)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.dotnet
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ghcr.io/lukedawilson/agentic-dev-loop/dev-dotnet:10.0
+      - name: Report digests for pinning
         run: |
-          DIGEST=$(docker buildx imagetools inspect ghcr.io/lukedawilson/agentic-dev-loop/dev:latest --format '{{.Manifest.Digest}}')
           echo "Published platforms:"
           docker buildx imagetools inspect ghcr.io/lukedawilson/agentic-dev-loop/dev:latest --format '{{range .Manifest.Manifests}}  - {{.Platform.OS}}/{{.Platform.Architecture}}{{println}}{{end}}'
           echo ""
-          echo "Pinned digest for DEFAULT_DEV_IMAGE_REF (paste into src/agentic_dev_loop/isolation.py):"
-          echo "ghcr.io/lukedawilson/agentic-dev-loop/dev@${DIGEST}"
+          echo "Pinned digests:"
+          for IMAGE in dev:latest dev-dotnet:10.0; do
+            DIGEST=$(docker buildx imagetools inspect ghcr.io/lukedawilson/agentic-dev-loop/${IMAGE} --format '{{.Manifest.Digest}}')
+            echo "ghcr.io/lukedawilson/agentic-dev-loop/${IMAGE%%:*}@${DIGEST}"
+          done
