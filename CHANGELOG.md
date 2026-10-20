@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0a5] - 2026-10-20
+
+### Changed
+
+- fix: load extensions once across parse, dry-run, and run
+- Add dev-dotnet sandbox image: dotnet 10.0.402 + jq/unzip/lsof for dotnet pipelines
+
 ## [1.0.0a4] - 2026-10-20
 
 ### Changed
