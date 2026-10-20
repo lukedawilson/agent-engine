@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 from .config import load_config
-from .graph import run_pipeline
+from .dryrun import dry_run
 from .isolation import clean_stamps, isolation_state_dir
 from .registry import default_registry, load_extensions
 
@@ -53,6 +53,10 @@ def _core_parser() -> argparse.ArgumentParser:
     parser.add_argument("--refresh", action="store_true",
                         help="force re-provision of every setup: hook "
                              "(bypasses the stamp cache)")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="validate the pipeline and print a summary plan "
+                             "without executing anything (no LLM, no "
+                             "sandbox, no state writes)")
     parser.add_argument("--clean-stamps", action="store_true",
                         help="delete cached provision stamps and exit")
     _add_version_flag(parser)
@@ -88,6 +92,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Removed {removed} cached provision stamp(s) from "
               f"{state / 'stamps'}", flush=True)
         return 0
+    if args.dry_run:
+        return dry_run(args.pipeline, args)
+    # The run path alone needs the heavy graph/SDK imports — defer so a
+    # dry run, --clean-stamps, and --help stay side-effect free.
+    from .graph import run_pipeline
     success, _attempts = run_pipeline(args.pipeline, args)
     if not success:
         print("agentic-dev-loop: pipeline failed — exiting with code 1",

@@ -36,6 +36,20 @@ MERMAID = "graph TD;\n\tdev(dev)\n\ttest(test)\n"
 SELF_PIPELINE = Path(__file__).parent.parent / "agentic-dev-loop" / "pipeline.yaml"
 
 
+def _privileged_ports_enforced() -> bool:
+    """True when the kernel reserves privileged ports for root. Some
+    containers set ``net.ipv4.ip_unprivileged_port_start=0``, which lets a
+    non-root uid bind port 1 — the loud-privileged-port test can't run there."""
+    if sys.platform != "linux":
+        return True
+    try:
+        start = int(Path("/proc/sys/net/ipv4/ip_unprivileged_port_start")
+                    .read_text().strip())
+    except (OSError, ValueError):
+        return True
+    return start > 0
+
+
 def tasks_start(name):
     return {"type": "tasks", "ns": (), "data": {"id": "id-1", "name": name,
                                                  "triggers": ("branch:to:x",)}}
@@ -654,6 +668,8 @@ class TestServer:
             pytest.skip("no os.geteuid on Windows")
         if os.geteuid() == 0:
             pytest.skip("privileged port is not EACCES when running as root")
+        if not _privileged_ports_enforced():
+            pytest.skip("kernel permits unprivileged privileged-port binding")
         with pytest.raises(OSError, match="--viz-port"):
             serve_viz(VizBus(), MERMAID, "subject", 1)
 

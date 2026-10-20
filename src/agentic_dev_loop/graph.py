@@ -21,7 +21,7 @@ from .actions import git_worktree_clean, kill_listeners_on_port
 from .config import load_config
 from .isolation import startup_sandbox
 from .llm import build_llm
-from .loaders import select_loader
+from .loaders import resolve_docs
 from .registry import Registry, default_registry, load_extensions
 from .stages import (Runtime, build_context, clear_attempt_artifacts,
                      make_action_node, make_agent_node, make_bump_node,
@@ -79,29 +79,6 @@ def build_graph(runtime: Runtime, checkpointer=None):
     return graph.compile(checkpointer=checkpointer)
 
 
-def _resolve_docs(cfg, base: Path, registry: Registry,
-                  args) -> tuple[dict[str, str], str]:
-    """Select and invoke the document loader, then append the pipeline's
-    additional_files (resolved relative to the pipeline file's dir;
-    listed-but-missing fails fast)."""
-    loader = select_loader(registry, args)
-    if loader is not None:
-        docs, subject = loader.resolve(args)
-        if not docs:
-            # U3 policy: an empty load silently degraded to a context the
-            # agents couldn't act on. Fail fast at the call site instead.
-            raise RuntimeError(
-                f"Document loader {loader.name!r} returned no docs — "
-                "refusing to build context from nothing")
-    else:
-        docs, subject = {}, cfg.name
-    for rel in cfg.additional_files:
-        path = base / rel
-        if not path.is_file():
-            raise FileNotFoundError(f"additional_files entry not found: {path}")
-        docs[path.name] = path.read_text()
-    return docs, subject
-
 
 def run_pipeline(cfg_path, args, *, viz_bus=None) -> tuple[bool, int]:
     """Load a pipeline YAML, resolve docs via the selected document loader,
@@ -157,7 +134,7 @@ def _run_pipeline(cfg, base, registry, state_dir, max_attempts, args, viz_bus,
     if resume:
         initial = None  # state (docs/subject/context) comes from the checkpoint
     else:
-        docs, subject = _resolve_docs(cfg, base, registry, args)
+        _loader, docs, subject = resolve_docs(cfg, base, registry, args)
         # A fresh run owns state_dir: drop cross-run leftovers (a previous
         # failure's last-error.md, stale artifacts) so nothing mistakes
         # them for this run's output. --resume keeps them.

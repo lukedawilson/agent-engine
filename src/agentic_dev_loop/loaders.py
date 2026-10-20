@@ -3,6 +3,7 @@
 import argparse
 from pathlib import Path
 
+from .config import PipelineConfig
 from .registry import DocumentLoader, Registry
 
 
@@ -58,3 +59,27 @@ def select_loader(registry: Registry, args: argparse.Namespace) -> DocumentLoade
             f"Multiple defaultable document loaders: "
             f"{[l.name for l in defaultable]}")
     return defaultable[0] if defaultable else None
+
+
+def resolve_docs(cfg: PipelineConfig, base: Path, registry: Registry,
+                 args) -> tuple[DocumentLoader | None, dict[str, str], str]:
+    """Select and invoke the document loader, then append the pipeline's
+    additional_files (resolved relative to the pipeline file's dir;
+    listed-but-missing fails fast). Returns (loader, docs, subject)."""
+    loader = select_loader(registry, args)
+    if loader is not None:
+        docs, subject = loader.resolve(args)
+        if not docs:
+            # U3 policy: an empty load silently degraded to a context the
+            # agents couldn't act on. Fail fast at the call site instead.
+            raise RuntimeError(
+                f"Document loader {loader.name!r} returned no docs — "
+                "refusing to build context from nothing")
+    else:
+        docs, subject = {}, cfg.name
+    for rel in cfg.additional_files:
+        path = base / rel
+        if not path.is_file():
+            raise FileNotFoundError(f"additional_files entry not found: {path}")
+        docs[path.name] = path.read_text()
+    return loader, docs, subject

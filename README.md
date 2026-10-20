@@ -40,6 +40,7 @@ export OPENAI_API_KEY=...   # whatever env var your pipeline's api_key_env names
 agentic-dev-loop agentic-dev-loop/pipeline.yaml --plan plan.md
 agentic-dev-loop agentic-dev-loop/pipeline.yaml --aidlc-unit unit-2
 agentic-dev-loop agentic-dev-loop/pipeline.yaml --resume <thread-id> --max-attempts 5
+agentic-dev-loop agentic-dev-loop/pipeline.yaml --plan plan.md --dry-run
 ./trigger-agentic-dev-loop.sh --plan plan.md   # same thing, from the repo root
 ```
 
@@ -56,6 +57,15 @@ collapsible section: completed stages auto-collapse, the running stage stays
 expanded and live-tails its console. To eyeball the viz page without
 running a pipeline, `.venv/bin/python viz_demo.py` serves the real topology
 and replays a scripted run (every node state, verdict badges, retry cycle).
+
+`--dry-run` performs the full load-and-validate pass — YAML parse, step
+config validation, extension and document-loader loading, agents_dir /
+verdict / routing-target resolution, and pure image-ref resolution — without
+executing anything, then prints a summary plan (pipeline path, subject,
+resolved loader + docs, per-step kind and key params, and the resolved
+isolation profile). It makes no LLM call, touches no Docker daemon, and
+writes no state, so it needs no API key; it exits `0` on a clean load and
+`1` with the usual load error otherwise.
 
 `--aidlc-unit` takes the unit directory name under
 `aidlc-docs/construction/` verbatim — `unit-2`,

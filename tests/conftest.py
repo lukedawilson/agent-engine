@@ -2,6 +2,7 @@
 network boundary (the ONLY permitted stub per repo mock policy); everything
 else runs real: real files, real git, real checkpoint DB."""
 
+import os
 import sys
 from pathlib import Path
 
@@ -168,3 +169,20 @@ def fake_sandbox(monkeypatch):
     monkeypatch.setattr("agentic_dev_loop.graph.startup_sandbox",
                         lambda *a, **k: sandbox)
     return sandbox
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _writable_home(tmp_path_factory):
+    """Point HOME at a writable temp dir for the whole session.
+
+    The commit action and the default state dir write under
+    ``~/.agentic-dev-loop``, and the OpenHands SDK writes ``~/.openhands``.
+    Some containers run the suite as a non-root uid with ``HOME=/root``
+    (mode 700, unwritable), so those real paths fail with PermissionError.
+    A writable HOME is what CI already provides; tests that pin a specific
+    home pass an explicit parent mapping or assert the raw string, so none
+    depend on the process's real home.
+    """
+    if os.name == "posix":
+        os.environ["HOME"] = str(tmp_path_factory.mktemp("home"))
+    yield

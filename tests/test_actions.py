@@ -362,6 +362,8 @@ class TestCommitNode:
         hook = trusted / "pre-commit"
         hook.write_text("#!/bin/sh\nexit 1\n")
         hook.chmod(0o755)
+        if not os.access(hook, os.X_OK):
+            pytest.skip("tmp filesystem is mounted noexec; git ignores the hook")
         monkeypatch.setattr("agentic_dev_loop.actions._trusted_hooks_dir",
                             lambda: str(trusted))
         monkeypatch.chdir(repo)
