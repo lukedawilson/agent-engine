@@ -28,7 +28,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Protocol
 
 from .config import IsolationConfig, PipelineConfig
@@ -92,7 +92,8 @@ class SandboxExecutionRequest:
     def __post_init__(self) -> None:
         if not self.argv:
             raise ValueError("SandboxExecutionRequest.argv must be non-empty")
-        if not Path(self.cwd).is_absolute():
+        if not (Path(self.cwd).is_absolute()
+                or PurePosixPath(self.cwd).is_absolute()):
             raise ValueError(f"SandboxExecutionRequest.cwd must be absolute: {self.cwd!r}")
         if self.timeout is not None and self.timeout <= 0:
             raise ValueError(
@@ -265,34 +266,62 @@ def setup_stamp_key(setup_cmd: str, lockfile_hashes: dict[str, str]) -> str:
         json.dumps(canonical, sort_keys=True).encode("utf-8")).hexdigest()
 
 
+def host_user_flag() -> str | None:
+    """The ``docker --user`` value binding the sandbox to the host user.
+
+    Container root with all capabilities dropped cannot write a host-owned
+    bind mount on native Linux — the CI-red AE-SBX-009/writable-probe
+    failures (Docker Desktop's virtiofs masks it on mac/Windows hosts).
+    Running as ``uid:gid`` fixes ownership end-to-end. On Windows hosts
+    (no os.getuid) the flag is omitted entirely.
+    """
+    if hasattr(os, "getuid") and hasattr(os, "getgid"):
+        return f"{os.getuid()}:{os.getgid()}"
+    return None
+
+
 def docker_create_payload(*, run_id: str, image: str, profile: EffectiveProfile,
                           workspace: str) -> list[str]:
     """Exact ``docker create`` argv for the execution container (§3.3, KD-8).
-    Single mount {workspace} (Q1); --network none, --read-only, --cap-drop ALL."""
-    return [
+    Single mount {workspace} (Q1); --network none, --read-only, --cap-drop ALL;
+    --user host uid:gid (host-owned bind mounts, AE-SBX-009 root cause) with
+    HOME=/tmp (the rootfs is read-only; /tmp is a 1777 tmpfs)."""
+    payload = [
         "docker", "create", "--name", f"{run_id}-exec",
         "--network", "none", "--read-only", "--cap-drop", "ALL",
         "--memory", profile.memory, "--cpus", str(profile.cpus),
         "--tmpfs", "/tmp", "--tmpfs", "/root",
+    ]
+    user = host_user_flag()
+    if user is not None:
+        payload.extend(["--user", user, "--env", "HOME=/tmp"])
+    payload.extend([
         "-v", f"{workspace}:{workspace}",
         "--workdir", workspace,
         image, "sleep", "infinity",
-    ]
+    ])
+    return payload
 
 
 def docker_provision_payload(*, run_id: str, image: str, workspace: str,
                              setup_cmd: str) -> list[str]:
     """Exact ``docker run --rm`` argv for the provision container (§3.4).
     Network ON (default bridge), rw rootfs, --cap-drop ALL, single mount
-    {workspace} (Q1)."""
-    return [
+    {workspace} (Q1); --user host uid:gid (AE-SBX-009) with HOME=/tmp."""
+    payload = [
         "docker", "run", "--rm", "--name", f"{run_id}-provision",
         "--network", "bridge", "--cap-drop", "ALL",
         "--memory", DEFAULT_PROVISION_MEMORY, "--cpus", str(DEFAULT_PROVISION_CPUS),
+    ]
+    user = host_user_flag()
+    if user is not None:
+        payload.extend(["--user", user, "--env", "HOME=/tmp"])
+    payload.extend([
         "-v", f"{workspace}:{workspace}",
         "--workdir", workspace,
         image, "sh", "-c", setup_cmd,
-    ]
+    ])
+    return payload
 
 
 def select_backend(platform: str, probe_result: ProbeResult) -> type["Sandbox"]:
@@ -585,7 +614,7 @@ def append_audit_record(state_dir: Path, record: dict) -> None:
     path = state_dir / "sandbox-audit.jsonl"
     if path.exists() and path.stat().st_size > AUDIT_MAX_BYTES:
         os.replace(path, state_dir / "sandbox-audit.jsonl.1")
-    with path.open("a") as fh:
+    with path.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(record, sort_keys=True) + "\n")
 
 

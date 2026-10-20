@@ -6,6 +6,7 @@ and router closures built from the pipeline config; the fixed policies
 
 import dataclasses
 import os
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -89,6 +90,7 @@ class TestBuildContext:
                      workspace=tmp_path)
         ctx = build_context(rt, {}, "s", [])
         assert "check agent writes: `agentic-dev-loop/.pr/ci-fix.md`" in ctx
+        assert "\\" not in ctx  # prompt paths are container-addressed → POSIX
 
     def test_output_paths_absolute_when_state_dir_outside_workspace(self, tmp_path):
         state_dir = tmp_path / "state" / ".pr"
@@ -238,7 +240,9 @@ class TestCommandNode:
     def test_timeout_fails(self, runtime):
         node = self._node(runtime, [
             {"name": "dev", "agent": "dev", "on_pass": "test"},
-            {"name": "test", "command": "sleep 5", "timeout": 0.2,
+            {"name": "test",
+             "command": f'"{sys.executable}" -c "import time; time.sleep(5)"',
+             "timeout": 0.2,
              "on_pass": "success", "on_fail": {"goto": "dev", "retry": True}}],
             idx=1)
         update = node(make_state())
@@ -246,9 +250,20 @@ class TestCommandNode:
         (note,) = update["notes"]
         assert "timed out" in note
 
+    def test_timeout_kill_without_killpg_uses_proc_kill(self, tmp_path, monkeypatch):
+        """Windows has no os.killpg — the host-path timeout must degrade to
+        proc.kill() instead of raising AttributeError (CI-red root cause)."""
+        monkeypatch.delattr(os, "killpg", raising=False)
+        code, out, timed_out = _run_command(
+            f'"{sys.executable}" -c "import time; time.sleep(30)"',
+            tmp_path, 0.2)
+        assert timed_out is True and code is None
+
     def test_workspace_is_cwd(self, runtime, capsys):
-        node = self._node(runtime, [{"name": "test", "command": "pwd",
-                                     "on_pass": "success"}])
+        node = self._node(runtime, [
+            {"name": "test",
+             "command": f'"{sys.executable}" -c "import os; print(os.getcwd())"',
+             "on_pass": "success"}])
         node(make_state())
         assert os.path.realpath(runtime.workspace) in capsys.readouterr().out
 

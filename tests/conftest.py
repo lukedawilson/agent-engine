@@ -138,14 +138,24 @@ def _exec_host(request: SandboxExecutionRequest) -> tuple[int | None, str, bool]
     env = dict(request.env)
     env["PATH"] = (request.env.get("PATH", "") + os.pathsep
                    + os.environ.get("PATH", "")).rstrip(os.pathsep)
+    # The container resolves '/bin/sh' inside the image; the FAKE executes
+    # host-side, where Windows has no /bin/sh — map to the host's sh (git-bash).
+    argv = list(request.argv)
+    if os.name == "nt" and argv and argv[0] == "/bin/sh":
+        import shutil
+        host_sh = shutil.which("sh")
+        argv[0] = host_sh if host_sh else "sh"
     try:
         proc = subprocess.Popen(
-            request.argv, cwd=request.cwd, env=env, start_new_session=True,
+            argv, cwd=request.cwd, env=env, start_new_session=True,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         out, _ = proc.communicate(timeout=request.timeout)
         return proc.returncode, out.decode("utf-8", "replace"), False
     except subprocess.TimeoutExpired:
-        os.killpg(proc.pid, signal.SIGKILL)
+        if hasattr(os, "killpg"):
+            os.killpg(proc.pid, signal.SIGKILL)
+        else:
+            proc.kill()  # Windows has no killpg (CI-red AttributeError)
         out, _ = proc.communicate()
         return None, out.decode("utf-8", "replace"), True
     except FileNotFoundError:

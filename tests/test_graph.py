@@ -274,7 +274,7 @@ class TestCommandStep:
                                                           fake_agents):
         yaml = COMMAND_STAGE_YAML.replace(
             "    command: python -c \"import sys; import pathlib; print('test output'); sys.exit(0 if pathlib.Path('.pr/fix.marker').exists() else 1)\"",
-            "    command: sleep 3\n    timeout: 0.2")
+            '    command: python -c "import time; time.sleep(3)"\n    timeout: 0.2')
         self._write(repo, yaml)
         fake_agents.set("dev", [("write", "fix.marker", "")])
         start = time.monotonic()

@@ -28,8 +28,9 @@ import pytest
 from agentic_dev_loop import viz
 from agentic_dev_loop.config import PipelineConfig, load_config
 from agentic_dev_loop.viz import (MAX_LINE, PAGE, ConsoleCapture, HeartbeatThread,
-                              NodeWatch, VizBus, _Tee, _handler_class,
-                              serve_viz, topology_mermaid, translate)
+                              NodeWatch, VizBus, _ReuseSafeServer, _Tee,
+                              _handler_class, serve_viz, topology_mermaid,
+                              translate)
 
 MERMAID = "graph TD;\n\tdev(dev)\n\ttest(test)\n"
 SELF_PIPELINE = Path(__file__).parent.parent / "agentic-dev-loop" / "pipeline.yaml"
@@ -649,10 +650,24 @@ class TestServer:
             thread.join(timeout=5)
 
     def test_privileged_port_still_loud(self):
+        if sys.platform == "win32":
+            pytest.skip("no os.geteuid on Windows")
         if os.geteuid() == 0:
             pytest.skip("privileged port is not EACCES when running as root")
         with pytest.raises(OSError, match="--viz-port"):
             serve_viz(VizBus(), MERMAID, "subject", 1)
+
+    def test_reuse_safe_server_keeps_so_reuseaddr_on_posix(self):
+        if sys.platform == "win32":
+            pytest.skip("POSIX socket semantics only")
+        assert _ReuseSafeServer.allow_reuse_address is True
+
+    @pytest.mark.skipif(sys.platform != "win32",
+                        reason="Windows socket semantics only")
+    def test_windows_disables_so_reuseaddr(self):
+        """CI-red root cause: on Windows SO_REUSEADDR permits binding an
+        in-use port, so the busy-port fallback reassigned the SAME port."""
+        assert _ReuseSafeServer.allow_reuse_address is False
 
     def test_connection_reset_on_request_path_is_silent(self, server, monkeypatch):
         _bus, _httpd, _thread, port = server

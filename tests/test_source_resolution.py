@@ -15,9 +15,7 @@ REPO_SRC = Path(__file__).resolve().parents[1] / "src"
 
 def test_import_resolves_to_working_tree():
     resolved = Path(agentic_dev_loop.__file__).resolve()
-    assert str(resolved).startswith(
-        str(REPO_SRC) + "/"
-    ), (
+    assert resolved.is_relative_to(REPO_SRC), (
         f"agentic_dev_loop imported from {resolved}, not the working tree "
         f"({REPO_SRC}) — conftest's src/ sys.path insertion is not effective"
     )

@@ -197,6 +197,11 @@ def changelog_source(
 
 
 def main(argv: list[str] | None = None) -> int:
+    # The release-cut report prints the → arrow (and friends); cp1252
+    # consoles (Windows CI) cannot encode it — pin UTF-8 explicitly instead
+    # of crashing at the final print.
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(
         prog="publish",
         description="Cut and publish an agentic-dev-loop release.",

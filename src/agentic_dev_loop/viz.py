@@ -378,8 +378,15 @@ def _handler_class(bus: VizBus, topology_mermaid: str,
     return Handler
 
 
+class _ReuseSafeServer(ThreadingHTTPServer):
+    # On Windows SO_REUSEADDR permits binding an in-use port, which defeats
+    # the busy-port fallback (the OS reassigned the SAME port — CI-red).
+    # Disable reuse there; POSIX keeps it for TIME_WAIT rebinding.
+    allow_reuse_address = sys.platform != "win32"
+
+
 def serve_viz(bus: VizBus, topology_mermaid: str, subject: str,
-              port: int, nodes: Iterable[str] = ()) -> tuple[ThreadingHTTPServer, threading.Thread]:
+              port: int, nodes: Iterable[str] = ()) -> tuple[_ReuseSafeServer, threading.Thread]:
     """Bind a loopback HTTP server on ``port`` and serve it on a daemon
     thread. Returns ``(httpd, thread)`` — the caller reads the real bound
     port from ``httpd.server_address[1]``.
@@ -390,10 +397,10 @@ def serve_viz(bus: VizBus, topology_mermaid: str, subject: str,
     still fails loud, naming ``--viz-port``."""
     handler = _handler_class(bus, topology_mermaid, subject, nodes)
     try:
-        httpd = ThreadingHTTPServer(("127.0.0.1", port), handler)
+        httpd = _ReuseSafeServer(("127.0.0.1", port), handler)
     except OSError as exc:
         if exc.errno == errno.EADDRINUSE and port != 0:
-            httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+            httpd = _ReuseSafeServer(("127.0.0.1", 0), handler)
         else:
             raise OSError(
                 f"Could not bind the viz server to 127.0.0.1:{port} — the "

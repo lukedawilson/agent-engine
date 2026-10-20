@@ -45,7 +45,7 @@ def resolve_unit_docs(docs_dir: Path | str, unit_slug: str) -> dict[str, str]:
 
     for file in sorted(unit_dir.rglob("*")):
         if file.is_file() and file.suffix in _DOC_SUFFIXES:
-            key = str(file.relative_to(unit_dir))
+            key = file.relative_to(unit_dir).as_posix()
             docs[key] = file.read_text()
 
     # At this point docs holds only unit-dir files — an empty load means the

@@ -10,7 +10,9 @@ import string
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from agentic_dev_loop.proc import child_env, is_pid_token, needs_shell, split_command
+from agentic_dev_loop.proc import (
+    child_env, host_shell_execution, is_pid_token, needs_shell, split_command,
+)
 
 
 class TestNeedsShell:
@@ -35,6 +37,27 @@ class TestNeedsShell:
     @settings(max_examples=200)
     def test_metachar_anywhere_needs_shell(self, prefix: str, metachar: str):
         assert needs_shell(f"{prefix}{metachar}{prefix}") is True
+
+
+class TestHostShellExecution:
+    """How the HOST (non-sandbox) path executes a shell-needing command.
+    Windows cannot rely on shell=True — cmd.exe mangles $VAR and pipelines
+    (the CI-red hybrid failures) — so it prefers the discovered POSIX sh."""
+
+    def test_posix_uses_shell_true(self):
+        argv, shell = host_shell_execution("a && b", nt=False)
+        assert (argv, shell) == ("a && b", True)
+
+    def test_windows_prefers_discovered_sh(self):
+        which = lambda name: "C:/Program Files/Git/bin/sh.exe"  # noqa: E731
+        argv, shell = host_shell_execution("a && b", nt=True, which=which)
+        assert argv == ["C:/Program Files/Git/bin/sh.exe", "-c", "a && b"]
+        assert shell is False
+
+    def test_windows_without_sh_falls_back_to_shell_true(self):
+        argv, shell = host_shell_execution("a && b", nt=True,
+                                           which=lambda name: None)
+        assert (argv, shell) == ("a && b", True)
 
 
 class TestSplitCommand:

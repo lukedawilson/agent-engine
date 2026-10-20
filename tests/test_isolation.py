@@ -8,6 +8,7 @@ test_isolation_integration.py."""
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -67,6 +68,14 @@ class TestRequest:
     def test_relative_cwd_rejected(self):
         with pytest.raises(ValueError, match="absolute"):
             SandboxExecutionRequest(argv=["true"], cwd="ws", env={})
+
+    def test_posix_absolute_cwd_accepted_on_any_host(self):
+        """The cwd is a CONTAINER-side path (the container is always Linux),
+        so POSIX-absolute values like '/ws' must validate on every host OS —
+        Windows included (the CI-red ValueError on test_valid_request)."""
+        r = SandboxExecutionRequest(argv=["echo", "hi"], cwd="/ws",
+                                    env={}, timeout=1.0)
+        assert r.cwd == "/ws"
 
     def test_nonpositive_timeout_rejected(self):
         with pytest.raises(ValueError, match="> 0"):
@@ -260,6 +269,41 @@ class TestPayloads:
         assert "sh" in p and "-c" in p and "make" in p
         mounts = [p[i + 1] for i, a in enumerate(p) if a == "-v"]
         assert mounts == [f"{ws}:{ws}"]
+
+    def test_create_payload_binds_host_user(self, tmp_path):
+        """CI-red root cause: container root with all caps dropped cannot
+        write a host-owned bind mount on native Linux (Docker Desktop's
+        virtiofs masked it on mac). The execution container must run as the
+        host user, with HOME somewhere a non-root user can write."""
+        ws = str(tmp_path)
+        p = docker_create_payload(run_id="r1", image="img", profile=self._profile(),
+                                  workspace=ws)
+        assert "--user" in p
+        assert p[p.index("--user") + 1] == f"{os.getuid()}:{os.getgid()}"
+        assert "--env" in p
+        assert p[p.index("--env") + 1] == "HOME=/tmp"
+
+    def test_provision_payload_binds_host_user(self, tmp_path):
+        ws = str(tmp_path)
+        p = docker_provision_payload(run_id="r1", image="img", workspace=ws,
+                                     setup_cmd="make")
+        assert "--user" in p
+        assert p[p.index("--user") + 1] == f"{os.getuid()}:{os.getgid()}"
+        assert "--env" in p
+        assert p[p.index("--env") + 1] == "HOME=/tmp"
+
+    def test_payloads_omit_user_flag_without_posix_ids(self, tmp_path, monkeypatch):
+        """Windows hosts have no os.getuid/getgid — the --user flag must be
+        omitted rather than fabricating an identity."""
+        monkeypatch.delattr(os, "getuid", raising=False)
+        monkeypatch.delattr(os, "getgid", raising=False)
+        ws = str(tmp_path)
+        create = docker_create_payload(run_id="r1", image="img",
+                                       profile=self._profile(), workspace=ws)
+        provision = docker_provision_payload(run_id="r1", image="img",
+                                             workspace=ws, setup_cmd="make")
+        assert "--user" not in create
+        assert "--user" not in provision
 
 
 class TestSelectBackend:

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import shlex
+import shutil
 from collections.abc import Mapping
 
 _SHELL_METACHARS = frozenset("&|;><$`~*?[]")
@@ -28,6 +29,25 @@ def split_command(command: str) -> list[str]:
     this only when ``needs_shell`` is false — ``shlex`` never sees a shell
     command (BR-4.1)."""
     return shlex.split(command)
+
+
+def host_shell_execution(
+        command: str, *, nt: bool = os.name == "nt",
+        which=shutil.which) -> tuple[str | list[str], bool]:
+    """How the HOST (non-sandbox) path executes a shell-needing command.
+
+    POSIX: the raw string with ``shell=True`` (unchanged unit-2 behaviour).
+    Windows: ``shell=True`` is cmd.exe, which mangles ``$VAR`` expansion and
+    ``|`` pipelines (the CI-red hybrid failures) — prefer the discovered
+    POSIX ``sh`` (git-bash) via argv instead; fall back to ``shell=True``
+    only when no ``sh`` exists anywhere on PATH.
+    """
+    if not nt:
+        return command, True
+    sh = which("sh")
+    if sh:
+        return [sh, "-c", command], False
+    return command, True
 
 
 def is_pid_token(token: str) -> bool:

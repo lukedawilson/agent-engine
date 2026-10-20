@@ -102,6 +102,11 @@ class TestResolveUnitDocs:
         docs = resolve_unit_docs(tmp_path, "unit-3")
 
         assert docs["functional-design/business-rules.md"] == "# Rules"
+        # Keys are contract addresses for agents (a Linux container): always
+        # '/'-joined regardless of host OS — backslashes were the CI-red
+        # KeyError on Windows.
+        assert all("/" in k for k in docs)
+        assert all("\\" not in k for k in docs)
 
     def test_raises_when_unit_dir_yields_no_docs(self, tmp_path):
         """A matched unit dir with no loadable files is a forbidden silent

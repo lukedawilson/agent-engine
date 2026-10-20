@@ -35,7 +35,7 @@ from .agents import load_agent, register_sandbox_terminal
 from .config import TERMINALS, PipelineConfig, Route, StepConfig, route_target
 from .isolation import SandboxExecutionRequest, command_argv, resolve_sandbox_env
 from .outputs import CapturedOutput, Verdict
-from .proc import child_env, needs_shell, split_command
+from .proc import child_env, host_shell_execution, needs_shell, split_command
 from .registry import Registry
 
 if TYPE_CHECKING:
@@ -69,9 +69,9 @@ def prompt_dir(runtime: Runtime) -> str:
     `agentic-dev-loop/.pr` diverge. Workspace-relative when under the workspace,
     the absolute path when outside it."""
     try:
-        return str(runtime.state_dir.relative_to(runtime.workspace))
+        return runtime.state_dir.relative_to(runtime.workspace).as_posix()
     except ValueError:
-        return str(runtime.state_dir)
+        return runtime.state_dir.as_posix()
 
 
 @dataclass
@@ -137,7 +137,9 @@ def run_agent(agent_name: str, message: str, runtime: Runtime,
         print(err[-4000:], file=sys.stderr, flush=True)
         runtime.state_dir.mkdir(parents=True, exist_ok=True)
         error_path = runtime.state_dir / LAST_ERROR
-        error_path.write_text(f"# Agent run failed\n\n```\n{err[-4000:]}\n```")
+        error_path.write_text(
+            f"# Agent run failed\n\n```\n{err[-4000:]}\n```",
+            encoding="utf-8")
         print(f"Agent run failed — error details written to {error_path}", flush=True)
         return AgentResult(ok=False, truncated=False)
     finally:
@@ -168,8 +170,7 @@ def _run_command(command: str, workspace: Path, timeout: float,
         result = sandbox.run(request)
         return result.exit_code, result.stdout + result.stderr, result.timed_out
     if needs_shell(command):
-        argv: str | list[str] = command
-        shell = True
+        argv, shell = host_shell_execution(command)
     else:
         argv = split_command(command)
         shell = False
@@ -180,7 +181,10 @@ def _run_command(command: str, workspace: Path, timeout: float,
         out, _ = proc.communicate(timeout=timeout)
         return proc.returncode, out.decode("utf-8", "replace"), False
     except subprocess.TimeoutExpired:
-        os.killpg(proc.pid, signal.SIGKILL)
+        if hasattr(os, "killpg"):
+            os.killpg(proc.pid, signal.SIGKILL)
+        else:
+            proc.kill()  # Windows has no killpg (CI-red AttributeError)
         out, _ = proc.communicate()
         return None, out.decode("utf-8", "replace"), True
 
