@@ -251,7 +251,9 @@ class TestPayloads:
         ws = str(tmp_path)
         p = docker_create_payload(run_id="r1", image="img", profile=self._profile(),
                                   workspace=ws)
-        assert p[0] == "docker" and "create" in p
+        assert p[0] == "docker" and "run" in p
+        assert "--detach" in p and "--rm" in p
+        assert "create" not in p
         assert "--network" in p and "none" in p
         assert "--read-only" in p
         assert "--cap-drop" in p and "ALL" in p
@@ -420,13 +422,15 @@ class TestEnsureImage:
 
 class TestCreateExecutionContainer:
     def test_eager_create_and_start(self, tmp_path):
-        runner = FakeRunner(ok("cid"), ok("cid"))
+        """``docker run -d --rm`` collapses create + start into one call (D1):
+        exactly one runner invocation, no separate ``docker start``."""
+        runner = FakeRunner(ok("cid"))
         backend = _backend(tmp_path, runner)
         backend.create_execution_container()
-        assert runner.calls[0][:2] == ["docker", "create"]
+        assert runner.calls[0][:2] == ["docker", "run"]
+        assert "--detach" in runner.calls[0] and "--rm" in runner.calls[0]
         assert "--network" in runner.calls[0] and "none" in runner.calls[0]
-        assert runner.calls[1] == ["docker", "start", "rid" + "-exec"] or \
-            runner.calls[1][1] == "start"
+        assert len(runner.calls) == 1
 
 
 class TestRun:
@@ -529,6 +533,18 @@ class TestClose:
         backend.close()
         assert runner.calls == []
 
+    def test_tolerates_auto_removed_container(self, tmp_path):
+        """D2: with --rm the daemon may have auto-removed the container by the
+        time close() runs, so stop/rm return "no such container" (rc != 0).
+        close() must treat that as success and never raise."""
+        runner = FakeRunner(fail(1, "No such container"),
+                            fail(1, "No such container"))
+        backend = _backend(tmp_path, runner)
+        backend._started = True
+        backend._container = "c1"
+        backend.close()  # must not raise
+        assert not backend._started
+
 
 # ---------------------------------------------------------------------------
 # Provision + stamps + audit (real temp dirs)
@@ -617,14 +633,13 @@ class TestStartupSandbox:
             ok("1.54"),           # probe version
             ok("linux"),          # probe ostype
             ok(""),               # image inspect (pull)
-            ok(""),               # docker create
-            ok(""),               # docker start
+            ok(""),               # docker run -d --rm (exec container)
             ok(""),               # docker run provision
         )
         sandbox = startup_sandbox(cfg, workspace=ws, runner=runner)
         try:
             kinds = [c[1] for c in runner.calls]
-            assert kinds == ["version", "info", "image", "create", "start", "run"]
+            assert kinds == ["version", "info", "image", "run", "run"]
             # the provision payload carries the setup command
             run_argv = runner.calls[-1]
             assert "python -m venv .venv-sandbox" in run_argv
@@ -650,13 +665,13 @@ class TestStartupSandbox:
         write_stamp(stamps, setup_stamp_key("python -m venv .venv-sandbox", {}))
 
         # Without refresh the stamp is a hit: no provision container runs.
-        runner = FakeRunner(ok("1.54"), ok("linux"), ok(""), ok(""), ok(""))
+        runner = FakeRunner(ok("1.54"), ok("linux"), ok(""), ok(""))
         sandbox = startup_sandbox(cfg, workspace=ws, runner=runner)
         sandbox.close()
-        assert not [c for c in runner.calls if c[0] == "docker" and c[1] == "run"]
+        assert not [c for c in runner.calls if "python -m venv .venv-sandbox" in c]
 
         # With refresh the stamp is ignored: provision re-runs.
-        runner2 = FakeRunner(ok("1.54"), ok("linux"), ok(""), ok(""), ok(""), ok(""))
+        runner2 = FakeRunner(ok("1.54"), ok("linux"), ok(""), ok(""), ok(""))
         sandbox2 = startup_sandbox(cfg, workspace=ws, runner=runner2, refresh=True)
         sandbox2.close()
-        assert [c for c in runner2.calls if c[0] == "docker" and c[1] == "run"]
+        assert [c for c in runner2.calls if "python -m venv .venv-sandbox" in c]

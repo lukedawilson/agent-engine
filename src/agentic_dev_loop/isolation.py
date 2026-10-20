@@ -282,12 +282,14 @@ def host_user_flag() -> str | None:
 
 def docker_create_payload(*, run_id: str, image: str, profile: EffectiveProfile,
                           workspace: str) -> list[str]:
-    """Exact ``docker create`` argv for the execution container (§3.3, KD-8).
+    """Exact ``docker run -d --rm`` argv for the execution container (§3.3, KD-8).
     Single mount {workspace} (Q1); --network none, --read-only, --cap-drop ALL;
     --user host uid:gid (host-owned bind mounts, AE-SBX-009 root cause) with
-    HOME=/tmp (the rootfs is read-only; /tmp is a 1777 tmpfs)."""
+    HOME=/tmp (the rootfs is read-only; /tmp is a 1777 tmpfs). ``--rm`` lets the
+    daemon auto-remove the container the instant it exits, however it exits
+    (D1) — a SIGKILLed CLI never reaches close()."""
     payload = [
-        "docker", "create", "--name", f"{run_id}-exec",
+        "docker", "run", "--detach", "--rm", "--name", f"{run_id}-exec",
         "--network", "none", "--read-only", "--cap-drop", "ALL",
         "--memory", profile.memory, "--cpus", str(profile.cpus),
         "--tmpfs", "/tmp", "--tmpfs", "/root",
@@ -452,20 +454,17 @@ class DockerBackend(Sandbox):
         self._verify_digest()
 
     def create_execution_container(self) -> None:
-        """Eager create + start (Q2) — never lazy."""
+        """Eager create + start via ``docker run -d --rm`` (Q2, D1) — never
+        lazy; ``run -d`` is create + start in one call, so there is no
+        separate ``docker start``."""
         payload = docker_create_payload(
             run_id=self._run_id, image=self._image, profile=self._profile,
             workspace=self._workspace)
-        create = self._runner.run(payload, timeout=60)
-        if create.exit_code != 0:
+        res = self._runner.run(payload, timeout=60)
+        if res.exit_code != 0:
             raise SandboxError(
-                f"AE-SBX-010: container create failed: "
-                f"{create.stderr.strip() or create.stdout.strip()}")
-        start = self._runner.run(["docker", "start", self._container], timeout=60)
-        if start.exit_code != 0:
-            raise SandboxError(
-                f"AE-SBX-010: container start failed: "
-                f"{start.stderr.strip() or start.stdout.strip()}")
+                f"AE-SBX-010: container run failed: "
+                f"{res.stderr.strip() or res.stdout.strip()}")
         self._started = True
 
     def provision(self, setup_cmd: str, stamp_key: str, stamp_dir: str,
@@ -513,10 +512,14 @@ class DockerBackend(Sandbox):
         return result
 
     def close(self) -> None:
-        """Best-effort stop + rm; idempotent (BR-8.3)."""
+        """Best-effort stop + rm; idempotent (BR-8.3). With ``--rm`` the
+        daemon may already have auto-removed the container by the time close()
+        runs, so a nonzero stop/rm exit code ("no such container") is treated
+        as success, never raised (D2)."""
         if not self._started:
             return
         self._runner.run(["docker", "stop", "-t", "5", self._container], timeout=60)
+        # rm -f returns rc != 0 when --rm already removed it — ignore, never raise.
         self._runner.run(["docker", "rm", "-f", self._container], timeout=60)
         self._started = False
 
@@ -639,7 +642,7 @@ def clean_stamps(state_dir: Path) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Eager startup (Q2) — probe → image → create/start → provision all setups
+# Eager startup (Q2) — probe → image → run -d --rm → provision all setups
 # ---------------------------------------------------------------------------
 
 _LOCKFILE_NAMES = ("package-lock.json", "requirements.txt")
