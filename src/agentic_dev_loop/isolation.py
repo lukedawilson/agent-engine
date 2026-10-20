@@ -93,6 +93,9 @@ class SandboxExecutionRequest:
     def __post_init__(self) -> None:
         if not self.argv:
             raise ValueError("SandboxExecutionRequest.argv must be non-empty")
+        # Coerce Path-like cwd to str so the invariant "cwd is always a str"
+        # holds at the boundary (audit digest etc. serialize it).
+        object.__setattr__(self, "cwd", os.fspath(self.cwd))
         if not (Path(self.cwd).is_absolute()
                 or PurePosixPath(self.cwd).is_absolute()):
             raise ValueError(f"SandboxExecutionRequest.cwd must be absolute: {self.cwd!r}")

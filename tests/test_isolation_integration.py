@@ -155,13 +155,13 @@ class TestNetworkedContainerE2E:
         b, ws = networked_backend
         req = SandboxExecutionRequest(
             argv=["python", "-c",
-                  "import socket; print(' '.join(sorted(n for _, n in socket.if_nameindex())))"],
+                  "print(len(open('/proc/net/route').read().strip().splitlines()[1:]))"],
             cwd=ws,
             env={"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": "/tmp"},
             network=False)
         result = b.run(req)
         assert result.exit_code == 0, result.stderr
-        assert result.stdout.split() == ["lo"]
+        assert result.stdout.strip() == "0"  # no routes at all — no egress
 
 
 class TestProvisionE2E:
