@@ -127,7 +127,7 @@ class TestResolveSandboxEnv:
     def test_base_only(self):
         env = resolve_sandbox_env(None, host_env={})
         assert env["PATH"] == "/usr/local/bin:/usr/bin:/bin"
-        assert env["HOME"] == "/root"
+        assert env["HOME"] == "/tmp"
         assert "OPENAI_API_KEY" not in env
 
     def test_declared_null_inherits(self):

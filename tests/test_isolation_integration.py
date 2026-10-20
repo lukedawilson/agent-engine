@@ -54,7 +54,7 @@ def _run(backend, argv, **kw):
     ws = backend._workspace
     req = SandboxExecutionRequest(
         argv=argv, cwd=ws,
-        env={"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": "/root"},
+        env={"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": "/tmp"},
         timeout=kw.get("timeout"))
     return backend.run(req)
 

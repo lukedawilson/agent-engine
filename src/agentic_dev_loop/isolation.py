@@ -54,7 +54,7 @@ ENGINE_API_FLOOR = "1.43"
 
 SANDBOX_ENV_BASE = {
     "PATH": "/usr/local/bin:/usr/bin:/bin",
-    "HOME": "/root",
+    "HOME": "/tmp",
     "LANG": "C.UTF-8",
     "LC_ALL": "C.UTF-8",
     "TERM": "xterm",
