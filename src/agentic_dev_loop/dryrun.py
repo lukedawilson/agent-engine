@@ -101,16 +101,22 @@ def _print_summary(cfg_path: Path, cfg: PipelineConfig, subject: str,
     print("dry run complete — nothing executed")
 
 
-def dry_run(cfg_path, args) -> int:
+def dry_run(cfg_path, args, registry: Registry | None = None) -> int:
     """Validate a pipeline end-to-end without executing it, and print a
     summary plan. Returns 0 on a clean load; any load failure propagates as
-    the existing loud error (the CLI exits 1)."""
+    the existing loud error (the CLI exits 1).
+
+    `registry` carries extensions already loaded by the CLI (build_parser
+    loads them once for loader-contributed flags; a second load would
+    collide with the SDK's process-global tool registry). When absent —
+    programmatic calls — the registry is built here."""
     cfg_path = Path(cfg_path)
     cfg = load_config(cfg_path)
     base = cfg_path.resolve().parent
 
-    registry = default_registry()
-    load_extensions(cfg.extensions, registry)
+    if registry is None:
+        registry = default_registry()
+        load_extensions(cfg.extensions, registry)
 
     _validate_agents(cfg, base / cfg.agents_dir)
     _validate_actions(cfg, registry)

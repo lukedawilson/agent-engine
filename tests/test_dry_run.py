@@ -111,6 +111,17 @@ class TestDryRun:
         assert "test [command]" in out
         assert "network=True" in out
 
+    def test_tool_extension_loads_once(self, repo, capsys):
+        """A tool-registering extension must survive the CLI's two-phase load:
+        build_parser loads extensions once for loader-contributed flags, and
+        the dry run reuses that registry instead of loading again (a second
+        load collides with the SDK's process-global tool registry and BR-3
+        rejects it — the pre-fix double-load crash)."""
+        (repo / "tool.yaml").write_text(
+            "extensions:\n  - sample_ext:DryRunProbeExtension\n" + DRY_RUN_YAML)
+        assert main(["tool.yaml", "--dry-run", "--plan", "plan.md"]) == 0
+        assert "dry run complete" in capsys.readouterr().out
+
 
 class TestDryRunHelp:
     def test_help_documents_flag(self, repo, capsys):

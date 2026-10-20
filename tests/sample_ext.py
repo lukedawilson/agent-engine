@@ -62,6 +62,29 @@ class CollisionExtension:
         registry.add_tool("collision_probe", SampleTool)
 
 
+class DryRunProbeTool(ToolDefinition[SampleAction, SampleObservation]):
+    # name auto-derived: DryRunProbeTool -> "dry_run_probe"
+    # (a name no other test registers — the SDK tool registry is
+    # process-global, so this one must never collide across tests)
+
+    @classmethod
+    def create(cls, conv_state=None, **params):
+        return [cls(description="dry-run probe",
+                    action_type=SampleAction,
+                    observation_type=SampleObservation,
+                    executor=SampleExecutor())]
+
+
+class DryRunProbeExtension:
+    """Registers a uniquely-named tool so a CLI --dry-run of a
+    tool-registering pipeline exercises the load-once path end to end."""
+
+    name = "dry-run-probe"
+
+    def register(self, registry):
+        registry.add_tool("dry_run_probe", DryRunProbeTool)
+
+
 class EmptyDocsLoader:
     """Loader whose resolve returns no docs — pins the U3 empty-load guard
     at the run_pipeline call site."""

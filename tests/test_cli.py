@@ -361,3 +361,24 @@ class TestRefreshAndCleanStamps:
         assert main(["clean.yaml", "--clean-stamps"]) == 0
         assert not (state / "stamps" / "k1").exists()
         assert not (state / "stamps" / "k2").exists()
+
+    def test_clean_stamps_loads_config_once(self, repo, tmp_path, monkeypatch):
+        # --clean-stamps must reuse the config _registry_for already loaded;
+        # loading it twice is the pre-fix behaviour this guards against.
+        import agentic_dev_loop.cli as cli_mod
+
+        state = tmp_path / "iso-state"
+        yaml = CLEAN_YAML.format(iso_state_dir=str(state))
+        write_pipeline(repo, "clean.yaml", yaml)
+
+        real = cli_mod.load_config
+        calls = []
+
+        def counting(cfg_path):
+            calls.append(cfg_path)
+            return real(cfg_path)
+
+        monkeypatch.setattr(cli_mod, "load_config", counting)
+
+        assert cli_mod.main(["clean.yaml", "--clean-stamps"]) == 0
+        assert len(calls) == 1

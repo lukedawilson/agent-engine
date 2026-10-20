@@ -17,7 +17,7 @@ import pytest
 from agentic_dev_loop.config import load_config
 from agentic_dev_loop.graph import build_graph, run_pipeline
 from agentic_dev_loop.llm import build_llm
-from agentic_dev_loop.registry import default_registry, load_extensions
+from agentic_dev_loop.registry import Registry, default_registry, load_extensions
 from agentic_dev_loop.stages import Runtime
 from agentic_dev_loop.viz import VizBus
 
@@ -483,3 +483,15 @@ class TestSandboxLifecycle:
         with pytest.raises(KeyboardInterrupt):
             run_pipeline("pipeline.yaml", args())
         assert fake_sandbox.closed
+
+def test_run_pipeline_registry_param_typed():
+    """API-consistency guard: run_pipeline's registry kwarg must carry the
+    same Registry | None annotation as dry_run's — an untyped param is how
+    this drifted once already."""
+    import inspect
+    from typing import get_type_hints
+
+    sig = inspect.signature(run_pipeline)
+    ann = sig.parameters["registry"].annotation
+    assert ann is not inspect.Parameter.empty
+    assert get_type_hints(run_pipeline)["registry"] == Registry | None

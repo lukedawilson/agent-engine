@@ -9,10 +9,10 @@ import importlib.metadata
 import sys
 from pathlib import Path
 
-from .config import load_config
+from .config import PipelineConfig, load_config
 from .dryrun import dry_run
 from .isolation import clean_stamps, isolation_state_dir
-from .registry import default_registry, load_extensions
+from .registry import Registry, default_registry, load_extensions
 
 
 def _version() -> str:
@@ -63,11 +63,21 @@ def _core_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def build_parser(cfg_path) -> argparse.ArgumentParser:
-    """The full parser for one pipeline: core flags + loader-contributed."""
+def _registry_for(cfg_path: Path) -> tuple[Registry, PipelineConfig]:
+    """Load the pipeline config and build ONE registry with its extensions.
+    The CLI loads extensions exactly once per process: the SDK tool registry
+    is process-global and BR-3 rejects a second registration of any tool
+    name, so the registry built here is passed down to the dry run and the
+    run path instead of being rebuilt."""
     cfg = load_config(cfg_path)
     registry = default_registry()
     load_extensions(cfg.extensions, registry)
+    return registry, cfg
+
+
+def build_parser(cfg_path) -> argparse.ArgumentParser:
+    """The full parser for one pipeline: core flags + loader-contributed."""
+    registry, _ = _registry_for(cfg_path)
     parser = _core_parser()
     for loader in registry.document_loaders:
         loader.add_cli_args(parser)
@@ -84,20 +94,23 @@ def main(argv: list[str] | None = None) -> int:
         # handles --help and the missing-positional error itself (both exit).
         _core_parser().parse_args(argv)
         return 2  # unreachable — parse_args exits first
-    args = build_parser(known.pipeline).parse_args(argv)
+    registry, cfg = _registry_for(known.pipeline)
+    parser = _core_parser()
+    for loader in registry.document_loaders:
+        loader.add_cli_args(parser)
+    args = parser.parse_args(argv)
     if args.clean_stamps:
-        cfg = load_config(args.pipeline)
         state = isolation_state_dir(cfg)
         removed = clean_stamps(state)
         print(f"Removed {removed} cached provision stamp(s) from "
               f"{state / 'stamps'}", flush=True)
         return 0
     if args.dry_run:
-        return dry_run(args.pipeline, args)
+        return dry_run(args.pipeline, args, registry)
     # The run path alone needs the heavy graph/SDK imports — defer so a
     # dry run, --clean-stamps, and --help stay side-effect free.
     from .graph import run_pipeline
-    success, _attempts = run_pipeline(args.pipeline, args)
+    success, _attempts = run_pipeline(args.pipeline, args, registry=registry)
     if not success:
         print("agentic-dev-loop: pipeline failed — exiting with code 1",
               file=sys.stderr)

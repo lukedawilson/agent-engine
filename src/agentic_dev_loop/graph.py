@@ -80,7 +80,8 @@ def build_graph(runtime: Runtime, checkpointer=None):
 
 
 
-def run_pipeline(cfg_path, args, *, viz_bus=None) -> tuple[bool, int]:
+def run_pipeline(cfg_path, args, *, viz_bus=None,
+                 registry: Registry | None = None) -> tuple[bool, int]:
     """Load a pipeline YAML, resolve docs via the selected document loader,
     and run the graph to completion. Returns (success, attempts) — the
     public API, yosk's `construct`/`resume_loop` equivalent.
@@ -95,14 +96,20 @@ def run_pipeline(cfg_path, args, *, viz_bus=None) -> tuple[bool, int]:
     events; the CLI path additionally serves the HTTP page and opens the
     browser, and the process exits as soon as the loop completes.
     Programmatic Namespaces without a ``no_viz`` attribute get no server —
-    default-on is a CLI-layer concern."""
+    default-on is a CLI-layer concern.
+
+    ``registry`` carries extensions already loaded by the CLI (it loads them
+    once, for loader-contributed flags; a second load would collide with the
+    SDK's process-global tool registry). When absent — programmatic calls —
+    the registry is built here."""
     cfg_path = Path(cfg_path)
     cfg = load_config(cfg_path)
     base = cfg_path.resolve().parent
     max_attempts = getattr(args, "max_attempts", None) or cfg.max_attempts
 
-    registry = default_registry()
-    load_extensions(cfg.extensions, registry)
+    if registry is None:
+        registry = default_registry()
+        load_extensions(cfg.extensions, registry)
 
     state_dir = Path(cfg.state_dir).expanduser()
     if not state_dir.is_absolute():
