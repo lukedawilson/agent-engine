@@ -21,20 +21,12 @@ jobs:
         run: pip install -e ".[dev]"
       - name: Unit + PBT (no Docker)
         run: pytest tests/ -m "not docker" -q
-      - name: Prepare Docker (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          "DockerDesktop.exe" | Out-Null
-          # Start Docker Desktop and wait for the engine (Linux containers mode)
-          Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"
-          $deadline = (Get-Date).AddMinutes(5)
-          do {
-            Start-Sleep -Seconds 10
-            docker version --format '{{.Server.APIVersion}}' 2>$null
-          } while ($LASTEXITCODE -ne 0 -and (Get-Date) -lt $deadline)
-          if ($LASTEXITCODE -ne 0) { throw "Docker Desktop did not start" }
+      # Docker integration tests run on Linux only: GitHub-hosted Windows
+      # runners ship the Docker CLI but no daemon (no Docker Desktop, no
+      # nested virtualisation), so containers cannot run there.
       - name: Prepare integration image
+        if: runner.os == 'Linux'
         run: docker pull python:3.12
       - name: Docker integration tests
+        if: runner.os == 'Linux'
         run: pytest tests/ -m docker -q
