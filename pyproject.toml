@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentic-dev-loop"
-version = "1.0.0a1"
+version = "1.0.0a2"
 description = "Opinionated LangGraph engine for OpenHands agent pipelines"
 readme = "README.md"
 requires-python = ">=3.12"

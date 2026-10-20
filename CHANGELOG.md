@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0a2] - 2026-10-20
+
+### Changed
+
+- feat: construct plan 015-container-lifecycle-rm-fix.md (agent dev loop)
+- docs: plan 015 — container lifecycle --rm cleanup fix
+
 ## [1.0.0a1] - 2026-10-20
 
 ### Changed
