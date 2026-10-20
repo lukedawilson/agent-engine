@@ -164,6 +164,28 @@ def kill_listeners_on_port(port: int, match: str | None = None,
                            shell=False, env=child_env())
 
 
+def checkpoint_exclude_pathspec(state_dir: str | None, cwd: Path) -> str | None:
+    """git pathspec excluding the live checkpoint DB from ``git add -A``.
+
+    The checkpointer keeps ``state_dir/loop-checkpoints.sqlite`` open for the
+    whole run; on Windows an open SQLite file blocks other readers, so
+    ``git add`` fails to hash it (CI-red gate failure). When the state dir
+    sits inside the repo, exclude its sqlite files (db + wal/shm) from the
+    auto-commit — checkpoint state is runtime machinery, not constructed
+    work. Returns None when there is nothing in-repo to exclude (no state
+    dir known, or it lives outside the repo).
+    """
+    if not state_dir:
+        return None
+    rel = os.path.relpath(state_dir, cwd)
+    if rel == ".." or rel.startswith(".." + os.sep):
+        return None
+    rel = rel.replace(os.sep, "/")
+    if rel == ".":
+        return ":(exclude)*.sqlite*"
+    return f":(exclude){rel}/*.sqlite*"
+
+
 def commit(state: dict, params: dict) -> dict:
     """The pipeline's only commit point. Skipped loudly when the worktree was
     dirty at run start, so the auto-commit can never swallow pre-existing
@@ -182,7 +204,17 @@ def commit(state: dict, params: dict) -> dict:
                          "(a template rendered with {subject})")
     cwd = Path.cwd()
     hooks = _trusted_hooks_dir()
-    _git(["-c", f"core.hooksPath={hooks}", "add", "-A"], cwd=cwd)
+    add_argv = ["-c", f"core.hooksPath={hooks}", "add", "-A"]
+    exclude = checkpoint_exclude_pathspec(state.get("state_dir"), cwd)
+    if exclude:
+        add_argv += ["--", exclude]
+    added = _git(add_argv, cwd=cwd)
+    if added.returncode != 0:
+        # The add is the step that touches the most files (a locked DB, a
+        # permission problem) — its error is the diagnostic that matters.
+        print(f"WARNING: [{subject}] auto-commit failed — git add: "
+              f"{added.stderr.strip()}", file=sys.stderr, flush=True)
+        return {}
     if not _git(["status", "--porcelain"], cwd=cwd).stdout.strip():
         print(f"[{subject}] Nothing to commit.", flush=True)
         return {}

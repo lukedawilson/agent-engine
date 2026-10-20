@@ -270,6 +270,8 @@ class TestPayloads:
         mounts = [p[i + 1] for i, a in enumerate(p) if a == "-v"]
         assert mounts == [f"{ws}:{ws}"]
 
+    @pytest.mark.skipif(not hasattr(os, "getuid"),
+                        reason="POSIX-only: Windows hosts have no uid:gid to bind")
     def test_create_payload_binds_host_user(self, tmp_path):
         """CI-red root cause: container root with all caps dropped cannot
         write a host-owned bind mount on native Linux (Docker Desktop's
@@ -283,6 +285,8 @@ class TestPayloads:
         assert "--env" in p
         assert p[p.index("--env") + 1] == "HOME=/tmp"
 
+    @pytest.mark.skipif(not hasattr(os, "getuid"),
+                        reason="POSIX-only: Windows hosts have no uid:gid to bind")
     def test_provision_payload_binds_host_user(self, tmp_path):
         ws = str(tmp_path)
         p = docker_provision_payload(run_id="r1", image="img", workspace=ws,

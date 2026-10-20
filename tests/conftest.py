@@ -26,6 +26,7 @@ import pytest
 from agentic_dev_loop.isolation import (Sandbox, SandboxExecutionRequest,
                                         SandboxExecutionResult, SandboxError,
                                         is_git_mutation)
+from agentic_dev_loop.proc import kill_process_tree
 from agentic_dev_loop.stages import AgentResult
 
 
@@ -128,7 +129,6 @@ class FakeSandbox(Sandbox):
 
 def _exec_host(request: SandboxExecutionRequest) -> tuple[int | None, str, bool]:
     import os
-    import signal
     import subprocess
 
     # Host-side approximation of the container: keep the sandbox PATH first
@@ -152,10 +152,7 @@ def _exec_host(request: SandboxExecutionRequest) -> tuple[int | None, str, bool]
         out, _ = proc.communicate(timeout=request.timeout)
         return proc.returncode, out.decode("utf-8", "replace"), False
     except subprocess.TimeoutExpired:
-        if hasattr(os, "killpg"):
-            os.killpg(proc.pid, signal.SIGKILL)
-        else:
-            proc.kill()  # Windows has no killpg (CI-red AttributeError)
+        kill_process_tree(proc)
         out, _ = proc.communicate()
         return None, out.decode("utf-8", "replace"), True
     except FileNotFoundError:

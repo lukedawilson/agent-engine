@@ -20,7 +20,6 @@ pipeline config; the fixed policies stay here, not in config:
 from __future__ import annotations
 
 import os
-import signal
 import subprocess
 import sys
 import traceback
@@ -35,7 +34,8 @@ from .agents import load_agent, register_sandbox_terminal
 from .config import TERMINALS, PipelineConfig, Route, StepConfig, route_target
 from .isolation import SandboxExecutionRequest, command_argv, resolve_sandbox_env
 from .outputs import CapturedOutput, Verdict
-from .proc import child_env, host_shell_execution, needs_shell, split_command
+from .proc import (child_env, host_shell_execution, kill_process_tree,
+                   needs_shell, split_command)
 from .registry import Registry
 
 if TYPE_CHECKING:
@@ -181,10 +181,7 @@ def _run_command(command: str, workspace: Path, timeout: float,
         out, _ = proc.communicate(timeout=timeout)
         return proc.returncode, out.decode("utf-8", "replace"), False
     except subprocess.TimeoutExpired:
-        if hasattr(os, "killpg"):
-            os.killpg(proc.pid, signal.SIGKILL)
-        else:
-            proc.kill()  # Windows has no killpg (CI-red AttributeError)
+        kill_process_tree(proc)
         out, _ = proc.communicate()
         return None, out.decode("utf-8", "replace"), True
 

@@ -102,7 +102,8 @@ class TestBuildContext:
                      agents_dir=tmp_path / "agents", state_dir=state_dir,
                      workspace=workspace)
         ctx = build_context(rt, {}, "s", [])
-        assert f"check agent writes: `{state_dir}/ci-fix.md`" in ctx
+        assert f"check agent writes: `{state_dir.as_posix()}/ci-fix.md`" in ctx
+        assert "\\" not in ctx  # prompt paths are container-addressed → POSIX
 
     def test_command_step_contributes_no_output_paths(self, runtime):
         cfg = make_cfg([{"name": "dev", "agent": "dev", "produces": ["summary.md"],
@@ -250,10 +251,12 @@ class TestCommandNode:
         (note,) = update["notes"]
         assert "timed out" in note
 
-    def test_timeout_kill_without_killpg_uses_proc_kill(self, tmp_path, monkeypatch):
-        """Windows has no os.killpg — the host-path timeout must degrade to
-        proc.kill() instead of raising AttributeError (CI-red root cause)."""
-        monkeypatch.delattr(os, "killpg", raising=False)
+    def test_timeout_reaps_the_process_tree(self, tmp_path):
+        """The host-path timeout must cut the WHOLE tree short, not just the
+        direct child — a shell wrapper's grandchild that survives keeps the
+        pipes open and the follow-up communicate() blocks out the full sleep
+        (CI-red 9.5s). kill_process_tree's per-OS branches are unit-pinned
+        in tests/test_proc.py::TestKillProcessTree."""
         code, out, timed_out = _run_command(
             f'"{sys.executable}" -c "import time; time.sleep(30)"',
             tmp_path, 0.2)

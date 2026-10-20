@@ -10,6 +10,8 @@ from __future__ import annotations
 import os
 import shlex
 import shutil
+import signal
+import subprocess
 from collections.abc import Mapping
 
 _SHELL_METACHARS = frozenset("&|;><$`~*?[]")
@@ -48,6 +50,30 @@ def host_shell_execution(
     if sh:
         return [sh, "-c", command], False
     return command, True
+
+
+def kill_process_tree(proc, *, nt: bool | None = None,
+                      run=subprocess.run) -> None:
+    """Terminate `proc` and its descendants after a timeout.
+
+    POSIX: ``start_new_session`` made ``proc.pid`` the process-group id —
+    ``killpg`` reaps the whole group (a shell wrapper's children survive a
+    plain ``kill``).
+
+    Windows: ``proc.kill()`` terminates only the direct child — a git-bash
+    ``sh -c`` wrapper's python child survives and keeps the pipes open, so
+    the follow-up ``communicate()`` blocks out the child's full lifetime.
+    ``taskkill /T`` walks the process tree while the parent is still alive,
+    then ``kill`` sweeps up anything left (CI-red: 9.5s timeout test).
+    """
+    if nt is None:
+        nt = os.name == "nt"
+    if nt:
+        run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+            capture_output=True, check=False)
+        proc.kill()
+    else:
+        os.killpg(proc.pid, signal.SIGKILL)
 
 
 def is_pid_token(token: str) -> bool:

@@ -44,6 +44,7 @@ class LoopState(TypedDict):
     resume_target: str | None          # where a resumed run re-enters (START edge)
     outcome: str | None                # "success" once routed to the success terminal
     commit_allowed: bool               # worktree was clean at run start
+    state_dir: str                     # resolved pipeline state dir (for the commit action)
     step_verdicts: dict[str, str | None]  # per-step pass/fail/None(unclear)
     retry_target: str | None           # where the bump node loops back to
     thread_id: str
@@ -177,6 +178,7 @@ def _run_pipeline(cfg, base, registry, state_dir, max_attempts, args, viz_bus,
             # the checkpointer creates its db under state_dir, which would
             # itself dirty the worktree.
             "commit_allowed": git_worktree_clean(Path.cwd()),
+            "state_dir": str(state_dir),
             "step_verdicts": {},
             "retry_target": None,
             "thread_id": thread_id,

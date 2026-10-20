@@ -130,7 +130,7 @@ class CapturedOutput:
         """Write the captured response to the step's artifact path (BR-4/BR-5)."""
         try:
             self.artifact_path.parent.mkdir(parents=True, exist_ok=True)
-            self.artifact_path.write_text(self.raw_text)
+            self.artifact_path.write_text(self.raw_text, encoding="utf-8")
             return Result.ok(None)
         except OSError:
             return Result.err(CaptureError.IO_ERROR)

@@ -370,3 +370,86 @@ class TestCommitNode:
 
         assert update == {}
         assert "auto-commit failed" in capsys.readouterr().err
+
+    def test_add_excludes_live_checkpoint_db(self, tmp_path, monkeypatch):
+        """The live checkpointer DB under state_dir stays open for the whole
+        run; on Windows an open SQLite file blocks other readers and
+        `git add -A` fails to hash it (CI-red gate failure). The add must
+        exclude sqlite files under the state dir on every OS."""
+        repo = tmp_path / "repo"
+        init_git_repo(repo)
+        (repo / "feature.cs").write_text("// constructed by the pipeline")
+        db = repo / ".pr" / "loop-checkpoints.sqlite"
+        db.parent.mkdir(parents=True)
+        db.write_bytes(b"\x00" * 64)
+        monkeypatch.chdir(repo)
+
+        commit({"subject": "unit U2", "commit_allowed": True,
+                "state_dir": str(db.parent)}, COMMIT_PARAMS)
+
+        assert "feat: construct unit U2 (agent dev loop)" in git_log(repo)
+        tracked = subprocess.run(
+            ["git", "ls-files"], cwd=repo, capture_output=True,
+            text=True).stdout
+        assert "feature.cs" in tracked
+        assert "loop-checkpoints.sqlite" not in tracked
+
+    def test_git_add_failure_warns_and_skips_commit(self, tmp_path, monkeypatch,
+                                                    capsys):
+        """A failed `git add` (e.g. a file git cannot stat) must not surface
+        as a misleading 'commit failed: nothing to commit' — warn with the
+        real add error and skip the commit entirely."""
+        repo = tmp_path / "repo"
+        init_git_repo(repo)
+        (repo / "feature.cs").write_text("x")
+        monkeypatch.chdir(repo)
+
+        from agentic_dev_loop import actions as actions_mod
+        real_git = actions_mod._git
+        calls = []
+
+        def fake_git(args, cwd=None):
+            calls.append(list(args))
+            if "add" in args:
+                return subprocess.CompletedProcess(
+                    ["git", *args], 128, "",
+                    "fatal: cannot stat '.pr/loop-checkpoints.sqlite'")
+            return real_git(args, cwd=cwd)
+
+        monkeypatch.setattr("agentic_dev_loop.actions._git", fake_git)
+
+        commit({"subject": "unit U2", "commit_allowed": True}, COMMIT_PARAMS)
+
+        err = capsys.readouterr().err
+        assert "auto-commit failed" in err
+        assert "cannot stat" in err
+        assert not any(call[2] == "commit" for call in calls)
+
+    def test_no_exclude_pathspec_when_state_dir_outside_repo(self, tmp_path,
+                                                             monkeypatch):
+        """A state dir outside the repo has no locked DB inside the repo —
+        the add must not carry an exclude pathspec (and must not crash
+        building a relative path out of it)."""
+        outside = tmp_path / "state" / ".pr"
+        repo = tmp_path / "repo"
+        init_git_repo(repo)
+        (repo / "feature.cs").write_text("x")
+        monkeypatch.chdir(repo)
+
+        from agentic_dev_loop import actions as actions_mod
+        real_git = actions_mod._git
+        add_calls = []
+
+        def fake_git(args, cwd=None):
+            if "add" in args:
+                add_calls.append(list(args))
+            return real_git(args, cwd=cwd)
+
+        monkeypatch.setattr("agentic_dev_loop.actions._git", fake_git)
+
+        commit({"subject": "unit U2", "commit_allowed": True,
+                "state_dir": str(outside)}, COMMIT_PARAMS)
+
+        assert len(add_calls) == 1
+        assert not any(a.startswith(":(exclude)") for a in add_calls[0])
+        assert "feat: construct unit U2 (agent dev loop)" in git_log(repo)

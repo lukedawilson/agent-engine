@@ -5,13 +5,16 @@ stateless pure functions shared by the command-step and action-step
 surfaces; property tests exercise the invariants that keep the subprocess
 boundary fail-safe (BR-4, BR-5)."""
 
+import signal
 import string
+import subprocess
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from agentic_dev_loop.proc import (
-    child_env, host_shell_execution, is_pid_token, needs_shell, split_command,
+    child_env, host_shell_execution, is_pid_token, kill_process_tree,
+    needs_shell, split_command,
 )
 
 
@@ -136,3 +139,45 @@ class TestChildEnv:
             expected = key in {"PATH", "HOME", "LANG", "LC_ALL", "TERM",
                                "APIKEY"} or key in allow
             assert (key in env) is expected, key
+
+
+class TestKillProcessTree:
+    """The timeout reap path. CI-red on Windows: `proc.kill()` terminates
+    only the direct child — a git-bash `sh -c` wrapper's python child
+    survives, keeps the pipes open, and the follow-up communicate() blocks
+    out the full sleep. The tree must be reaped root-to-leaves."""
+
+    class _Proc:
+        def __init__(self, log):
+            self.pid = 99
+            self.log = log
+
+        def kill(self):
+            self.log.append("kill")
+
+    def test_posix_reaps_the_whole_process_group(self, monkeypatch):
+        killed = []
+        monkeypatch.setattr(
+            "agentic_dev_loop.proc.os.killpg",
+            lambda pid, sig: killed.append((pid, sig)))
+        proc = self._Proc([])
+
+        kill_process_tree(proc, nt=False)
+
+        assert killed == [(99, signal.SIGKILL)]
+        assert proc.log == []  # the wrapper needs no separate kill
+
+    def test_windows_taskkills_the_tree_then_kills_the_wrapper(self):
+        log = []
+        proc = self._Proc(log)
+
+        def fake_run(argv, **kwargs):
+            log.append("taskkill")
+            assert argv == ["taskkill", "/F", "/T", "/PID", "99"]
+            return subprocess.CompletedProcess(argv, 0, "", "")
+
+        kill_process_tree(proc, nt=True, run=fake_run)
+
+        # taskkill /T needs the parent alive to walk the tree — then the
+        # wrapper itself is swept up.
+        assert log == ["taskkill", "kill"]
