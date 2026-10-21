@@ -3,7 +3,7 @@
 ## Project Information
 - **Project Type**: Brownfield
 - **Start Date**: 2026-10-17T10:58:41Z
-- **Current Stage**: CONSTRUCTION - Unit unit-3 Infrastructure Design approved (2026-10-19); next = Unit unit-3 Code Generation
+- **Current Stage**: CONSTRUCTION - Unit 3 COMPLETE (2026-10-21 — validated end-to-end in yosk-cms); Unit 4 Requirements Analysis in progress
 
 ## Workspace State
 - **Existing Code**: Yes
@@ -24,7 +24,7 @@
 - **Total Stages**: 12 planned
 - **Stages to Execute**: Application Design, Units Generation, Functional Design, NFR Requirements, Infrastructure Design, Code Generation, Build and Test
 - **Stages to Skip**: User Stories (user confirmed), NFR Design (no perf/HA work; container infra covered by Infrastructure Design)
-- **Unit Order**: Unit 1 output-passing fix + file-tool removal → Unit 2 SDK hardening → Unit 3 kernel-level sandboxing (vertical slices)
+- **Unit Order**: Unit 1 output-passing fix + file-tool removal → Unit 2 SDK hardening → Unit 3 kernel-level sandboxing (vertical slices) → Unit 4 Claude Dynamic Workflows driver (pipeline model + viz; no Docker sandboxing from Claude Code)
 
 ## Extension Configuration
 - **Domain Standards**: Yes — enabled (Requirements Analysis, 2026-10-17)
@@ -59,13 +59,26 @@ Scope FR-1.1 (tool-surface semantics — `tools:` as sole capability allowlist; 
 - [x] Code Generation — complete 2026-10-19 (dev loop self-hosted: `proc.py` + registry/actions/stages/config/agents hardening + `env_allowlist` + tests)
 - [x] Build and Test — full suite green: 391 passed (mechanical `test` command substance)
 
-### unit-3 (kernel-level sandboxing, always-on) — IN PROGRESS
+### unit-3 (kernel-level sandboxing, always-on) — COMPLETE (2026-10-21)
 Scope FR-2.1–FR-2.6 (always-on sandbox; Docker backend on ALL platforms — native bwrap/Landlock path dropped 2026-10-19, Sandbox surface retained as extension seam; fail-fast when no runtime; host-side commit; agent git-mutation blocking; per-step env + setup provision phase)
 
 - [x] Functional Design — approved 2026-10-19 (FD-1 conservative default profile; FD-3c git-mutation block; FD-4 always-on directive; FD-5 interface-level fakes; artifacts in aidlc-docs/construction/unit-3/functional-design/ — amended in place during NFR stage)
 - [x] NFR Requirements — approved 2026-10-19 (NFR-1 per-step env; NFR-2 persistent-per-run; NFR-3 docker CLI; NFR-5 setup hook provision phase + stamp caching; NFR-6 CI ubuntu+windows; major directive: drop native backend, keep interface; artifacts in aidlc-docs/construction/unit-3/nfr-requirements/)
 - [x] Infrastructure Design — approved 2026-10-19 (ID-1 own dev image via CI/GHCR; ID-2 any compliant daemon, API ≥1.43, Linux-containers mode on Windows; ID-3 ~/.agentic-dev-loop/state, one stamp/key; ID-4 caps 4g/2cpu exec, 8g/4cpu provision, per-pipeline override; ID-5 JSONL audit + 5MB rotation; ID-6 GitHub-hosted ubuntu+windows CI; ID-7 repo-shipped docs/setup.md user guide; ID-8 terminology = kernel-level sandboxing; artifacts in aidlc-docs/construction/unit-3/infrastructure-design/ + construction/shared-infrastructure.md)
-- [ ] Code Generation — Part 1 plan approved 2026-10-19 under docs-first directive (raw: "Get the docs ready for the agent-engine to implement, but do NOT write code"); implementation handoff spec at aidlc-docs/construction/unit-3/code/implementation-spec.md; code execution DEFERRED to implementing agent
+- [x] Code Generation — complete (implemented by the dev loop: isolation.py + Docker sandbox + per-step env/setup + SDK terminal seam; releases v0.3.0 → v1.0.0a5; plan-014 per-stage networking `network: true` added post-FD)
+- [x] Build and Test — full suite green incl. docker-marked integration tests (host daemon); validated end-to-end in yosk-cms unit-8 run (user: "tested it thoroughly in the yosk-cms repo and it's working")
+- [ ] Operations (placeholder)
+
+### unit-4 (Claude Dynamic Workflows driver) — IN PROGRESS
+Scope (user proposal 2026-10-21): drive two engine parts from Claude Dynamic Workflows — (1) parsing pipeline.yaml and creating the workflow steps from it, (2) the visualiser web UI. NO Docker sandboxing from Claude Code (explicitly out of scope). Proposal: split pipeline model / engine / viz into separate composable modules; build a Claude skill `/agentic-dev-loop` with a bundled workflow JS file that uses the pipeline model and viz. Prior intent doc: aidlc-docs/unit-4-intent-claude-code-backend.md.
+
+- [x] Requirements Analysis — APPROVED (2026-10-21, "approve and continue"); Q3 later REVERSED by user (build-time parse, not runtime) — FR-4.3, summary item 4, intent amendment, plan Q3, verification Q3 all updated. Next = Functional Design
+- [x] Functional Design — APPROVED (2026-10-21, "approved"); artifacts at construction/unit-4/functional-design/; FD-1..5 answered (build-time parse, prompt refs + existence check, retry note, clean-at-start, token-auth viz, wheel-shipped skill)
+- [x] NFR Requirements — APPROVED (2026-10-21, "approved"); artifacts at construction/unit-4/nfr-requirements/ (nfr-requirements.md + tech-stack-decisions.md); NFR-1..6 answered
+- [x] Infrastructure Design — APPROVED (2026-10-21, "approved"); artifacts at construction/unit-4/infrastructure-design/ (infrastructure-design.md + deployment-architecture.md); ID-1..5 answered
+- [ ] Code Generation — next (2-part: plan approval → generation)
+- [ ] Functional Design
+- [ ] NFR Requirements
+- [ ] Infrastructure Design
 - [ ] Code Generation
 - [ ] Build and Test
-- [ ] Operations (placeholder)

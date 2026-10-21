@@ -63,8 +63,23 @@ Isolation is **optional** — no user is forced to use a container. Not requeste
 | NFR-6 | **Property-based testing (partial)**: PBT for pure functions and serialization round-trips (verdict parsing, config (de)serialization) with Hypothesis; property identification in Functional Design. |
 | NFR-7 | **Testability**: the isolation backend must be testable without a running container (e.g., fake runtime speaking the same interface); no tests that silently skip when Docker is absent. |
 
+## Stage 4 — Claude Dynamic Workflows driver (unit-4)
+
+| ID | Requirement |
+| --- | --- |
+| FR-4.1 | **Module split (composable)**: the package splits into three composable modules — `agentic_dev_loop.core` (pipeline model: PipelineConfig + YAML parsing/validation + workflow-schema projection; light deps: pydantic + PyYAML only, no openhands-sdk/docker), `agentic_dev_loop.engine` (graph, stages, runtime, sandbox, CLI; heavy deps), `agentic_dev_loop.viz` (stdlib-only viz server + event model). Dependency contract enforced by a guard test: `core` imports nothing from `engine`/`viz` and no heavy deps. Existing import paths re-exported where practical (backward compat). |
+| FR-4.2 | **Workflow-mode scope**: from Claude Dynamic Workflows we drive exactly (a) parsing pipeline.yaml and creating the workflow steps from it, and (b) the visualiser. NO Docker sandboxing from Claude Code — explicitly out of scope, not attempted. Interactive metering (intent pillar 1) is out of unit-4 scope. |
+| FR-4.3 | **Claude skill + bundled workflow JS**: a skill `/agentic-dev-loop` bundles a workflow JS **template**. At BUILD time (workflow creation), Claude — which has tools — imports `agentic_dev_loop.core`, parses pipeline.yaml, and generates the concrete workflow JS with steps baked in (agent prompts resolved from agents_dir; verdicts, `on_pass`/`on_fail`, `max_attempts` encoded). Runtime never parses. (Amended 2026-10-21: original runtime-parse-via-subagent design REVERSED by user — "pipeline.yaml should be parsed at build time, not runtime".) |
+| FR-4.4 | **Command steps in workflow mode**: each command step becomes a subagent step; the subagent runs the command in Claude Code's own environment and reports exit code/verdict. No engine process at runtime. |
+| FR-4.5 | **Verdict contract preserved**: verdict agents still write `VERDICT: PASS/FAIL` artifacts; subagent steps report their verdict in final output; the workflow JS routes `on_pass`/`on_fail`/`goto` with its own `max_attempts` loop counter. One pipeline.yaml behaves truthfully in both modes. |
+| FR-4.6 | **Commit in workflow mode**: a small trusted CLI shim (docker-free) reuses the engine's commit logic — clean-worktree-at-start gate, trusted hooksPath, templated message; the workflow's commit step is a subagent invoking that shim. Policy stays real code, not prompt re-encoding. |
+| FR-4.7 | **Visualiser in workflow mode**: a subagent launches the live viz server (`python -m agentic_dev_loop.viz`, free-port fallback) and surfaces the URL; step subagents POST stage events to a new local HTTP ingest endpoint; the browser keeps the live SSE stream. Engine mode keeps its in-process VizBus unchanged. |
+| FR-4.8 | **No MCP layer**: the intent doc's ae_* MCP-tool architecture is dropped; subagents reach `core`/`viz` via shell/python directly. |
+| FR-4.9 | **Shared pipeline.yaml**: one pipeline.yaml works in both modes. Engine-only fields (`isolation:`, per-step `network:`, `setup:`) are ignored in workflow mode with documented semantics — workflow steps run in Claude Code's own environment (its permission model replaces the engine sandbox; trust-model change documented). |
+
 ## Key Requirements Summary
 
 1. **Unit 1 (SDK hardening, always-on)**: expose SDK tool-restriction knobs; pipeline captures final agent responses (agent stops writing reports); drop `file_editor`; fix `task_tracker` no-op; harden command/action subprocess surfaces; validate extension tool registration.
 2. **Unit 2 (kernel isolation, opt-in)**: container-based sandboxing of the terminal tool + command steps via Docker Engine API; fail fast when unavailable; macOS/Linux/Windows; profile defaults and parsing-logic redesign deferred to Functional Design.
 3. **Fixed policies and fail-fast culture preserved; existing pipelines keep working.**
+4. **Unit 4 (Claude Dynamic Workflows driver)**: module split (core/engine/viz); skill `/agentic-dev-loop` with bundled workflow JS template (build-time parse: steps baked into the generated JS at workflow creation); command steps become subagent steps; same verdict contract, workflow JS routes; commit via trusted docker-free shim; subagent-launched live viz with HTTP ingest; no MCP; no Docker sandboxing from Claude Code; one pipeline.yaml both modes.

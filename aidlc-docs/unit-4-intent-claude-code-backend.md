@@ -336,3 +336,15 @@ the viz sidebar doesn't. Recommended transport, split by payload type
 - https://code.claude.com/docs/en/workflows
 - Repo-internal: `aidlc-docs/inception/requirements/requirements.md`,
   `application-design.md`, `unit-of-work.md`
+
+## Amendment (2026-10-21) — unit-4 Requirements Analysis outcome
+
+Scope sharpened by user directive (2026-10-21): unit-4 = the two parts of agentic-dev-loop drivable from Claude Dynamic Workflows — (1) parsing pipeline.yaml and creating the workflow steps from it, (2) the visualiser web UI. **Docker sandboxing from Claude Code is explicitly OUT — not attempted.** Proposal accepted and elaborated into requirements:
+
+- **Module split** (FR-4.1): `agentic_dev_loop.core` (pipeline model + parsing + workflow-schema projection; light deps), `agentic_dev_loop.engine` (graph/stages/sandbox/CLI), `agentic_dev_loop.viz` (stdlib-only server + event model). Guard-tested dependency contract.
+- **Architecture change** (FR-4.3/4.8): a Claude skill `/agentic-dev-loop` with a bundled workflow JS **template** **replaces** this doc's MCP-tools recommendation (ae_load_pipeline / ae_run_step / ae_viz_console / ae_commit are dropped). Subagents reach core/viz via shell/python. Workflow steps are created at BUILD time: at workflow creation Claude (with tools) imports `.core`, parses pipeline.yaml, and generates the concrete JS with steps baked in; runtime never parses. (Reversal 2026-10-21: earlier amendment said runtime parse via subagent — user changed mind: "pipeline.yaml should be parsed at build time, not runtime".)
+- **Pillar 2 revised** (FR-4.2/4.9): workflow mode does NOT use the engine sandbox — steps run in Claude Code's own environment; unit-3 sandboxing remains engine-mode-only. Trust-model change documented.
+- **Pillar 4 confirmed** (FR-4.5/4.9): one pipeline.yaml both modes; same VERDICT: contract, workflow JS routes; engine-only fields (isolation:, network:, setup:) ignored in workflow mode with documented semantics.
+- **Commit** (FR-4.6): trusted docker-free shim reusing engine commit logic, subagent-invoked.
+- **Viz** (FR-4.7): subagent-launched live server; new HTTP ingest endpoint for step events; SSE unchanged.
+- Interactive metering (pillar 1) remains out of unit-4 scope.

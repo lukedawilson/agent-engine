@@ -208,3 +208,26 @@ C) Hybrid — capture the final response always; agent-written files remain an o
 X) Other
 
 [Answer]: A — the pipeline captures the agent's final SDK response and writes the artifact itself. NOTE from user: the parsing logic (of the captured response into summary + verdicts) needs dedicated discussion during Functional Design — some parsing already exists and has had bugs in that area. Defer parsing-logic details to FD, but the capture mechanism itself is a Stage-1 requirement.
+
+## Unit 4 — Claude Dynamic Workflows driver (2026-10-21)
+
+Q1. In workflow mode (no Docker), what executes `command` steps?
+[Answer]: A — subagents execute them; each command step becomes a subagent step running the command in Claude Code's own environment, reporting exit code/verdict. No engine process at runtime.
+
+Q2. Module split boundaries?
+[Answer]: A — three modules, the light one named `agentic_dev_loop.core` (pipeline model + parsing + workflow-schema projection), plus `engine` (graph/stages/sandbox/CLI) and `viz` (stdlib-only server + event model). "core" chosen over "model" to avoid LLM-model collision; creep risk mitigated by module contract + guard test.
+
+Q3. How does pipeline.yaml become workflow steps?
+[Answer]: A (REVERSED from B on 2026-10-21) — parse at BUILD time: at workflow creation, Claude (with tools) imports agentic_dev_loop.core, parses pipeline.yaml, and generates the concrete workflow JS with steps baked in. The skill's bundled JS is a template the build step fills. Runtime never parses. (Raw reversal: "You know what - I changed my mind. pipeline.yaml should be parsed at build time, not runtime")
+
+Q4. Action steps (commit) in workflow mode?
+[Answer]: C — small trusted CLI shim (docker-free) reusing the engine's commit logic (clean-at-start, hooksPath, templated message); workflow commit step = subagent invoking the shim.
+
+Q5. Skill+workflow JS vs the intent doc's MCP-tools architecture?
+[Answer]: Yes, drop MCP — skill + bundled workflow JS only; subagents reach core/viz via shell/python; ae_* MCP recommendation amended out.
+
+Q6. How does the visualiser work in workflow mode?
+[Answer]: A — subagent-launched live server (free-port fallback, URL surfaced); step subagents POST stage events to a new local HTTP ingest endpoint; browser keeps live SSE; engine mode in-process VizBus unchanged.
+
+Q7. Verdict protocol and retry loops in workflow mode?
+[Answer]: A — same verdict contract; verdict agents still write VERDICT: PASS/FAIL artifacts; subagents report verdicts in final output; workflow JS routes on_pass/on_fail/goto with its own max_attempts counter.
