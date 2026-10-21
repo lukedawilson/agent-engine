@@ -9,7 +9,7 @@ import importlib.metadata
 import sys
 from pathlib import Path
 
-from .config import PipelineConfig, load_config
+from agentic_dev_loop.core.config import PipelineConfig, load_config
 from .dryrun import dry_run
 from .isolation import clean_stamps, isolation_state_dir
 from .registry import Registry, default_registry, load_extensions

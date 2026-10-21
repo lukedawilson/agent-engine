@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .config import PipelineConfig, StepConfig, load_config
+from agentic_dev_loop.core.config import PipelineConfig, StepConfig, load_config
 from .loaders import resolve_docs
 from .isolation import (isolation_state_dir, resolve_effective_profile,
                         resolve_image_ref)

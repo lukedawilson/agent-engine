@@ -14,7 +14,7 @@ import subprocess
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from agentic_dev_loop.proc import (
+from agentic_dev_loop.engine.proc import (
     child_env, host_shell_execution, is_pid_token, kill_process_tree,
     needs_shell, split_command,
 )
@@ -161,7 +161,7 @@ class TestKillProcessTree:
     def test_posix_reaps_the_whole_process_group(self, monkeypatch):
         killed = []
         monkeypatch.setattr(
-            "agentic_dev_loop.proc.os.killpg",
+            "agentic_dev_loop.engine.proc.os.killpg",
             lambda pid, sig: killed.append((pid, sig)))
         proc = self._Proc([])
 

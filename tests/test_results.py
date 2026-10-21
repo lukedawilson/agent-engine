@@ -2,7 +2,7 @@
 
 import pytest
 
-from agentic_dev_loop.results import Result
+from agentic_dev_loop.core.results import Result
 
 
 class TestResultOk:

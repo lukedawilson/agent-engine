@@ -7,8 +7,8 @@ import shutil
 
 import pytest
 
-from agentic_dev_loop.config import IsolationConfig
-from agentic_dev_loop.isolation import (
+from agentic_dev_loop.core.config import IsolationConfig
+from agentic_dev_loop.engine.isolation import (
     DockerBackend, SandboxExecutionRequest, SandboxError,
     SubprocessRunner, probe_docker, read_stamp, resolve_effective_profile,
     write_stamp,

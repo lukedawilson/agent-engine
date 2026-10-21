@@ -6,7 +6,7 @@ import os
 from openhands.sdk import LLM
 from openhands.sdk.llm.utils import model_features as _model_features
 
-from .config import LlmConfig
+from agentic_dev_loop.core.config import LlmConfig
 
 # Compat shim: OpenHands SDK 1.17 gates reasoning_content passback on a closed
 # model-name list (SEND_REASONING_CONTENT_MODELS) that does not know

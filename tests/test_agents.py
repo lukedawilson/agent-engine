@@ -9,7 +9,7 @@ import pytest
 from openhands.sdk import LLM
 from openhands.sdk.agent.agent import Agent
 
-from agentic_dev_loop.agents import load_agent
+from agentic_dev_loop.engine.agents import load_agent
 
 
 @pytest.fixture
@@ -88,7 +88,7 @@ class TestLoadAgent:
         assert agent.filter_tools_regex is None
 
 
-from agentic_dev_loop.isolation import SandboxError
+from agentic_dev_loop.engine.isolation import SandboxError
 
 
 class TestSandboxTerminalExecutor:
@@ -98,7 +98,7 @@ class TestSandboxTerminalExecutor:
     def test_executes_through_sandbox(self, fake_sandbox, tmp_path):
         from openhands.tools.terminal import TerminalAction
 
-        from agentic_dev_loop.agents import SandboxTerminalExecutor
+        from agentic_dev_loop.engine.agents import SandboxTerminalExecutor
         ex = SandboxTerminalExecutor(fake_sandbox, workspace=str(tmp_path),
                                      env={"PATH": "/bin"})
         obs = ex(TerminalAction(command="echo hi"), None)
@@ -110,7 +110,7 @@ class TestSandboxTerminalExecutor:
     def test_is_input_degrades(self, fake_sandbox, tmp_path):
         from openhands.tools.terminal import TerminalAction
 
-        from agentic_dev_loop.agents import SandboxTerminalExecutor
+        from agentic_dev_loop.engine.agents import SandboxTerminalExecutor
         ex = SandboxTerminalExecutor(fake_sandbox, workspace=str(tmp_path), env={})
         obs = ex(TerminalAction(command="x", is_input=True), None)
         assert obs.exit_code is None
@@ -120,7 +120,7 @@ class TestSandboxTerminalExecutor:
     def test_reset_degrades(self, fake_sandbox, tmp_path):
         from openhands.tools.terminal import TerminalAction
 
-        from agentic_dev_loop.agents import SandboxTerminalExecutor
+        from agentic_dev_loop.engine.agents import SandboxTerminalExecutor
         ex = SandboxTerminalExecutor(fake_sandbox, workspace=str(tmp_path), env={})
         obs = ex(TerminalAction(command="", reset=True), None)
         assert obs.exit_code is None
@@ -130,7 +130,7 @@ class TestSandboxTerminalExecutor:
     def test_git_mutation_refuses(self, fake_sandbox, tmp_path):
         from openhands.tools.terminal import TerminalAction
 
-        from agentic_dev_loop.agents import SandboxTerminalExecutor
+        from agentic_dev_loop.engine.agents import SandboxTerminalExecutor
         ex = SandboxTerminalExecutor(fake_sandbox, workspace=str(tmp_path), env={})
         with pytest.raises(SandboxError, match="AE-SBX-008"):
             ex(TerminalAction(command="git commit -m x"), None)
@@ -138,7 +138,7 @@ class TestSandboxTerminalExecutor:
     def test_timeout_propagates(self, fake_sandbox, tmp_path):
         from openhands.tools.terminal import TerminalAction
 
-        from agentic_dev_loop.agents import SandboxTerminalExecutor
+        from agentic_dev_loop.engine.agents import SandboxTerminalExecutor
         ex = SandboxTerminalExecutor(fake_sandbox, workspace=str(tmp_path), env={})
         fake_sandbox.script(lambda req: (None, "out", True))
         obs = ex(TerminalAction(command="sleep 5", timeout=1), None)
@@ -147,7 +147,7 @@ class TestSandboxTerminalExecutor:
     def test_network_reaches_request(self, fake_sandbox, tmp_path):
         from openhands.tools.terminal import TerminalAction
 
-        from agentic_dev_loop.agents import SandboxTerminalExecutor
+        from agentic_dev_loop.engine.agents import SandboxTerminalExecutor
         ex = SandboxTerminalExecutor(fake_sandbox, workspace=str(tmp_path),
                                      env={}, network=True)
         ex(TerminalAction(command="curl https://example.com"), None)
@@ -156,7 +156,7 @@ class TestSandboxTerminalExecutor:
     def test_network_defaults_off(self, fake_sandbox, tmp_path):
         from openhands.tools.terminal import TerminalAction
 
-        from agentic_dev_loop.agents import SandboxTerminalExecutor
+        from agentic_dev_loop.engine.agents import SandboxTerminalExecutor
         ex = SandboxTerminalExecutor(fake_sandbox, workspace=str(tmp_path), env={})
         ex(TerminalAction(command="echo hi"), None)
         assert fake_sandbox.requests[0].network is False
@@ -167,7 +167,7 @@ class TestRegisterSandboxTerminal:
         from openhands.sdk.tool.registry import resolve_tool
         from openhands.sdk.tool.spec import Tool
 
-        from agentic_dev_loop.agents import (SandboxTerminalExecutor,
+        from agentic_dev_loop.engine.agents import (SandboxTerminalExecutor,
                                              register_sandbox_terminal)
         register_sandbox_terminal(fake_sandbox, workspace=str(tmp_path),
                                   env={"X": None})

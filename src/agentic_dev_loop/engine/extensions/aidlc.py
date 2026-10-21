@@ -1,5 +1,5 @@
 """AI-DLC document-loader extension. Loading IS choosing: name
-`agentic_dev_loop.extensions.aidlc:AidlcExtension` in the pipeline's
+`agentic_dev_loop.engine.extensions.aidlc:AidlcExtension` in the pipeline's
 `extensions:` list and the pipeline gains `--aidlc-unit` — the unit
 directory name under `aidlc-docs/construction/` (e.g. `unit-3`,
 `support-for-windows`), matched verbatim — plus bare-run autodetect of

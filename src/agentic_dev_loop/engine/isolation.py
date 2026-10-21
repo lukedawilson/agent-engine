@@ -31,7 +31,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Protocol
 
-from .config import IsolationConfig, PipelineConfig
+from agentic_dev_loop.core.config import IsolationConfig, PipelineConfig
 from .proc import needs_shell, split_command
 
 # ---------------------------------------------------------------------------

@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from agentic_dev_loop.cli import build_parser, main
+from agentic_dev_loop.engine.cli import build_parser, main
 
 PLAIN_YAML = """\
 name: tiny
@@ -118,7 +118,7 @@ class TestHelp:
 
     def test_extension_flags_only_when_configured(self, repo, capsys):
         write_pipeline(repo, "aidlc.yaml", with_extensions(
-            PLAIN_YAML, "agentic_dev_loop.extensions.aidlc:AidlcExtension"))
+            PLAIN_YAML, "agentic_dev_loop.engine.extensions.aidlc:AidlcExtension"))
         with pytest.raises(SystemExit) as e:
             main(["aidlc.yaml", "--help"])
         assert e.value.code == 0
@@ -231,7 +231,7 @@ class TestViz:
             return types.SimpleNamespace(server_address=("127.0.0.1", port)), \
                 object()
 
-        monkeypatch.setattr("agentic_dev_loop.graph.kill_listeners_on_port",
+        monkeypatch.setattr("agentic_dev_loop.engine.graph.kill_listeners_on_port",
                             fake_sweep)
         monkeypatch.setattr("agentic_dev_loop.viz.serve_viz", fake_serve_viz)
         opened = []
@@ -269,7 +269,7 @@ class TestViz:
     def test_busy_preferred_port_falls_back_and_notices(self, repo, fake_agents,
                                                         monkeypatch, capsys):
         fake_agents.set("dev", [("write", "implementation-summary.md", "done")])
-        monkeypatch.setattr("agentic_dev_loop.graph.kill_listeners_on_port",
+        monkeypatch.setattr("agentic_dev_loop.engine.graph.kill_listeners_on_port",
                             lambda *a, **k: None)
         monkeypatch.setattr(
             "agentic_dev_loop.viz.serve_viz",
@@ -288,7 +288,7 @@ class TestViz:
                                                     monkeypatch, capsys):
         fake_agents.set("dev", [("write", "implementation-summary.md", "done")])
         swept = []
-        monkeypatch.setattr("agentic_dev_loop.graph.kill_listeners_on_port",
+        monkeypatch.setattr("agentic_dev_loop.engine.graph.kill_listeners_on_port",
                             lambda *a, **k: swept.append(a))
         monkeypatch.setattr(
             "agentic_dev_loop.viz.serve_viz",
@@ -310,7 +310,7 @@ class TestViz:
         monkeypatch.setattr(
             "agentic_dev_loop.viz.serve_viz",
             lambda *a, **k: called.append("serve") or (object(), object()))
-        monkeypatch.setattr("agentic_dev_loop.graph.kill_listeners_on_port",
+        monkeypatch.setattr("agentic_dev_loop.engine.graph.kill_listeners_on_port",
                             lambda *a, **k: swept.append(a))
 
         code = main(["pipeline.yaml", "--plan", "plan.md", "--no-viz"])
@@ -350,7 +350,7 @@ class TestRefreshAndCleanStamps:
         assert args.clean_stamps is False
 
     def test_clean_stamps_removes_and_exits_zero(self, repo, tmp_path):
-        from agentic_dev_loop.isolation import write_stamp
+        from agentic_dev_loop.engine.isolation import write_stamp
 
         state = tmp_path / "iso-state"
         write_stamp(state / "stamps", "k1")
@@ -365,7 +365,7 @@ class TestRefreshAndCleanStamps:
     def test_clean_stamps_loads_config_once(self, repo, tmp_path, monkeypatch):
         # --clean-stamps must reuse the config _registry_for already loaded;
         # loading it twice is the pre-fix behaviour this guards against.
-        import agentic_dev_loop.cli as cli_mod
+        import agentic_dev_loop.engine.cli as cli_mod
 
         state = tmp_path / "iso-state"
         yaml = CLEAN_YAML.format(iso_state_dir=str(state))

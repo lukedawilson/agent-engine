@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from agentic_dev_loop.loaders import PlanDocumentLoader, resolve_plan_docs, select_loader
-from agentic_dev_loop.registry import Registry, default_registry
+from agentic_dev_loop.engine.loaders import PlanDocumentLoader, resolve_plan_docs, select_loader
+from agentic_dev_loop.engine.registry import Registry, default_registry
 
 
 class _Loader:

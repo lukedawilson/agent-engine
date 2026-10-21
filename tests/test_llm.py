@@ -6,8 +6,8 @@ import pytest
 from openhands.sdk.llm.message import Message, MessageToolCall, TextContent
 from openhands.sdk.llm.utils.model_features import get_features
 
-from agentic_dev_loop.config import LlmConfig
-from agentic_dev_loop.llm import build_llm
+from agentic_dev_loop.core.config import LlmConfig
+from agentic_dev_loop.engine.llm import build_llm
 
 KEY = "AGENT_ENGINE_TEST_KEY"
 
@@ -25,7 +25,7 @@ class TestBuildLlm:
 
     def test_builds_llm_from_config(self, monkeypatch):
         monkeypatch.setenv(KEY, "sk-test")
-        with patch("agentic_dev_loop.llm.LLM") as mock_cls:
+        with patch("agentic_dev_loop.engine.llm.LLM") as mock_cls:
             result = build_llm(_cfg(base_url="https://api.deepseek.com"))
 
         assert result is mock_cls.return_value
@@ -38,7 +38,7 @@ class TestBuildLlm:
 
     def test_timeout_passed_through_when_set(self, monkeypatch):
         monkeypatch.setenv(KEY, "sk-test")
-        with patch("agentic_dev_loop.llm.LLM") as mock_cls:
+        with patch("agentic_dev_loop.engine.llm.LLM") as mock_cls:
             build_llm(_cfg(timeout=30))
 
         assert mock_cls.call_args.kwargs["timeout"] == 30
@@ -48,7 +48,7 @@ class TestReasoningContentShim:
     """DeepSeek thinking mode 400s on multi-turn requests unless prior
     reasoning_content is echoed back — but OpenHands SDK gates that passback
     on a closed model-name list (SEND_REASONING_CONTENT_MODELS) that does not
-    know deepseek-v4-pro. agentic_dev_loop.llm must register it (import-time
+    know deepseek-v4-pro. agentic_dev_loop.engine.llm must register it (import-time
     shim, removable once the SDK lists the model or adds an override)."""
 
     def test_deepseek_v4_pro_registered_for_reasoning_passback(self):

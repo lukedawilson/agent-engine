@@ -3,7 +3,7 @@ Result API (BR-2): decisions route as `Result.ok(Verdict)`; verdict lines
 without a decision, or conflicting decisions, are typed errors that feed
 the attempt-bounded retry path — never exceptions, never silent routing."""
 
-from agentic_dev_loop.outputs import Verdict, VerdictError
+from agentic_dev_loop.core.verdict import Verdict, VerdictError
 
 REVIEW_VERDICTS = {"APPROVED": "approved", "NEEDS CHANGES": "needs_changes"}
 TEST_VERDICTS = {"PASS": "pass", "FAIL": "fail"}

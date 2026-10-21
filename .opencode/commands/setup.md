@@ -26,7 +26,7 @@ write it to `.env` as `OPENAI_API_KEY=<key>`, and verify with:
 
 ```bash
 set -a; . ./.env; set +a
-.venv/bin/python -c "from agentic_dev_loop.config import load_config; from agentic_dev_loop.llm import build_llm; build_llm(load_config('agentic-dev-loop/pipeline.yaml').llm); print('LLM OK')"
+.venv/bin/python -c "from agentic_dev_loop.core.config import load_config; from agentic_dev_loop.engine.llm import build_llm; build_llm(load_config('agentic-dev-loop/pipeline.yaml').llm); print('LLM OK')"
 ```
 
 Do not run the full pipeline (it makes live LLM calls) unless the user asks.

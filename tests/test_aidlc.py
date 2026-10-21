@@ -12,10 +12,10 @@ import argparse
 
 import pytest
 
-from agentic_dev_loop.extensions.aidlc import (
+from agentic_dev_loop.engine.extensions.aidlc import (
     AidlcDocumentLoader, AidlcExtension, get_current_unit, resolve_unit_docs,
 )
-from agentic_dev_loop.registry import Registry
+from agentic_dev_loop.engine.registry import Registry
 
 
 class TestResolveUnitDocs:

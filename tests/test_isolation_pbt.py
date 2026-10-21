@@ -10,7 +10,7 @@ import dataclasses
 
 from hypothesis import assume, given, strategies as st
 
-from agentic_dev_loop.isolation import (
+from agentic_dev_loop.engine.isolation import (
     EffectiveProfile, ProbeResult, SandboxExecutionRequest, SandboxExecutionResult,
     docker_create_payload, exec_container_name, is_git_mutation,
     resolve_effective_profile, resolve_sandbox_env, select_backend,
@@ -135,7 +135,7 @@ class TestSelectBackendTotality:
     @given(platform=st.sampled_from(["darwin", "linux", "win32"]),
            api=st.text(min_size=1), ostype=st.sampled_from(["linux", "windows"]))
     def test_always_docker(self, platform, api, ostype):
-        from agentic_dev_loop.isolation import DockerBackend
+        from agentic_dev_loop.engine.isolation import DockerBackend
         assert select_backend(platform, ProbeResult(api, ostype)) is DockerBackend
 
 

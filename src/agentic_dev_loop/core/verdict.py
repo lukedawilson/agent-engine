@@ -1,18 +1,16 @@
-"""Captured agent output: value objects that own the response→artifact and
-response→verdict channels (unit-1).
+"""Verdict parsing — the shared decision contract (BR-6).
 
-The pipeline — not the agent — writes the step's artifact from the agent's
-final SDK response. `Verdict.from_text` parses that same text for routing.
-Expected conditions are typed `Result` errors, never exceptions.
+`Verdict.from_text` parses the captured response for routing; expected
+conditions are typed `Result` errors, never exceptions. `parse_verdict`
+collapses that `Result` to a route string for workflow consumers: a clear
+decision maps to its canonical value, anything unclear maps to ``retry`` —
+totality for arbitrary input (no crash, no silent routing).
 """
 
 from __future__ import annotations
 
 import enum
 from dataclasses import dataclass
-from pathlib import Path
-
-from openhands.sdk.conversation.response_utils import get_agent_final_response
 
 from .results import Result
 
@@ -27,10 +25,7 @@ _CAVEAT = "—–,;:."
 # Negators recognized immediately before the keyword.
 _NEGATORS = ("NOT", "DOES NOT", "DID NOT")
 
-
-class CaptureError(enum.Enum):
-    EMPTY_RESPONSE = "empty_response"
-    IO_ERROR = "io_error"
+RETRY = "retry"
 
 
 class VerdictError(enum.Enum):
@@ -67,6 +62,15 @@ class Verdict:
         if saw_verdict_line:
             return Result.err(VerdictError.AMBIGUOUS)
         return Result.err(VerdictError.NO_VERDICT)
+
+
+def parse_verdict(text: str, verdicts: dict[str, str]) -> str:
+    """Route for a verdict artifact: the canonical decision value on a single
+    clear decision, else ``retry``. Never raises — unclear verdicts retry."""
+    result = Verdict.from_text(text, verdicts)
+    if result.is_ok():
+        return result.value.value
+    return RETRY
 
 
 def _parse_line(line: str, verdicts: dict[str, str]) -> tuple[bool, str | None]:
@@ -108,40 +112,3 @@ def _parse_line(line: str, verdicts: dict[str, str]) -> tuple[bool, str | None]:
             return True, None  # negation on a larger set is ambiguous
         return True, verdicts[keyword]
     return True, None
-
-
-@dataclass(frozen=True)
-class CapturedOutput:
-    """The agent's final response, captured by the pipeline (FR-1.2)."""
-
-    raw_text: str
-    artifact_path: Path
-
-    @staticmethod
-    def from_agent_result(
-        conv, artifact: str, state_dir: Path
-    ) -> "Result[CapturedOutput, CaptureError]":
-        text = _final_agent_text(conv)
-        if not text.strip():
-            return Result.err(CaptureError.EMPTY_RESPONSE)
-        return Result.ok(CapturedOutput(raw_text=text, artifact_path=state_dir / artifact))
-
-    def write(self) -> Result[None, CaptureError]:
-        """Write the captured response to the step's artifact path (BR-4/BR-5)."""
-        try:
-            self.artifact_path.parent.mkdir(parents=True, exist_ok=True)
-            self.artifact_path.write_text(self.raw_text, encoding="utf-8")
-            return Result.ok(None)
-        except OSError:
-            return Result.err(CaptureError.IO_ERROR)
-
-
-def _final_agent_text(conv) -> str:
-    """Extract the agent's final response from an SDK conversation.
-
-    Delegates to the SDK's own `get_agent_final_response`, which handles both
-    ways an agent can end a run — a `FinishTool` call or a plain-text message.
-    The events live on ``conv.state.events`` (NOT ``conv.events``), and must be
-    read before ``conv.close()`` releases the event stream.
-    """
-    return get_agent_final_response(getattr(conv.state, "events", []))

@@ -1,0 +1,236 @@
+// agentic-dev-loop workflow — core {{CORE_VERSION}} — pipeline {{PIPELINE_HASH}}
+// Generated at build time from pipeline.yaml; runtime never parses the YAML
+// (BR-1). Steps, prompt references, routing, the attempt counter, the
+// clean-at-start gate, the viz launch, and the gated commit are all baked in
+// below (BR-7 / BR-8 / FD-4). Self-contained: no imports, no parsing.
+
+const PIPELINE = {
+  name: {{PIPELINE_NAME}},
+  steps: {{STEPS_JSON}},
+};
+
+// ── workflow state ──────────────────────────────────────────────────────
+// The only mutable runtime state. Claude Code owns the run lifecycle (its
+// transcripts/session history are the audit trail, NFR-4.5); this object is
+// the deterministic loop's attempt counter, clean-at-start gate, and retry
+// note channel.
+const state = {
+  attempt: 0,           // completed dev attempts (a retry consumes one)
+  commitAllowed: false, // captured clean-at-start before any subagent work
+  retryNote: "",        // the failing subagent's final output -> next attempt
+  ingestToken: "",      // viz ingest token (stage-event POSTs)
+  vizUrl: "",           // live-graph URL (empty when viz is unavailable)
+};
+
+const TERMINALS = new Set(["success", "failure"]);
+
+function stepById(id) {
+  return PIPELINE.steps.find(function (s) { return s.id === id; }) || null;
+}
+
+// ── clean-at-start (first step — FD-3 / BR-8) ───────────────────────────
+// An empty `git status --porcelain` means the worktree was clean before any
+// subagent work, so the auto-commit is allowed.
+async function captureCleanAtStart($) {
+  const r = await $.run({ command: "git status --porcelain" });
+  state.commitAllowed = String(r.stdout || "").trim() === "";
+}
+
+// ── viz launch (FD-4) ───────────────────────────────────────────────────
+// Launch the live-graph server, then parse the URL + ingest token from its
+// stdout. Viz death mid-run degrades gracefully — the run never fails
+// because of viz (NFR-4.4).
+async function launchViz($) {
+  try {
+    const r = await $.run({
+      command: "python -m agentic_dev_loop.viz --pipeline pipeline.yaml",
+    });
+    const out = String(r.stdout || "");
+    const url = out.match(/Live graph viz:\s*(\S+)/);
+    const tok = out.match(/ingest-token:\s*(\S+)/);
+    if (url) { state.vizUrl = url[1]; }
+    if (tok) { state.ingestToken = tok[1]; }
+  } catch (err) {
+    state.vizUrl = "";
+    state.ingestToken = "";
+  }
+}
+
+// ── stage-event POST to the viz ingest endpoint (BR-9) ─────────────────
+async function postStage($, stepId, status, output) {
+  if (!state.ingestToken || !state.vizUrl) { return; }
+  try {
+    await fetch(state.vizUrl + "/ingest", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Ingest-Token": state.ingestToken,
+      },
+      body: JSON.stringify({
+        type: "stage",
+        step: stepId,
+        status: status,
+        output: output,
+      }),
+    });
+  } catch (err) {
+    // events are best-effort; viz death never fails the run (NFR-4.4)
+  }
+}
+
+// ── verdict parsing (BR-6 — mirrors core.parse_verdict) ────────────────
+// The last decoration-tolerant `VERDICT: X` line that carries a decision
+// wins; a keyword followed directly by prose is discussion, not a decision.
+// Conflicting decisions are never silently resolved — unclear -> "retry".
+const CAVEAT = "—–,;:.";
+const NEGATORS = ["NOT", "DOES NOT", "DID NOT"];
+
+function parseLine(line, verdicts) {
+  let stripped = line.trim().replace(/^[#*_`>\-\s]+/, "");
+  if (!stripped.toUpperCase().startsWith("VERDICT")) {
+    return { saw: false, decision: null };
+  }
+  let rest = stripped.slice("VERDICT".length).replace(/^[*_`>\s]+/, "");
+  if (!rest.startsWith(":")) {
+    return { saw: true, decision: null };
+  }
+  let body = rest.slice(1).trim();
+  let negated = false;
+  for (const neg of NEGATORS) {
+    if (body.toUpperCase().startsWith(neg + " ")) {
+      negated = true;
+      body = body.slice(neg.length).trim();
+      break;
+    }
+  }
+  body = body.replace(/^[*_`>\s]+/, "");
+  const keywords = Object.keys(verdicts).sort(function (a, b) {
+    return b.length - a.length;
+  });
+  for (const kw of keywords) {
+    if (!body.toUpperCase().startsWith(kw.toUpperCase())) { continue; }
+    let after = body.slice(kw.length).replace(/^[*_`>\s]+/, "").trim();
+    if (after.startsWith("?")) { return { saw: true, decision: null }; }
+    if (after.startsWith("!")) {
+      if (after.slice(1).trim()) { return { saw: true, decision: null }; }
+    } else if (after && CAVEAT.indexOf(after[0]) === -1 && !after.startsWith("-")) {
+      return { saw: true, decision: null };
+    }
+    if (negated) {
+      if (Object.keys(verdicts).length === 2) {
+        const other = Object.keys(verdicts).find(function (k) { return k !== kw; });
+        return { saw: true, decision: verdicts[other] };
+      }
+      return { saw: true, decision: null };
+    }
+    return { saw: true, decision: verdicts[kw] };
+  }
+  return { saw: true, decision: null };
+}
+
+function parseVerdict(text, verdicts) {
+  const decisions = new Set();
+  let saw = false;
+  for (const line of String(text).split(/\r?\n/)) {
+    const r = parseLine(line, verdicts);
+    if (r.saw) { saw = true; }
+    if (r.decision !== null) { decisions.add(r.decision); }
+  }
+  if (decisions.size === 1) { return Array.from(decisions)[0]; }
+  return "retry";
+}
+
+// ── run one step ────────────────────────────────────────────────────────
+async function runStep($, step) {
+  let output = "";
+  let verdict = "pass";
+  if (step.kind === "agent") {
+    // Prompt reference, not embed (BR-5): re-read .agent.md from the
+    // workspace at spawn so earlier steps' prompt edits take effect.
+    const message = state.retryNote
+      ? "Retry note from the previous attempt:\n" + state.retryNote
+      : "";
+    const r = await $.agent({ prompt: step.prompt_path, message: message });
+    output = String(r.finalOutput || r.output || "");
+    verdict = step.verdicts ? parseVerdict(output, step.verdicts) : "pass";
+  } else if (step.kind === "command") {
+    const r = await $.run({ command: step.command });
+    output = String(r.stdout || "") + String(r.stderr || "");
+    verdict = r.exitCode === 0 ? "pass" : "fail";
+  } else if (step.kind === "action") {
+    if (step.action === "commit") {
+      output = await runCommit($, step);
+      verdict = "pass";
+    } else {
+      output = "action step '" + step.action + "' is engine-only; skipped in workflow mode";
+      verdict = "pass";
+    }
+  }
+  return { output: output, verdict: verdict };
+}
+
+// ── gated commit (BR-8 / FR-4.6) ────────────────────────────────────────
+// Invokes the docker-free shim, which reuses the engine's trusted hooksPath
+// + templated message and refuses loudly when the worktree was not clean at
+// run start.
+async function runCommit($, step) {
+  const params = step.params || {};
+  const message = params.message || "feat: construct {subject}";
+  if (!state.commitAllowed) {
+    throw new Error("commit refused: worktree was not clean at run start");
+  }
+  const cmd = "agentic-dev-loop-commit " + JSON.stringify(message)
+    + " --subject " + JSON.stringify(PIPELINE.name) + " --allowed";
+  const r = await $.run({ command: cmd });
+  return String(r.stdout || "") + String(r.stderr || "");
+}
+
+// ── deterministic router (BR-7) ─────────────────────────────────────────
+// Routes on_pass / on_fail / goto using the attempt counter; the failing
+// subagent's final output becomes the retry note for the next attempt.
+// max_attempts bounds retries; exceeding it fails the workflow loudly.
+export default async function workflow($) {
+  await captureCleanAtStart($);
+  await launchViz($);
+
+  let current = PIPELINE.steps.length ? PIPELINE.steps[0].id : "failure";
+  let outcome = "failure";
+
+  while (true) {
+    if (current === "success") { outcome = "success"; break; }
+    if (current === "failure") { outcome = "failure"; break; }
+
+    const step = stepById(current);
+    if (!step) { outcome = "failure"; break; }
+
+    await postStage($, step.id, "started", "");
+    let result;
+    try {
+      result = await runStep($, step);
+    } catch (err) {
+      result = { output: String((err && err.message) || err), verdict: "retry" };
+    }
+    await postStage($, step.id, "finished", result.output);
+
+    if (result.verdict === "pass") {
+      state.retryNote = "";
+      current = step.on_pass || "success";
+    } else {
+      if (step.retry === true) {
+        state.retryNote = result.output;
+        state.attempt += 1;
+        if (state.attempt > step.max_attempts) {
+          await postStage($, step.id, "failed", "max_attempts exceeded");
+          outcome = "failure";
+          break;
+        }
+        current = step.on_fail || "failure";
+      } else {
+        current = step.on_fail || "failure";
+      }
+    }
+  }
+
+  await postStage($, "__end__", "finished", "outcome " + outcome);
+  return outcome;
+}

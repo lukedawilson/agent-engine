@@ -13,8 +13,8 @@ from openhands.sdk.llm.message import Message, MessageToolCall, TextContent
 from openhands.sdk.testing import TestLLM
 from openhands.sdk.tool.builtins.finish import FinishAction
 
-from agentic_dev_loop.agents import load_agent
-from agentic_dev_loop.outputs import CaptureError, CapturedOutput
+from agentic_dev_loop.engine.agents import load_agent
+from agentic_dev_loop.engine.outputs import CaptureError, CapturedOutput
 
 AGENTS_DIR = Path(__file__).parent.parent / "agentic-dev-loop" / "sdk_agents"
 

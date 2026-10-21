@@ -2,8 +2,8 @@
 
 import pytest
 
-from agentic_dev_loop import actions
-from agentic_dev_loop.registry import Registry, default_registry, load_extensions
+from agentic_dev_loop.engine import actions
+from agentic_dev_loop.engine.registry import Registry, default_registry, load_extensions
 from sample_ext import SampleTool
 
 

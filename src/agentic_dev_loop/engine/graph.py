@@ -16,9 +16,9 @@ from typing import Annotated, TypedDict
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 
-from . import viz
+from agentic_dev_loop import viz
 from .actions import git_worktree_clean, kill_listeners_on_port
-from .config import load_config
+from agentic_dev_loop.core.config import load_config
 from .isolation import startup_sandbox
 from .llm import build_llm
 from .loaders import resolve_docs

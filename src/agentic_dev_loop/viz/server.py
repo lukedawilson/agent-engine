@@ -5,9 +5,10 @@ serving an embedded Mermaid page.
 The graph itself is untouched — every live update is derived from LangGraph's
 ``tasks``/``updates`` stream modes. The viz surface is served by default
 (suppressed with ``--no-viz``); the
-server is stdlib-only and the page loads Mermaid.js v11 from a CDN. The
-topology is rendered by LangChain's own ``graph_mermaid`` renderer (a core
-dependency already pulled in by LangGraph).
+server is stdlib-only (TS-4): the HTTP/SSE server uses only the standard
+library, and the Mermaid topology source is assembled directly from the
+pipeline config — no LangChain renderer — while the page loads Mermaid.js v11
+from a CDN.
 """
 
 from __future__ import annotations
@@ -21,14 +22,41 @@ import threading
 import time
 from collections import deque
 from collections.abc import Iterable
+from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from langchain_core.runnables.graph import Edge
-from langchain_core.runnables.graph_mermaid import draw_mermaid
+from agentic_dev_loop.core.config import PipelineConfig, Route, route_target
 
-from .config import PipelineConfig, Route, route_target
+from .ingest import issue_ingest_token
 
 STATE_WHITELIST = ("attempt", "step_verdicts", "outcome", "failed")
+
+
+@dataclass(frozen=True)
+class _Edge:
+    """One flowchart edge (stdlib-only replacement for LangChain's `Edge`)."""
+
+    src: str
+    dst: str
+    label: str | None = None
+    conditional: bool = False
+
+
+def _render_mermaid(edges: list[_Edge]) -> str:
+    """Assemble the Mermaid source for a list of edges — the exact string the
+    old LangChain `draw_mermaid(nodes={}, ...)` renderer produced: a bare
+    ``graph TD;`` header (no node declarations, no stadium shapes, no
+    terminals), then one tab-indented edge line each."""
+    lines = ["graph TD;"]
+    for edge in edges:
+        if edge.conditional:
+            if edge.label:
+                lines.append(f"\t{edge.src} -. &nbsp;{edge.label}&nbsp; .-> {edge.dst};")
+            else:
+                lines.append(f"\t{edge.src} -.-> {edge.dst};")
+        else:
+            lines.append(f"\t{edge.src} --> {edge.dst};")
+    return "\n".join(lines) + "\n"
 
 
 def topology_mermaid(cfg: PipelineConfig) -> tuple[str, list[str]]:
@@ -37,16 +65,17 @@ def topology_mermaid(cfg: PipelineConfig) -> tuple[str, list[str]]:
     Returns ``(mermaid_source, node_ids)``. The happy path is one solid
     ``-->`` chain following each step's ``on_pass``; retries render as dotted
     ``-. label .->`` loop-backs, and a non-retry ``on_fail`` as an unlabeled
-    dotted edge. LangChain's renderer is reused with ``nodes={}`` so nodes
-    auto-render as plain rectangles (no stadium declarations, no terminals).
+    dotted edge. Stdlib-only (TS-4): the source is assembled directly, with
+    no node declarations and no terminal stadium shapes — byte-identical to
+    the previous LangChain renderer's output.
     """
-    chain: list[Edge] = []
-    back_edges: list[Edge] = []
+    chain: list[_Edge] = []
+    back_edges: list[_Edge] = []
     referenced: set[str] = set()
     for step in cfg.steps:
         target = route_target(step.on_pass)
         if target is not None:
-            chain.append(Edge(step.name, target))
+            chain.append(_Edge(step.name, target))
             referenced.add(target)
         if isinstance(step.on_fail, Route) and step.on_fail.retry:
             if step.verdicts is not None:
@@ -55,21 +84,19 @@ def topology_mermaid(cfg: PipelineConfig) -> tuple[str, list[str]]:
                 label = "fail"
             else:
                 label = "retry"
-            back_edges.append(Edge(step.name, step.on_fail.goto, data=label,
-                                   conditional=True))
+            back_edges.append(_Edge(step.name, step.on_fail.goto, label=label,
+                                    conditional=True))
             referenced.add(step.on_fail.goto)
         else:
             target = route_target(step.on_fail)
             if target is not None:
-                back_edges.append(Edge(step.name, target, conditional=True))
+                back_edges.append(_Edge(step.name, target, conditional=True))
                 referenced.add(target)
     node_ids = [step.name for step in cfg.steps]
     for terminal in ("success", "failure"):
         if terminal in referenced:
             node_ids.append(terminal)
-    source = draw_mermaid(nodes={}, edges=chain + back_edges, first_node=None,
-                          last_node=None, with_styles=False)
-    return source, node_ids
+    return _render_mermaid(chain + back_edges), node_ids
 
 
 def translate(part: dict) -> list[dict]:
@@ -314,13 +341,15 @@ class HeartbeatThread(threading.Thread):
 
 
 def _handler_class(bus: VizBus, topology_mermaid: str,
-                   subject: str, nodes: Iterable[str]) -> type[BaseHTTPRequestHandler]:
+                   subject: str, nodes: Iterable[str],
+                   ingest_token: str | None = None) -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
         viz_bus = bus
         viz_topology = topology_mermaid
         viz_subject = subject
         viz_nodes = list(nodes)
+        viz_ingest_token = ingest_token
 
         def log_message(self, *_args) -> None:  # keep test output quiet
             pass
@@ -343,6 +372,30 @@ def _handler_class(bus: VizBus, topology_mermaid: str,
                 self._events()
             else:
                 self.send_error(404)
+
+        def do_POST(self) -> None:
+            if self.path != "/ingest":
+                self.send_error(404)
+                return
+            supplied = self.headers.get("X-Ingest-Token", "")
+            if not self.viz_ingest_token or supplied != self.viz_ingest_token:
+                self._send(403, "application/json",
+                           json.dumps({"error": "forbidden"}))
+                return
+            length = int(self.headers.get("Content-Length", "0") or "0")
+            body = self.rfile.read(length).decode("utf-8")
+            try:
+                event = json.loads(body)
+            except json.JSONDecodeError:
+                self._send(400, "application/json",
+                           json.dumps({"error": "invalid json"}))
+                return
+            if not isinstance(event, dict):
+                self._send(400, "application/json",
+                           json.dumps({"error": "event must be an object"}))
+                return
+            self.viz_bus.publish(event)
+            self._send(200, "application/json", json.dumps({"ok": True}))
 
         def _send(self, status: int, content_type: str, body: str) -> None:
             data = body.encode("utf-8")
@@ -386,7 +439,8 @@ class _ReuseSafeServer(ThreadingHTTPServer):
 
 
 def serve_viz(bus: VizBus, topology_mermaid: str, subject: str,
-              port: int, nodes: Iterable[str] = ()) -> tuple[_ReuseSafeServer, threading.Thread]:
+              port: int, nodes: Iterable[str] = (),
+              ingest_token: str | None = None) -> tuple[_ReuseSafeServer, threading.Thread]:
     """Bind a loopback HTTP server on ``port`` and serve it on a daemon
     thread. Returns ``(httpd, thread)`` — the caller reads the real bound
     port from ``httpd.server_address[1]``.
@@ -395,7 +449,10 @@ def serve_viz(bus: VizBus, topology_mermaid: str, subject: str,
     (``errno.EADDRINUSE``) the server rebinds port 0 and lets the OS pick a
     free port. Any other bind error (e.g. ``EACCES`` on a privileged port)
     still fails loud, naming ``--viz-port``."""
-    handler = _handler_class(bus, topology_mermaid, subject, nodes)
+    if ingest_token is None:
+        ingest_token = issue_ingest_token()
+    handler = _handler_class(bus, topology_mermaid, subject, nodes,
+                             ingest_token)
     try:
         httpd = _ReuseSafeServer(("127.0.0.1", port), handler)
     except OSError as exc:
@@ -405,6 +462,7 @@ def serve_viz(bus: VizBus, topology_mermaid: str, subject: str,
             raise OSError(
                 f"Could not bind the viz server to 127.0.0.1:{port} — the "
                 f"--viz-port may already be in use. ({exc})") from exc
+    httpd.ingest_token = ingest_token
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
     return httpd, thread

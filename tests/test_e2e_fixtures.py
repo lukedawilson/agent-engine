@@ -17,11 +17,11 @@ from pathlib import Path
 
 import pytest
 
-from agentic_dev_loop.agents import load_agent
-from agentic_dev_loop.cli import main
-from agentic_dev_loop.config import load_config
-from agentic_dev_loop.llm import build_llm
-from agentic_dev_loop.registry import default_registry
+from agentic_dev_loop.engine.agents import load_agent
+from agentic_dev_loop.engine.cli import main
+from agentic_dev_loop.core.config import load_config
+from agentic_dev_loop.engine.llm import build_llm
+from agentic_dev_loop.engine.registry import default_registry
 
 EXAMPLE = Path(__file__).resolve().parent.parent / "agentic-dev-loop"
 
@@ -101,7 +101,7 @@ def consumer_repo(tmp_path, monkeypatch, fake_agents, fake_sandbox):
     monkeypatch.setenv("OPENAI_API_KEY", "fake-key")
     # Never kill a contributor's real process on that port (see module
     # docstring).
-    monkeypatch.setattr("agentic_dev_loop.actions._listening_pids",
+    monkeypatch.setattr("agentic_dev_loop.engine.actions._listening_pids",
                         lambda *a, **k: [])
     # Script the example's mechanical test command (see _fake_sandbox_run).
     _script_test()

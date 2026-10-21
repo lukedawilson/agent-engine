@@ -14,8 +14,8 @@ import importlib.metadata
 
 from openhands.sdk.llm.message import Message, MessageToolCall, TextContent
 
-from agentic_dev_loop.config import LlmConfig
-from agentic_dev_loop.llm import _ORIGINAL_FORMAT_MESSAGES, build_llm
+from agentic_dev_loop.core.config import LlmConfig
+from agentic_dev_loop.engine.llm import _ORIGINAL_FORMAT_MESSAGES, build_llm
 
 KEY = "AGENT_ENGINE_TEST_KEY"
 TESTED_OPENHANDS_SDK = "1.17"

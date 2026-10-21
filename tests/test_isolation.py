@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from agentic_dev_loop.config import IsolationConfig
-from agentic_dev_loop.isolation import (
+from agentic_dev_loop.core.config import IsolationConfig
+from agentic_dev_loop.engine.isolation import (
     AUDIT_MAX_BYTES, CmdResult, DEFAULT_DEV_IMAGE, DEFAULT_DEV_IMAGE_REF,
     DockerBackend, EffectiveProfile, ProbeResult, SandboxError,
     SandboxExecutionRequest, SandboxExecutionResult, append_audit_record,
@@ -351,31 +351,31 @@ class TestSelectBackend:
 class TestProbeDocker:
     def test_success(self, monkeypatch):
         runner = FakeRunner(ok("1.54"), ok("linux"))
-        monkeypatch.setattr("agentic_dev_loop.isolation.shutil.which",
+        monkeypatch.setattr("agentic_dev_loop.engine.isolation.shutil.which",
                             lambda *a: "/usr/bin/docker")
         r = probe_docker(runner)
         assert r == ProbeResult("1.54", "linux")
 
     def test_missing_docker(self, monkeypatch):
-        monkeypatch.setattr("agentic_dev_loop.isolation.shutil.which",
+        monkeypatch.setattr("agentic_dev_loop.engine.isolation.shutil.which",
                             lambda *a: None)
         with pytest.raises(SandboxError, match="AE-SBX-001"):
             probe_docker(FakeRunner())
 
     def test_daemon_unreachable(self, monkeypatch):
-        monkeypatch.setattr("agentic_dev_loop.isolation.shutil.which",
+        monkeypatch.setattr("agentic_dev_loop.engine.isolation.shutil.which",
                             lambda *a: "/usr/bin/docker")
         with pytest.raises(SandboxError, match="AE-SBX-002"):
             probe_docker(FakeRunner(fail(1, "Cannot connect")))
 
     def test_api_too_old(self, monkeypatch):
-        monkeypatch.setattr("agentic_dev_loop.isolation.shutil.which",
+        monkeypatch.setattr("agentic_dev_loop.engine.isolation.shutil.which",
                             lambda *a: "/usr/bin/docker")
         with pytest.raises(SandboxError, match="AE-SBX-003"):
             probe_docker(FakeRunner(ok("1.24"), ok("linux")))
 
     def test_windows_containers(self, monkeypatch):
-        monkeypatch.setattr("agentic_dev_loop.isolation.shutil.which",
+        monkeypatch.setattr("agentic_dev_loop.engine.isolation.shutil.which",
                             lambda *a: "/usr/bin/docker")
         with pytest.raises(SandboxError, match="AE-SBX-004"):
             probe_docker(FakeRunner(ok("1.54"), ok("windows")))
@@ -682,7 +682,7 @@ class TestProvisionStampsAudit:
 
     def test_audit_rotation(self, tmp_path, monkeypatch):
         state = tmp_path / "state"
-        monkeypatch.setattr("agentic_dev_loop.isolation.AUDIT_MAX_BYTES", 10)
+        monkeypatch.setattr("agentic_dev_loop.engine.isolation.AUDIT_MAX_BYTES", 10)
         append_audit_record(state, {"n": 1, "pad": "x" * 8})
         append_audit_record(state, {"n": 2, "pad": "y" * 8})
         assert (state / "sandbox-audit.jsonl").exists()
@@ -697,7 +697,7 @@ class TestStartupSandbox:
     all declared setups — with zero infra operations left for the run phase."""
 
     def _cfg(self, tmp_path, with_setup=False):
-        from agentic_dev_loop.config import PipelineConfig
+        from agentic_dev_loop.core.config import PipelineConfig
         steps = [{"name": "dev", "agent": "dev", "on_pass": "test"},
                  {"name": "test", "command": "make", "on_pass": "success"}]
         if with_setup:
@@ -709,13 +709,13 @@ class TestStartupSandbox:
         })
 
     def test_sequence_and_provision(self, tmp_path, monkeypatch):
-        from agentic_dev_loop import isolation
-        from agentic_dev_loop.isolation import startup_sandbox
+        from agentic_dev_loop.engine import isolation
+        from agentic_dev_loop.engine.isolation import startup_sandbox
 
         ws = tmp_path / "ws"
         ws.mkdir()
         cfg = self._cfg(tmp_path, with_setup=True)
-        monkeypatch.setattr("agentic_dev_loop.isolation.shutil.which",
+        monkeypatch.setattr("agentic_dev_loop.engine.isolation.shutil.which",
                             lambda *a: "/usr/bin/docker")
         monkeypatch.setenv("AGENTIC_DEV_LOOP_DEV_IMAGE", "img:tag")
         runner = FakeRunner(
@@ -742,8 +742,8 @@ class TestStartupSandbox:
         """014: declaring `network: true` on any step makes eager startup
         create the bridge-network container in addition to the default
         network-none one — the default (no declaration) stays single-container."""
-        from agentic_dev_loop.config import PipelineConfig
-        from agentic_dev_loop.isolation import startup_sandbox
+        from agentic_dev_loop.core.config import PipelineConfig
+        from agentic_dev_loop.engine.isolation import startup_sandbox
 
         ws = tmp_path / "ws"
         ws.mkdir()
@@ -755,7 +755,7 @@ class TestStartupSandbox:
                        "on_pass": "success"}],
             "isolation": {"state_dir": str(tmp_path / "iso-state")},
         })
-        monkeypatch.setattr("agentic_dev_loop.isolation.shutil.which",
+        monkeypatch.setattr("agentic_dev_loop.engine.isolation.shutil.which",
                             lambda *a: "/usr/bin/docker")
         monkeypatch.setenv("AGENTIC_DEV_LOOP_DEV_IMAGE", "img:tag")
         runner = FakeRunner(
@@ -775,13 +775,13 @@ class TestStartupSandbox:
             sandbox.close()
 
     def test_refresh_forces_provision(self, tmp_path, monkeypatch):
-        from agentic_dev_loop.isolation import (setup_stamp_key, startup_sandbox,
+        from agentic_dev_loop.engine.isolation import (setup_stamp_key, startup_sandbox,
                                                 write_stamp)
 
         ws = tmp_path / "ws"
         ws.mkdir()
         cfg = self._cfg(tmp_path, with_setup=True)
-        monkeypatch.setattr("agentic_dev_loop.isolation.shutil.which",
+        monkeypatch.setattr("agentic_dev_loop.engine.isolation.shutil.which",
                             lambda *a: "/usr/bin/docker")
         monkeypatch.setenv("AGENTIC_DEV_LOOP_DEV_IMAGE", "img:tag")
 

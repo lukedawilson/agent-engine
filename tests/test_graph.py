@@ -14,17 +14,17 @@ from pathlib import Path
 
 import pytest
 
-from agentic_dev_loop.config import load_config
-from agentic_dev_loop.graph import build_graph, run_pipeline
-from agentic_dev_loop.llm import build_llm
-from agentic_dev_loop.registry import Registry, default_registry, load_extensions
-from agentic_dev_loop.stages import Runtime
+from agentic_dev_loop.core.config import load_config
+from agentic_dev_loop.engine.graph import build_graph, run_pipeline
+from agentic_dev_loop.engine.llm import build_llm
+from agentic_dev_loop.engine.registry import Registry, default_registry, load_extensions
+from agentic_dev_loop.engine.stages import Runtime
 from agentic_dev_loop.viz import VizBus
 
 YOSK_YAML = """\
 name: yosk-construction
 extensions:
-  - agentic_dev_loop.extensions.aidlc:AidlcExtension
+  - agentic_dev_loop.engine.extensions.aidlc:AidlcExtension
 additional_files:
   - coding-standards-ddd.yaml
 llm:
@@ -238,7 +238,7 @@ class TestRunPipeline:
 
     def test_empty_loader_docs_fail_fast(self, repo, fake_agents):
         (repo / "empty.yaml").write_text(YOSK_YAML.replace(
-            "agentic_dev_loop.extensions.aidlc:AidlcExtension",
+            "agentic_dev_loop.engine.extensions.aidlc:AidlcExtension",
             "sample_ext:EmptyLoaderExtension"))
         with pytest.raises(RuntimeError, match="empty"):
             run_pipeline("empty.yaml", args(empty=True, plan=None))
@@ -364,7 +364,7 @@ class TestVizStream:
     def test_programmatic_bus_never_sweeps(self, repo, fake_agents, monkeypatch):
         script_all_pass(fake_agents)
         swept = []
-        monkeypatch.setattr("agentic_dev_loop.graph.kill_listeners_on_port",
+        monkeypatch.setattr("agentic_dev_loop.engine.graph.kill_listeners_on_port",
                             lambda *a, **k: swept.append(a))
         ok, attempts = run_pipeline("pipeline.yaml", args(), viz_bus=VizBus())
         assert (ok, attempts) == (True, 1)

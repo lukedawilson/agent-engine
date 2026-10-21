@@ -3,7 +3,7 @@
 import argparse
 from pathlib import Path
 
-from .config import PipelineConfig
+from agentic_dev_loop.core.config import PipelineConfig
 from .registry import DocumentLoader, Registry
 
 

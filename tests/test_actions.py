@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from agentic_dev_loop.actions import (_listening_pids, _parse_cwd_output, _pid_cwd,
+from agentic_dev_loop.engine.actions import (_listening_pids, _parse_cwd_output, _pid_cwd,
                                   _trusted_hooks_dir, commit, git_worktree_clean,
                                   kill_listeners_on_port)
 
@@ -146,7 +146,7 @@ class TestKillListenersOnPort:
     def test_kill_listeners_wrapper_removed(self):
         """The port_sweep pipeline step that used the node-shaped wrapper is
         gone; the startup sweep calls kill_listeners_on_port directly."""
-        import agentic_dev_loop.actions as actions_module
+        import agentic_dev_loop.engine.actions as actions_module
         assert not hasattr(actions_module, "kill_listeners")
 
     @lsof_required
@@ -339,7 +339,7 @@ class TestCommitNode:
         hook.chmod(0o755)
         # Point the trusted hooks dir at a tmp dir — never the real home.
         trusted = tmp_path / "trusted-hooks"
-        monkeypatch.setattr("agentic_dev_loop.actions._trusted_hooks_dir",
+        monkeypatch.setattr("agentic_dev_loop.engine.actions._trusted_hooks_dir",
                             lambda: str(trusted))
         monkeypatch.chdir(repo)
 
@@ -364,7 +364,7 @@ class TestCommitNode:
         hook.chmod(0o755)
         if not os.access(hook, os.X_OK):
             pytest.skip("tmp filesystem is mounted noexec; git ignores the hook")
-        monkeypatch.setattr("agentic_dev_loop.actions._trusted_hooks_dir",
+        monkeypatch.setattr("agentic_dev_loop.engine.actions._trusted_hooks_dir",
                             lambda: str(trusted))
         monkeypatch.chdir(repo)
 
@@ -406,7 +406,7 @@ class TestCommitNode:
         (repo / "feature.cs").write_text("x")
         monkeypatch.chdir(repo)
 
-        from agentic_dev_loop import actions as actions_mod
+        from agentic_dev_loop.engine import actions as actions_mod
         real_git = actions_mod._git
         calls = []
 
@@ -418,7 +418,7 @@ class TestCommitNode:
                     "fatal: cannot stat '.pr/loop-checkpoints.sqlite'")
             return real_git(args, cwd=cwd)
 
-        monkeypatch.setattr("agentic_dev_loop.actions._git", fake_git)
+        monkeypatch.setattr("agentic_dev_loop.engine.actions._git", fake_git)
 
         commit({"subject": "unit U2", "commit_allowed": True}, COMMIT_PARAMS)
 
@@ -438,7 +438,7 @@ class TestCommitNode:
         (repo / "feature.cs").write_text("x")
         monkeypatch.chdir(repo)
 
-        from agentic_dev_loop import actions as actions_mod
+        from agentic_dev_loop.engine import actions as actions_mod
         real_git = actions_mod._git
         add_calls = []
 
@@ -447,7 +447,7 @@ class TestCommitNode:
                 add_calls.append(list(args))
             return real_git(args, cwd=cwd)
 
-        monkeypatch.setattr("agentic_dev_loop.actions._git", fake_git)
+        monkeypatch.setattr("agentic_dev_loop.engine.actions._git", fake_git)
 
         commit({"subject": "unit U2", "commit_allowed": True,
                 "state_dir": str(outside)}, COMMIT_PARAMS)

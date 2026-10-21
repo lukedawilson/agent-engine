@@ -24,11 +24,11 @@ if _SRC_DIR not in sys.path:
 
 import pytest
 
-from agentic_dev_loop.isolation import (Sandbox, SandboxExecutionRequest,
+from agentic_dev_loop.engine.isolation import (Sandbox, SandboxExecutionRequest,
                                         SandboxExecutionResult, SandboxError,
                                         is_git_mutation)
-from agentic_dev_loop.proc import kill_process_tree
-from agentic_dev_loop.stages import AgentResult
+from agentic_dev_loop.engine.proc import kill_process_tree
+from agentic_dev_loop.engine.stages import AgentResult
 
 
 class FakeAgents:
@@ -54,7 +54,7 @@ class FakeAgents:
     def __init__(self, monkeypatch: pytest.MonkeyPatch):
         self.calls: list[dict] = []
         self.script: dict[str, list[tuple]] = {}
-        monkeypatch.setattr("agentic_dev_loop.stages.run_agent", self)
+        monkeypatch.setattr("agentic_dev_loop.engine.stages.run_agent", self)
 
     def set(self, agent: str, behaviors: list[tuple]) -> None:
         self.script[agent] = list(behaviors)
@@ -166,7 +166,7 @@ def fake_sandbox(monkeypatch):
     startup seam so ``run_pipeline``/``main`` get a scriptable fake instead of
     a real Docker backend (FD-5)."""
     sandbox = FakeSandbox()
-    monkeypatch.setattr("agentic_dev_loop.graph.startup_sandbox",
+    monkeypatch.setattr("agentic_dev_loop.engine.graph.startup_sandbox",
                         lambda *a, **k: sandbox)
     return sandbox
 

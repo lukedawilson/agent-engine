@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- feat: unit-4 Claude Dynamic Workflows driver — hard module break: the flat
+  `agentic_dev_loop` package splits into `core` (pipeline model + parse +
+  workflow projection), `engine` (graph/stages/sandbox/CLI), and `viz`
+  (live-graph server + workflow ingest). No re-export shims.
+- feat: build-time workflow projection — `project_workflow`, prompt-reference
+  validation, deterministic `render_workflow_js`, and the docker-free commit
+  shim; skill payload (`/agentic-dev-loop`) ships in the wheel.
+- feat: extras inversion — base install is `core` + `viz` (pydantic + PyYAML
+  only); the heavy OpenHands-SDK engine moves to the `[engine]` extra
+  (`[workflow]` is the base). The generated workflow JS is a real wheel-shipped
+  template implementing the deterministic loop (routing, attempt counter,
+  retry-note injection, clean-at-start, viz launch, gated commit), pinned by
+  golden-render tests; `viz` is now stdlib-only (no LangChain renderer).
+
+### Migration (breaking)
+
+- `agentic_dev_loop.config` → `agentic_dev_loop.core.config`
+- `agentic_dev_loop.results` → `agentic_dev_loop.core.results`
+- `agentic_dev_loop.outputs` → `agentic_dev_loop.engine.outputs`
+  (`Verdict`/`VerdictError` → `agentic_dev_loop.core.verdict`)
+- `agentic_dev_loop.viz` → `agentic_dev_loop.viz` (now a package; the
+  `viz.py` module moved to `viz.server`)
+- `agentic_dev_loop.{graph,stages,isolation,cli,llm,actions,agents,registry,loaders,proc,dryrun}` → `agentic_dev_loop.engine.*`
+- `agentic_dev_loop.extensions.aidlc` → `agentic_dev_loop.engine.extensions.aidlc`
+  (update the `extensions:` string in your pipeline.yaml)
+
+
 ## [1.0.0a5] - 2026-10-20
 
 ### Changed

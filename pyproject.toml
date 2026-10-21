@@ -32,6 +32,23 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
+    # Base install = workflow mode (core + viz + workflow CLI). Deliberately
+    # dependency-light (TS-1 / NFR-4.1 / BR-2): pydantic + PyYAML only. The
+    # heavy OpenHands-SDK engine deps live in the [engine] extra below.
+    "pydantic>=2.0",
+    "PyYAML>=6.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/lukedawilson/agentic-dev-loop"
+
+[project.scripts]
+agentic-dev-loop = "agentic_dev_loop.engine.cli:main"
+agentic-dev-loop-workflow = "agentic_dev_loop.workflow.cli:main"
+agentic-dev-loop-commit = "agentic_dev_loop.engine.commit_shim:main"
+
+[project.optional-dependencies]
+engine = [
     "openhands-sdk ~=1.17.0",
     "openhands-tools ~=1.17.0",
     # openhands-sdk declares agent-client-protocol>=0.8.1 with NO upper bound;
@@ -41,18 +58,13 @@ dependencies = [
     "agent-client-protocol<1.0.0",
     "langgraph>=1.2",
     "langgraph-checkpoint-sqlite>=3.0",
-    "pydantic>=2.0",
-    "PyYAML>=6.0",
 ]
-
-[project.urls]
-Homepage = "https://github.com/lukedawilson/agentic-dev-loop"
-
-[project.scripts]
-agentic-dev-loop = "agentic_dev_loop.cli:main"
-
-[project.optional-dependencies]
+# Workflow mode is the BASE install — this empty extra exists only so
+# `pip install agentic-dev-loop[workflow]` reads naturally and pulls nothing
+# beyond the light base (core + viz). See README / NFR-4.1.
+workflow = []
 dev = [
+    "agentic-dev-loop[engine]",
     "hypothesis>=6.0",
     "pytest>=8.0",
 ]
@@ -62,6 +74,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 agentic_dev_loop = ["py.typed"]
+"agentic_dev_loop.core" = ["workflow.js.template"]
 
 [tool.pytest.ini_options]
 markers = [

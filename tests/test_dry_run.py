@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from agentic_dev_loop.cli import main
-from agentic_dev_loop.isolation import DEFAULT_DEV_IMAGE_REF
+from agentic_dev_loop.engine.cli import main
+from agentic_dev_loop.engine.isolation import DEFAULT_DEV_IMAGE_REF
 
 SRC = str(Path(__file__).resolve().parents[1] / "src")
 
@@ -65,7 +65,7 @@ def run_cli(repo: Path, *args: str, strip=("AGENTIC_DEV_LOOP_DEV_IMAGE",)):
     env["PYTHONPATH"] = SRC + os.pathsep + env.get("PYTHONPATH", "")
     return subprocess.run(
         [sys.executable, "-c",
-         "import sys; from agentic_dev_loop.cli import main; "
+         "import sys; from agentic_dev_loop.engine.cli import main; "
          "sys.exit(main(sys.argv[1:]))",
          *args],
         cwd=repo, capture_output=True, text=True, env=env)

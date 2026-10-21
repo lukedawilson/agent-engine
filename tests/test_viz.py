@@ -26,7 +26,7 @@ from typing import Annotated, TypedDict
 import pytest
 
 from agentic_dev_loop import viz
-from agentic_dev_loop.config import PipelineConfig, load_config
+from agentic_dev_loop.core.config import PipelineConfig, load_config
 from agentic_dev_loop.viz import (MAX_LINE, PAGE, ConsoleCapture, HeartbeatThread,
                               NodeWatch, VizBus, _ReuseSafeServer, _Tee,
                               _handler_class, serve_viz, topology_mermaid,
