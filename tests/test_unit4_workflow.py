@@ -69,17 +69,17 @@ def test_commit_shim_commits_when_allowed(tmp_path, monkeypatch):
 def test_install_skill_writes_skill_payload(tmp_path):
     target = tmp_path / "skill"
     install_skill(target)
-    assert (target / "SKILL.md").read_text() == SKILL_MD
-    assert (target / "workflow.js.template").read_text()
-    assert (target / "VERSION").read_text()
+    assert (target / "SKILL.md").read_text(encoding="utf-8") == SKILL_MD
+    assert (target / "workflow.js.template").read_text(encoding="utf-8")
+    assert (target / "VERSION").read_text(encoding="utf-8")
 
 
 def test_install_skill_is_idempotent(tmp_path):
     target = tmp_path / "skill"
     install_skill(target)
-    first = (target / "SKILL.md").read_text()
+    first = (target / "SKILL.md").read_text(encoding="utf-8")
     install_skill(target)
-    assert (target / "SKILL.md").read_text() == first
+    assert (target / "SKILL.md").read_text(encoding="utf-8") == first
 
 
 def test_skill_dir_default_target():
@@ -110,7 +110,7 @@ def test_project_cli_writes_workflow_js(tmp_path, monkeypatch):
          str(base / "pipeline.yaml")],
         capture_output=True, text=True, cwd=REPO_ROOT)
     assert out.returncode == 0, out.stderr
-    js = (base / ".agentic-dev-loop" / "workflow.js").read_text()
+    js = (base / ".agentic-dev-loop" / "workflow.js").read_text(encoding="utf-8")
     assert "mini" in js
     assert "dev.agent.md" in js
 

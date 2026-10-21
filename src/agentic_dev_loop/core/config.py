@@ -206,7 +206,7 @@ def default_state_dir(pipeline_path: Path) -> str:
 
 def load_config(path: Path) -> PipelineConfig:
     path = Path(path)
-    data = yaml.safe_load(path.read_text())
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValueError(
             f"pipeline config must be a mapping, got {type(data).__name__}: {path}"
