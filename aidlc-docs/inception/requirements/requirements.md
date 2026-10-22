@@ -63,7 +63,7 @@ Isolation is **optional** — no user is forced to use a container. Not requeste
 | NFR-6 | **Property-based testing (partial)**: PBT for pure functions and serialization round-trips (verdict parsing, config (de)serialization) with Hypothesis; property identification in Functional Design. |
 | NFR-7 | **Testability**: the isolation backend must be testable without a running container (e.g., fake runtime speaking the same interface); no tests that silently skip when Docker is absent. |
 
-## Stage 4 — Claude Dynamic Workflows driver (unit-4)
+## Stage 4 — Claude Dynamic Workflows driver (unit-4) — WONTSHIP (2026-10-22)
 
 | ID | Requirement |
 | --- | --- |

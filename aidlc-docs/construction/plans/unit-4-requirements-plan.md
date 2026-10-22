@@ -42,3 +42,15 @@ Prior analysis basis: `aidlc-docs/unit-4-intent-claude-code-backend.md` (pillars
 ### Q7 — Verdict protocol and retry loops in workflow mode
 
 [Answer]: A — same verdict contract in workflow mode. Verdict agents still write `VERDICT: PASS/FAIL` artifacts; each subagent step reports its verdict in its final output; the workflow JS routes on_pass/on_fail/goto with its own max_attempts loop counter. One pipeline.yaml stays truthful in both modes. (Raw: "A — Same verdict contract (Recommended)")
+
+## Round 2 — Claude Workflow-tool feedback (2026-10-22)
+
+Claude Code's install-time feedback on the shipped skill was evaluated and verified against official Workflow-tool docs: the shipped workflow.js.template targets OUR workflow.cli runner (`export default async function workflow($)`, `$.run`, runtime prompt-path reads) — it is NOT Workflow-tool-compatible (no `meta` literal export; script body has no fs/shell/network). Two-template approach accepted (P0 set + P1/P2).
+
+### R2-Q1 — Visualiser in the claude-code target
+
+[Answer]: Viz is NON-NEGOTIABLE. Raw: "without viz, this whole adapter is pointless. So either it's possible to do viz, or we forget about plugging this into Claude". Resolution: viz IS possible via agent mediation — a step-agent launches `python -m agentic_dev_loop.viz pipeline.yaml` (agents have full tools incl. Bash; server parses topology itself via core and serves SSE), later step-agents POST stage events to the ingest endpoint (prompt-instructed, best-effort), final agent terminates the server (or TTL). Event emission = prompt-enforced best-effort observability (not a security boundary); the /workflows progress view remains the guaranteed fallback; verdict routing stays deterministic in the script.
+
+### R2-Q2 — Prompt strategy in the claude-code target (BR-5)
+
+[Answer]: *(pending)*

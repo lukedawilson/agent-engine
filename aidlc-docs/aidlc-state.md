@@ -69,16 +69,6 @@ Scope FR-2.1–FR-2.6 (always-on sandbox; Docker backend on ALL platforms — na
 - [x] Build and Test — full suite green incl. docker-marked integration tests (host daemon); validated end-to-end in yosk-cms unit-8 run (user: "tested it thoroughly in the yosk-cms repo and it's working")
 - [ ] Operations (placeholder)
 
-### unit-4 (Claude Dynamic Workflows driver) — IN PROGRESS
-Scope (user proposal 2026-10-21): drive two engine parts from Claude Dynamic Workflows — (1) parsing pipeline.yaml and creating the workflow steps from it, (2) the visualiser web UI. NO Docker sandboxing from Claude Code (explicitly out of scope). Proposal: split pipeline model / engine / viz into separate composable modules; build a Claude skill `/agentic-dev-loop` with a bundled workflow JS file that uses the pipeline model and viz. Prior intent doc: aidlc-docs/unit-4-intent-claude-code-backend.md.
+### unit-4 (Claude Dynamic Workflows driver) — WONTSHIP/WONTDO (2026-10-22)
 
-- [x] Requirements Analysis — APPROVED (2026-10-21, "approve and continue"); Q3 later REVERSED by user (build-time parse, not runtime) — FR-4.3, summary item 4, intent amendment, plan Q3, verification Q3 all updated. Next = Functional Design
-- [x] Functional Design — APPROVED (2026-10-21, "approved"); artifacts at construction/unit-4/functional-design/; FD-1..5 answered (build-time parse, prompt refs + existence check, retry note, clean-at-start, token-auth viz, wheel-shipped skill)
-- [x] NFR Requirements — APPROVED (2026-10-21, "approved"); artifacts at construction/unit-4/nfr-requirements/ (nfr-requirements.md + tech-stack-decisions.md); NFR-1..6 answered
-- [x] Infrastructure Design — APPROVED (2026-10-21, "approved"); artifacts at construction/unit-4/infrastructure-design/ (infrastructure-design.md + deployment-architecture.md); ID-1..5 answered
-- [ ] Code Generation — next (2-part: plan approval → generation)
-- [ ] Functional Design
-- [ ] NFR Requirements
-- [ ] Infrastructure Design
-- [ ] Code Generation
-- [ ] Build and Test
+Withdrawn by user directive 2026-10-22 ("Let's rip it out and mark unit 4 as wontship/wontdo"). Rationale: the Claude Workflow tool's no-filesystem/no-shell sandbox makes the adapter agent-mediated at every seam (command gates, viz events, prompts) — not worth the divergence from engine-mode guarantees. NO Claude adapter ships (not even viz-only). The core/engine/viz module split IS KEPT (independent value: dependency contracts, guard tests, light installs). Adapter-surface removal = planning-docs/016-remove-unit-4-adapter.md → release 1.0.0a7. Historical docs (requirements FR-4.x, unit-4 construction artifacts, intent doc) remain as history.
