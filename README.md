@@ -57,11 +57,11 @@ LLM timeout (agent runs are long).
 
 ```bash
 # engine mode (sandboxed loop — the full install)
-pip install "agentic-dev-loop[engine]"
+pip install "agentic-dev-loop[engine]==1.0.0a6"
 agentic-dev-loop --version
 
 # workflow mode (Claude Code — core + viz only, no SDK/Docker deps)
-pip install agentic-dev-loop
+pip install "agentic-dev-loop==1.0.0a6"
 agentic-dev-loop-workflow install-skill
 ```
 
@@ -86,7 +86,7 @@ from engine mode).
 Install the skill once:
 
 ```bash
-pip install agentic-dev-loop            # base install: core + viz, no SDK/Docker
+pip install "agentic-dev-loop==1.0.0a6"  # base install: core + viz, no SDK/Docker
 agentic-dev-loop-workflow install-skill # → ~/.claude/skills/agentic-dev-loop/
 ```
 
