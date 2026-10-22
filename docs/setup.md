@@ -96,6 +96,16 @@ dependency change, not per run.
   of every declared setup.
 - `agentic-dev-loop … --clean-stamps` deletes the cached stamps and exits.
 
+**Self-healing venv check (016).** A warm stamp is no longer trusted blindly:
+before skipping a `setup:` hook, the engine probes `.venv-sandbox/bin/python`
+inside the execution container. If the entry exists but is not
+executable/importable — the classic case is a host-built (macOS) venv whose
+`bin/python` symlinks to a host interpreter that does not exist in the Linux
+container — the engine removes the invalid venv and re-provisions it. A
+missing venv is left to the (idempotent) setup hook and is not treated as a
+self-heal trigger. If the invalid venv cannot be removed, startup fails loudly
+with `AE-SBX-014`.
+
 ## 5. Troubleshooting
 
 Every fail-fast error points here (`AE-SBX-<NNN>`):
@@ -114,6 +124,7 @@ Every fail-fast error points here (`AE-SBX-<NNN>`):
 | AE-SBX-010 | container create/start/exec failure | inspect the docker error |
 | AE-SBX-012 | daemon lost mid-run | restart the engine; cleanup is best-effort |
 | AE-SBX-013 | networked container create/route failure | inspect the docker error; a step declared `network: true` but no bridge container started (§3) |
+| AE-SBX-014 | invalid sandbox venv could not be removed | remove `.venv-sandbox` manually and re-run (§4) |
 
 The audit trail of every sandboxed execution is at
 `~/.agentic-dev-loop/state/sandbox-audit.jsonl` (rotates at 5 MB); run state

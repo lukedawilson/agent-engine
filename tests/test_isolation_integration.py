@@ -180,3 +180,38 @@ class TestProvisionE2E:
         b.provision("printf refreshed > stamp-probe", "k1", str(stamp_dir),
                     force=True)
         assert (ws / "stamp-probe").read_text() == "refreshed"
+
+
+class TestVenvSelfHealE2E:
+    """016 exact repro: a warm stamp plus a host-built (darwin) venv that is
+    broken inside the Linux container must self-heal — remove + re-provision —
+    instead of blind-skipping into a later ENOENT."""
+
+    def test_stamp_hit_with_host_venv_reprovisions(self, backend, tmp_path):
+        b, ws = backend
+        # Simulate a host-rebuilt venv: `bin/python` is a symlink to a host
+        # interpreter path that does not exist inside the Linux container.
+        venv_bin = ws / ".venv-sandbox" / "bin"
+        venv_bin.mkdir(parents=True)
+        (venv_bin / "python").symlink_to(
+            "/opt/homebrew/opt/python@3.14/bin/python3.14")
+        (venv_bin / "pip").symlink_to(
+            "/opt/homebrew/opt/python@3.14/bin/pip3.14")
+
+        stamp_dir = tmp_path / "stamps"
+        key = "warm-stamp"
+        write_stamp(stamp_dir, key)
+
+        b.provision("python -m venv .venv-sandbox", key, str(stamp_dir),
+                    force=False)
+
+        # The broken venv was removed and re-provisioned: the sandbox python
+        # is now executable and importable, and the warm stamp still stands.
+        req = SandboxExecutionRequest(
+            argv=[".venv-sandbox/bin/python", "-c", "import sys; print('ok')"],
+            cwd=ws,
+            env={"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": "/tmp"})
+        result = b.run(req)
+        assert result.exit_code == 0, result.stderr
+        assert "ok" in result.stdout
+        assert read_stamp(stamp_dir, key)

@@ -20,6 +20,7 @@ import json
 import math
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import time
@@ -65,6 +66,14 @@ AUDIT_MAX_BYTES = 5 * 1024 * 1024
 # Provision is a trusted install/build — give it a generous hard bound so a
 # hung `setup:` hook can never wedge startup (BR-8 fail fast, not a hang).
 PROVISION_TIMEOUT_SECONDS = 3600
+
+# The sandbox venv the shipped pipeline relies on (016 sandbox-venv
+# hardening). The engine probes this path INSIDE the exec container
+# before trusting a warm provision stamp — a host-built (darwin) venv
+# symlinks to a host interpreter that does not exist in the Linux
+# container, so it must be detected and re-provisioned there.
+SANDBOX_VENV_DIR = ".venv-sandbox"
+SANDBOX_VENV_PYTHON = ".venv-sandbox/bin/python"
 
 
 class SandboxError(RuntimeError):
@@ -268,6 +277,58 @@ def setup_stamp_key(setup_cmd: str, lockfile_hashes: dict[str, str]) -> str:
     }
     return hashlib.sha256(
         json.dumps(canonical, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def venv_probe_command() -> str:
+    """In-container probe classifying the sandbox venv (016 self-heal).
+
+    Returns a shell command that prints exactly one of ``valid`` /
+    ``missing`` / ``broken`` and exits 0. ``broken`` is the host-tampered
+    class: the python entry exists as a path (including a dangling symlink —
+    the host-darwin venv case) but is not executable/importable in the
+    container. ``missing`` means no such entry at all (the setup hook may
+    legitimately not create a venv), so it is treated as a stamp hit, never a
+    self-heal trigger.
+    """
+    py = shlex.quote(SANDBOX_VENV_PYTHON)
+    return (
+        f"if [ -L {py} ] && [ ! -x {py} ]; then echo broken; "
+        f"elif [ ! -e {py} ]; then echo missing; "
+        f"elif {py} -c 'import sys' >/dev/null 2>&1; then echo valid; "
+        f"else echo broken; fi"
+    )
+
+
+def venv_probe_argv(container: str, workspace: str) -> list[str]:
+    """``docker exec`` argv that runs the venv probe inside the (already
+    running) execution container against the bind-mounted workspace."""
+    return ["docker", "exec", "-w", workspace, container,
+            "/bin/sh", "-c", venv_probe_command()]
+
+
+def venv_probe_state(stdout: str, exit_code: int | None) -> str:
+    """Classify a probe result. A nonzero exit (docker exec failed) is
+    ``unknown`` — the caller leaves the stamp alone rather than guessing."""
+    if exit_code != 0:
+        return "unknown"
+    line = stdout.strip().splitlines()[-1] if stdout.strip() else ""
+    return line if line in ("valid", "missing", "broken") else "unknown"
+
+
+def remove_sandbox_venv(workspace: str | Path) -> None:
+    """Remove the workspace's sandbox venv before re-provision (016 self-heal).
+    Fails loud when the venv exists but cannot be removed — a silent skip
+    would re-create the ENOENT failure the next run."""
+    venv = Path(workspace) / SANDBOX_VENV_DIR
+    try:
+        if venv.is_symlink() or venv.is_file():
+            venv.unlink()
+        elif venv.is_dir():
+            shutil.rmtree(venv)
+    except OSError as e:
+        raise SandboxError(
+            f"AE-SBX-014: cannot remove invalid sandbox venv at {venv}: {e} "
+            f"— remove it manually and re-run (docs/setup.md §5)") from e
 
 
 def host_user_flag() -> str | None:
@@ -507,9 +568,20 @@ class DockerBackend(Sandbox):
     def provision(self, setup_cmd: str, stamp_key: str, stamp_dir: str,
                   force: bool) -> None:
         """Run one ``setup:`` hook in the provision container (network ON),
-        stamp-cached. Nonzero exit → AE-SBX-009, no stamp written."""
+        stamp-cached. Nonzero exit → AE-SBX-009, no stamp written.
+
+        016 self-heal: a warm stamp no longer blind-skips. Before trusting it,
+        probe the sandbox venv inside the exec container — a host-built venv
+        (darwin symlinks to a host interpreter) looks valid on the host but is
+        broken in the Linux container. A ``broken`` probe removes the venv
+        (fail loud if removal is impossible) and falls through to re-provision;
+        ``valid``/``missing``/``unknown`` keep the stamp skip.
+        """
         if not force and read_stamp(Path(stamp_dir), stamp_key):
-            return
+            if self._probe_venv() == "broken":
+                remove_sandbox_venv(self._workspace)
+            else:
+                return
         payload = docker_provision_payload(
             run_id=self._run_id, image=self._image, workspace=self._workspace,
             setup_cmd=setup_cmd)
@@ -520,6 +592,12 @@ class DockerBackend(Sandbox):
                 f"AE-SBX-009: setup command failed (exit {res.exit_code}): {tail} "
                 f"— stamp not written (docs/setup.md §5)")
         write_stamp(Path(stamp_dir), stamp_key)
+
+    def _probe_venv(self) -> str:
+        """Run the in-container venv probe and classify it (016 self-heal)."""
+        res = self._runner.run(
+            venv_probe_argv(self._container, self._workspace), timeout=30)
+        return venv_probe_state(res.stdout, res.exit_code)
 
     # -- execution ----------------------------------------------------------
 

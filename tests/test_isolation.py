@@ -20,8 +20,9 @@ from agentic_dev_loop.engine.isolation import (
     SandboxExecutionRequest, SandboxExecutionResult, append_audit_record,
     clean_stamps, docker_create_payload, docker_provision_payload,
     exec_container_name, is_git_mutation, probe_docker, read_stamp,
-    resolve_effective_profile, resolve_image_ref, resolve_sandbox_env,
-    select_backend, setup_stamp_key, translate_mount_path, write_stamp,
+    remove_sandbox_venv, resolve_effective_profile, resolve_image_ref,
+    resolve_sandbox_env, select_backend, setup_stamp_key, translate_mount_path,
+    venv_probe_argv, venv_probe_command, venv_probe_state, write_stamp,
 )
 
 
@@ -241,6 +242,66 @@ class TestSetupStampKey:
         a = setup_stamp_key("c", {"b": "2", "a": "1"})
         b = setup_stamp_key("c", {"a": "1", "b": "2"})
         assert a == b
+
+
+class TestVenvProbe:
+    def test_command_classifies_broken_symlink_first(self):
+        cmd = venv_probe_command()
+        # the dangling-symlink (host-darwin) case is caught before -e, which
+        # would otherwise report "missing"
+        assert "echo broken" in cmd and "echo missing" in cmd and "echo valid" in cmd
+        assert "-L .venv-sandbox/bin/python" in cmd
+        assert "import sys" in cmd
+
+    def test_argv_assembly(self):
+        argv = venv_probe_argv("c1", "/ws")
+        assert argv[:5] == ["docker", "exec", "-w", "/ws", "c1"]
+        assert argv[5:] == ["/bin/sh", "-c", venv_probe_command()]
+
+    @pytest.mark.parametrize("stdout,exit_code,expected", [
+        ("valid\n", 0, "valid"),
+        ("missing\n", 0, "missing"),
+        ("broken\n", 0, "broken"),
+        ("", 0, "unknown"),
+        ("garbage", 0, "unknown"),
+        ("valid", 1, "unknown"),
+    ])
+    def test_state_classification(self, stdout, exit_code, expected):
+        assert venv_probe_state(stdout, exit_code) == expected
+
+
+class TestRemoveSandboxVenv:
+    def test_removes_broken_symlink_dir(self, tmp_path):
+        ws = tmp_path / "ws"
+        venv = ws / ".venv-sandbox"
+        (venv / "bin").mkdir(parents=True)
+        (venv / "bin" / "python").symlink_to("/opt/homebrew/opt/python/bin/python3.14")
+        remove_sandbox_venv(ws)
+        assert not venv.exists()
+
+    def test_removes_regular_dir(self, tmp_path):
+        ws = tmp_path / "ws"
+        venv = ws / ".venv-sandbox"
+        (venv / "lib").mkdir(parents=True)
+        (venv / "lib" / "x.txt").write_text("x")
+        remove_sandbox_venv(ws)
+        assert not venv.exists()
+
+    def test_missing_is_noop(self, tmp_path):
+        ws = tmp_path / "ws"
+        ws.mkdir()
+        remove_sandbox_venv(ws)  # must not raise
+
+    def test_fails_loud_when_removal_impossible(self, tmp_path, monkeypatch):
+        ws = tmp_path / "ws"
+        (ws / ".venv-sandbox").mkdir(parents=True)
+
+        def boom(*args, **kwargs):
+            raise OSError("permission denied")
+
+        monkeypatch.setattr("agentic_dev_loop.engine.isolation.shutil.rmtree", boom)
+        with pytest.raises(SandboxError, match="AE-SBX-014"):
+            remove_sandbox_venv(ws)
 
 
 class TestPayloads:
@@ -650,12 +711,36 @@ class TestProvisionStampsAudit:
         assert runner.calls
 
     def test_provision_skips_on_stamp(self, tmp_path):
-        runner = FakeRunner(ok(""))
+        """A warm stamp still skips, but only after the in-container venv
+        probe reports ``valid`` (016 self-heal) — no blind skip."""
+        runner = FakeRunner(ok("valid"))
         backend = _backend(tmp_path, runner)
         stamp_dir = tmp_path / "stamps"
         write_stamp(stamp_dir, "key1")
         backend.provision("make build", "key1", str(stamp_dir), force=False)
-        assert runner.calls == []
+        # the probe ran (docker exec); no provision container ran
+        assert [c for c in runner.calls if c[:2] == ["docker", "exec"]]
+        assert not [c for c in runner.calls if c[:2] == ["docker", "run"]]
+
+    def test_provision_self_heals_broken_venv_on_stamp(self, tmp_path):
+        """016 repro (unit): stamp hit + broken venv → probe reports broken →
+        the venv is removed and the setup re-runs instead of blind-skipping."""
+        runner = FakeRunner(ok("broken"), ok(""))
+        backend = _backend(tmp_path, runner)
+        stamp_dir = tmp_path / "stamps"
+        write_stamp(stamp_dir, "key1")
+        ws = tmp_path / "ws"
+        venv_bin = ws / ".venv-sandbox" / "bin"
+        venv_bin.mkdir(parents=True)
+        # host-darwin venv: a python symlink whose target doesn't exist in the
+        # Linux container.
+        (venv_bin / "python").symlink_to("/opt/homebrew/opt/python/bin/python3.14")
+        backend.provision("python -m venv .venv-sandbox", "key1",
+                          str(stamp_dir), force=False)
+        # broken venv removed, then provision re-ran
+        assert not (ws / ".venv-sandbox").exists()
+        assert [c for c in runner.calls if c[:2] == ["docker", "run"]]
+        assert read_stamp(stamp_dir, "key1")
 
     def test_provision_refresh_forces(self, tmp_path):
         runner = FakeRunner(ok(""))
