@@ -106,11 +106,11 @@ if [ ! -x "$VENV/bin/python" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 5. Install the package (editable) with dev extras.
+# 5. Install the package (non-editable) with dev extras.
 #    Dev extras include pytest + hypothesis, which the pipeline's `test` step
 #    runs via `.venv/bin/python -m pytest tests/ -q`.
 # ---------------------------------------------------------------------------
-"$VENV/bin/pip" install -e ".[dev]"
+"$VENV/bin/pip" install ".[dev]"
 
 # ---------------------------------------------------------------------------
 # 6. Smoke check the entry point that trigger-agentic-dev-loop.sh execs.
