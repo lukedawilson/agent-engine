@@ -2,7 +2,7 @@
 
 `Verdict.from_text` parses the captured response for routing; expected
 conditions are typed `Result` errors, never exceptions. `parse_verdict`
-collapses that `Result` to a route string for workflow consumers: a clear
+collapses that `Result` to a route string for routing consumers: a clear
 decision maps to its canonical value, anything unclear maps to ``retry`` —
 totality for arbitrary input (no crash, no silent routing).
 """

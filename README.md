@@ -23,11 +23,6 @@ flowchart LR
 - **Sandboxed by default.** The agent's shell and every command step run inside
   an always-on Docker sandbox. There is no opt-out.
 
-Two modes share one `pipeline.yaml`: **engine mode** (the sandboxed, resumable
-loop above) and **workflow mode** — a Claude Dynamic Workflow exported from the
-same pipeline that runs in Claude Code's own environment, with the live graph
-visualiser. See [Workflow mode](#workflow-mode-claude-code).
-
 ---
 
 ## Core features
@@ -56,13 +51,8 @@ LLM timeout (agent runs are long).
 | LLM API key | The env var named by your pipeline's `api_key_env` (e.g. `OPENAI_API_KEY`) must be set — a missing key fails fast, naming it. |
 
 ```bash
-# engine mode (sandboxed loop — the full install)
-pip install "agentic-dev-loop[engine]==1.0.0a6"
+pip install "agentic-dev-loop==1.0.0a7"
 agentic-dev-loop --version
-
-# workflow mode (Claude Code — core + viz only, no SDK/Docker deps)
-pip install "agentic-dev-loop==1.0.0a6"
-agentic-dev-loop-workflow install-skill
 ```
 
 On the first run the engine pulls the **digest-pinned** dev image
@@ -72,43 +62,6 @@ pre-publish tooling, point `AGENTIC_DEV_LOOP_DEV_IMAGE` at your locally built
 image. Engine setup, first-run details, the full `pipeline.yaml` contract, and
 troubleshooting for every fail-fast code live in
 [docs/setup.md](docs/setup.md).
-
-## Workflow mode (Claude Code)
-
-For developers who know and love the agentic dev loop but are forced to use
-Claude Code at work: workflow mode exports a **Claude Dynamic Workflow** from
-the `pipeline.yaml` they already trust, plus the visualiser they trust. It adds
-the deterministic loop through Claude's mechanism — nothing more. **No Docker
-sandboxing, and no new security claims**: workflow steps run in Claude Code's
-own environment under its permission model (a documented trust-model change
-from engine mode).
-
-Install the skill once:
-
-```bash
-pip install "agentic-dev-loop==1.0.0a6"  # base install: core + viz, no SDK/Docker
-agentic-dev-loop-workflow install-skill # → ~/.claude/skills/agentic-dev-loop/
-```
-
-Then invoke `/agentic-dev-loop` in Claude Code. The skill walks through:
-
-1. **Build** — `python -m agentic_dev_loop.core.project <pipeline.yaml>` loads +
-   validates the pipeline, verifies every agent step's `.agent.md` prompt exists
-   (a missing prompt fails the build loudly, naming the file), and writes a
-   self-contained `.agentic-dev-loop/workflow.js`. Steps are frozen at creation
-   — mid-run `pipeline.yaml` edits never affect a running workflow.
-2. **Run** — the generated JS routes `on_pass` / `on_fail` / `goto` with its own
-   attempt counter, injects the failing subagent's output as the next retry note,
-   launches the live-graph server (localhost, token-authenticated ingest), and
-   invokes the docker-free commit shim, which refuses loudly unless the worktree
-   was clean at run start.
-
-Engine-only fields (`isolation:`, per-step `network:`, `setup:`) are ignored in
-workflow mode with no effect on the build or run.
-
-The base install is deliberately dependency-light (`pydantic` + `PyYAML` only);
-the heavy OpenHands-SDK engine lives in the `[engine]` extra. The `core` and
-`viz` packages are guarded against pulling engine deps.
 
 ## Usage
 

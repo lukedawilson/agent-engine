@@ -2,9 +2,9 @@
 channel (unit-1).
 
 The pipeline — not the agent — writes the step's artifact from the agent's
-final SDK response. Verdict parsing lives in `core.verdict` (shared with
-workflow mode); this module only owns the SDK-side capture. Expected
-conditions are typed `Result` errors, never exceptions.
+final SDK response. Verdict parsing lives in `core.verdict`; this module only
+owns the SDK-side capture. Expected conditions are typed `Result` errors,
+never exceptions.
 """
 
 from __future__ import annotations

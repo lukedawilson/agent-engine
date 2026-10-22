@@ -1,7 +1,5 @@
-"""Standalone workflow-mode viz launcher (FD-4): `python -m
-agentic_dev_loop.viz --pipeline <pipeline.yaml>` serves the live graph on
-localhost, issues an ingest token, and prints both. Step subagents POST stage
-events to `/ingest` with that token (BR-9)."""
+"""Standalone viz launcher: `python -m agentic_dev_loop.viz --pipeline
+<pipeline.yaml>` serves the live graph on localhost."""
 
 from __future__ import annotations
 
@@ -31,7 +29,6 @@ def main(argv: list[str] | None = None) -> int:
     bound = httpd.server_address[1]
     url = f"http://127.0.0.1:{bound}"
     print(f"Live graph viz: {url}", flush=True)
-    print(f"ingest-token: {httpd.ingest_token}", flush=True)
     if args.port and bound != args.port:
         print(f"viz port {args.port} busy — serving on {url}", flush=True)
     try:
