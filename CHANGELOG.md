@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0a8] - 2026-10-22
+
+### Changed
+
+- docs: pin README install to 1.0.0a8
+- feat: construct plan 017-remove-unit-4-adapter.md (agent dev loop)
+
 ## [1.0.0a7] - 2026-10-22
 
 ### Changed
