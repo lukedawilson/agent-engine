@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0a7] - 2026-10-22
+
+### Changed
+
+- feat: construct plan 016-sandbox-venv-hardening.md (agent dev loop)
+- docs: split sandbox-venv hardening plan from unit-4 removal (016/017) + revert agent edits
+- docs: wontship unit-4 Claude adapter — removal plan 016 + bookkeeping
+
 ## [1.0.0a6] - 2026-10-22
 
 ### Changed
