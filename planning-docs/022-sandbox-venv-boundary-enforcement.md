@@ -139,6 +139,43 @@ The requested fix has three items:
   own install — masking it is safe, but no change is required for its
   sandbox to keep working. Defer to the consumer-migration step.
 
+## Bootstrap pip hygiene (added 2026-10-23)
+
+**Trigger:** the 022 construction run failed at the restore step: `pip-audit`
+reported 12 known CVEs, all in pip 25.0.1 — the wheel CPython 3.12 bundles via
+ensurepip, inherited by the dev image; nobody's deliberate pin. 021's audit
+escalation fails the step, but pip is the bootstrap tool, not a pyproject pin:
+dev cannot self-correct it, so the loop deadlocked on a valid audit finding it
+has no legitimate way to fix (same shape as the 018 deadlock).
+
+**Two mechanisms, at their natural layers:**
+
+1. **Pipeline freshness (DONE — pipeline.yaml):** the network-on restore step
+   now runs `pip install --upgrade pip` first, before the editable install and
+   the audit. Runs every pass; a cheap no-op once current. Guarantees the
+   audit only ever reports project-pin findings. Continuously fresh — catches
+   drift forever, no human in the loop.
+2. **Image hygiene baseline (work item):** the dev image should not SHIP a
+   stale vulnerable bootstrap.
+   - TRAP: `pip install --upgrade pip` in the Dockerfile upgrades only the
+     system pip. `python -m venv` copies ensurepip's BUNDLED wheel
+     (`stdlib/ensurepip/_bundled/pip-*.whl`), so venvs would still be born
+     with 25.0.1. The correct mechanism is `python -m ensurepip --upgrade`,
+     which refreshes the bundled wheel.
+   - Fold into the S8 image-hardening findings (floating base tag, unpinned
+     apt, pipe-to-shell dotnet-install): pin the base image digest, hash the
+     install script, and add the ensurepip upgrade.
+   - Digest-bump procedure: after republishing the image, update
+     `DEFAULT_DEV_IMAGE_REF` in `engine/isolation.py` (both repos' pipelines
+     pin their image digests).
+
+**Verification:**
+
+- Fresh container from the new image: `python -m venv /tmp/v && /tmp/v/bin/pip
+  --version` shows the upgraded pip, not 25.0.1.
+- With the current image (no image change yet), the pipeline fix alone still
+  converges: restore passes audit because pip is upgraded in-step.
+
 ## Out of scope
 
 - `.env*` files: already banned at scan time (plan 019); no mask needed.
