@@ -1,6 +1,6 @@
 # 014 — Per-Stage Networking (opt-in network access)
 
-- **Status**: Planning — feature request, not yet a unit of work
+- **Status**: COMPLETED (2026-10-23) — shipped via plan-014; network:true in both pipelines
 - **Requested**: 2026-10-20 — "We need to be able to enable networking for a specific stage, either by having networking as a tool, or with a yaml parameter"
 - **Written as part of**: planning doc + README update
 

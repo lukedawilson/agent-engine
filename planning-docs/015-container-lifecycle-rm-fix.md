@@ -1,6 +1,6 @@
 # 015 — Container lifecycle: `--rm` cleanup fix
 
-Status: Ready (awaiting dogfood run)
+Status: COMPLETED (2026-10-23) — dogfooded since; --rm container lifecycle shipped.
 
 ## §1 Decisions
 

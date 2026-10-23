@@ -1,6 +1,6 @@
 # 016 — Remove the unit-4 Claude-adapter surface (wontship)
 
-Status: approved by user 2026-10-22 ("Yes" to this plan). Code removal is DEFERRED until the user gives the implementing go — this document is the removal spec. Release vehicle: **1.0.0a7** (do NOT yank a6 — it carries the UTF-8 fix and the module split).
+Status: COMPLETED (2026-10-23) — removal shipped in release 1.0.0a7 (aidlc-state.md confirms). This document is the removal record.
 
 ## Decision record
 

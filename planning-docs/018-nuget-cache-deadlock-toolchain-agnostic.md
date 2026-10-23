@@ -1,5 +1,7 @@
 # 018 — Dependency-cache deadlock: toolchain-agnostic fix design
 
+> **Status: COMPLETED** (2026-10-23) — shipped: restore step + prompt changes committed and pushed in both repos (agent-engine 551d8cc, yosk-cms bf4b9fd).
+
 **Source:** bug report from `../yosk-cms` — the sitebuilder-construction run deadlocked on the NuGet cache: the network-off dev agent is forbidden (by consumer-authored `dev.agent.md`) from adding uncached packages, while the only cache-priming path (the network-on test step's restore) requires the reference to already exist in the csproj. Ten identical attempts; reviewer verdicts correct; no retry count could converge.
 
 **User constraint:** *"This needs to work with any toolchain (.NET/NuGet, node/npm, python/pypi, etc.) — adding NuGet-specific hacks is not the way."* Fix must be engine-level / mechanism-level, toolchain-agnostic.

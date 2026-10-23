@@ -1,6 +1,6 @@
 # Viz initial-state race: first stage never flashes — Implementation Plan
 
-> **Status: PLANNED** — written on user instruction: plan and stop. Implementation starts on an explicit go.
+> **Status: COMPLETED** (2026-10-23) — shipped.
 
 > **For agentic workers:** Use bite-sized task execution to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

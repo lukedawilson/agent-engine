@@ -1,5 +1,7 @@
 # Plan: `--dry-run` pipeline validation flag
 
+> **Status: COMPLETED** (2026-10-23) — shipped; --dry-run implemented (engine/cli.py + engine/dryrun.py).
+
 ## Goal
 
 Add a `--dry-run` flag to the `agentic-dev-loop` CLI that performs the full

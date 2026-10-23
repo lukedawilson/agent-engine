@@ -1,6 +1,6 @@
 # 013 — Packaging & Versioning
 
-**Status**: Completed — shipped: pyproject 0.2.0 + hygiene, `--version`, CHANGELOG, release.yml, /publish (T1–T5, T8 done). Renamed across the board to `agentic-dev-loop`: distribution, CLI, repo, shipped example dir/trigger script, and Python import (`agent_engine` → `agentic_dev_loop`). Outstanding: T6 cut v0.2.0 + T7 verify, after the §7 one-time PyPI/GitHub setup.
+**Status**: Completed — shipped: pyproject 0.2.0 + hygiene, `--version`, CHANGELOG, release.yml, /publish (T1–T5, T8 done). Renamed across the board to `agentic-dev-loop`: distribution, CLI, repo, shipped example dir/trigger script, and Python import (`agent_engine` → `agentic_dev_loop`). T6/T7 since completed — releases ran through v1.0.0a8. **Status: COMPLETED** (2026-10-23).
 **Date**: 2026-10-19
 **Trigger**: User — "Before we implement unit 3, we should do proper packaging and versioning. The current version (without kernel-level sandboxing) is v0.x.x, and a proper v1 has the kernel-level sandboxing (unit 3)."
 

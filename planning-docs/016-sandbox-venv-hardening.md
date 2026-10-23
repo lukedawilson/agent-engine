@@ -1,5 +1,7 @@
 # 016 — Sandbox venv hardening
 
+> **Status: COMPLETED** (2026-10-23) — shipped: setup-stamp venv self-heal implemented (isolation.py probes the venv before trusting a warm stamp).
+
 Extracted from `planning-docs/017-remove-unit-4-adapter.md` at user request (2026-10-22): the hardening work is independent of the unit-4 adapter removal and travels as its own plan.
 
 ## Setup-stamp hardening (added 2026-10-22)
