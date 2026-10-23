@@ -1,5 +1,7 @@
 # 019 — Secrets store + `.env*` ban
 
+> **Status: COMPLETED**
+
 **Origin:** security review of the agentic-dev-loop sandbox boundary (2026-10-23). Secret exfiltration ranked the #1 exposure: network-on containers run agent-written code and installed packages with the workspace mounted — and the workspace contains the repo `.env` (yosk: Kinde creds, read by `qa/common.sh` directly from the file).
 
 **Agreed design decisions (user, 2026-10-23):**

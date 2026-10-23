@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0a9] - 2026-10-23
+
+### Changed
+
+- feat: construct plan 019-secrets-store-and-env-ban.md (agent dev loop)
+- docs: mark planning docs 001-018 completed
+- docs: add security plans 019-021 + unit-5 intent
+- fix(pipeline): break dependency-cache deadlock with restore step
+- fix: install the engine non-editable in setup-venv bootstrap
+- Uncommitted changes: planning-docs/019-secrets-store-and-env-ban.md
+
 ## [1.0.0a8] - 2026-10-22
 
 ### Changed
