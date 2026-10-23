@@ -27,12 +27,21 @@ if ! command -v agentic-dev-loop >/dev/null 2>&1; then
   exit 1
 fi
 
-# Keep the pipx-managed install current. pipx upgrade is a no-op (a fast
-# index check) when the latest release is already installed. Fail fast on
-# upgrade failure — running the loop with a stale engine is worse than
-# not running it.
-if ! pipx upgrade agentic-dev-loop; then
-  echo "error: 'pipx upgrade agentic-dev-loop' failed —" >&2
+# Keep the pipx-managed install current. Two flags are load-bearing:
+#   --cooldown 0
+#     Defeat pipx's internal "already at latest" short-circuit — without
+#     it pipx can skip the installer entirely and report a stale install
+#     as current (observed: a11 live, trigger still ran an a10 engine).
+#   --pip-args="--prerelease=allow"
+#     EVERY engine release is a prerelease (a1..aN). An unpinned uv
+#     resolution excludes prereleases by default and finds "no solution",
+#     which surfaces as the lying "already at latest" or a failed
+#     reinstall. Allow prereleases explicitly.
+# When the latest release is already installed, upgrade is a fast no-op.
+# Fail fast on upgrade failure — running the loop with a stale engine is
+# worse than not running it.
+if ! pipx upgrade --cooldown 0 --pip-args="--prerelease=allow" agentic-dev-loop; then
+  echo "error: 'pipx upgrade --cooldown 0 --pip-args=--prerelease=allow agentic-dev-loop' failed —" >&2
   echo "       the engine install may not be pipx-managed, or the index is unreachable" >&2
   exit 1
 fi

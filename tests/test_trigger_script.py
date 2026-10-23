@@ -47,7 +47,7 @@ def test_trigger_upgrades_existing_install(tmp_path):
     )
 
     assert result.returncode == 0, result.stderr
-    assert pipx_log.read_text().strip() == "upgrade agentic-dev-loop"
+    assert pipx_log.read_text().strip() == "upgrade --cooldown 0 --pip-args=--prerelease=allow agentic-dev-loop"
     # The upgrade happens before the loop is launched.
     assert "cli-ran:" in result.stdout
 
