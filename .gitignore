@@ -5,6 +5,7 @@ __pycache__/
 .pr/
 .env
 .pytest_cache/
+.tmp-exec/
 dist/
 build/
 .claude-local/
