@@ -141,6 +141,7 @@ class TestTopologyMermaid:
             "name": "viz-topology",
             "llm": {"model": "m", "api_key_env": "K"},
             "agents_dir": "sdk_agents",
+            "lockfiles": ["uv.lock"],
             "steps": steps,
         })
 

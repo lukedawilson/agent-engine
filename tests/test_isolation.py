@@ -790,6 +790,7 @@ class TestStartupSandbox:
         return PipelineConfig.model_validate({
             "name": "p", "llm": {"model": "m", "api_key_env": "K"},
             "agents_dir": "agents", "steps": steps,
+            "lockfiles": ["uv.lock"],
             "isolation": {"state_dir": str(tmp_path / "iso-state")},
         })
 
@@ -835,6 +836,7 @@ class TestStartupSandbox:
         cfg = PipelineConfig.model_validate({
             "name": "p", "llm": {"model": "m", "api_key_env": "K"},
             "agents_dir": "agents",
+            "lockfiles": ["uv.lock"],
             "steps": [{"name": "dev", "agent": "dev", "on_pass": "test"},
                       {"name": "test", "command": "make", "network": True,
                        "on_pass": "success"}],

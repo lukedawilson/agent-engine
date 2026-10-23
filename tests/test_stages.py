@@ -24,7 +24,7 @@ from agentic_dev_loop.engine.stages import (
 
 def make_cfg(steps, **over):
     base = {"name": "t", "llm": {"model": "m", "api_key_env": "K"},
-            "agents_dir": "agents", "steps": steps}
+            "agents_dir": "agents", "lockfiles": ["uv.lock"], "steps": steps}
     base.update(over)
     return PipelineConfig.model_validate(base)
 
@@ -113,6 +113,57 @@ class TestBuildContext:
         ctx = build_context(rt, {}, "s", [])
         assert "dev agent writes:" in ctx
         assert "test agent writes:" not in ctx
+
+
+class TestDepsPolicyContext:
+    def test_locked_policy_injected(self, runtime):
+        cfg = make_cfg(STEPS, deps_policy="locked", lockfiles=["uv.lock"])
+        rt = dataclasses.replace(runtime, cfg=cfg)
+        ctx = build_context(rt, {}, "s", [])
+        assert "## Dependency policy" in ctx
+        assert "`uv.lock`" in ctx
+        assert "## Missing dependencies" in ctx
+        assert "Do not add it to the manifest." in ctx
+
+    def test_open_policy_injected(self, runtime):
+        cfg = make_cfg(STEPS, deps_policy="open")
+        rt = dataclasses.replace(runtime, cfg=cfg)
+        ctx = build_context(rt, {}, "s", [])
+        assert "## Dependency policy" in ctx
+        assert "add the exact-pinned entry to the dependency manifest" in ctx
+        assert "## Missing dependencies" not in ctx
+
+
+class TestMissingDependencyFailFast:
+    def _rt(self, runtime, **over):
+        cfg = make_cfg(STEPS, **over)
+        return dataclasses.replace(runtime, cfg=cfg)
+
+    def test_locked_dev_declaring_missing_dep_fails_fast(self, runtime,
+                                                         fake_agents):
+        rt = self._rt(runtime, deps_policy="locked", lockfiles=["uv.lock"])
+        fake_agents.set("dev", [("write", "implementation-summary.md",
+            "Built most of it.\n\n## Missing dependencies\n\n"
+            "requests==2.32.0\n")])
+        update = make_agent_node(rt, rt.cfg.steps[0])(make_state())
+        assert update == {"failed": True, "failed_step": "dev"}
+        err = (rt.state_dir / "last-error.md").read_text()
+        assert "Extend `uv.lock`" in err
+        assert "requests==2.32.0" in err
+
+    def test_no_header_no_fail(self, runtime, fake_agents):
+        rt = self._rt(runtime, deps_policy="locked", lockfiles=["uv.lock"])
+        fake_agents.set("dev", [("write", "implementation-summary.md",
+                                 "no new deps")])
+        update = make_agent_node(rt, rt.cfg.steps[0])(make_state())
+        assert update["failed"] is False
+
+    def test_open_policy_does_not_fail_on_header(self, runtime, fake_agents):
+        rt = self._rt(runtime, deps_policy="open")
+        fake_agents.set("dev", [("write", "implementation-summary.md",
+            "## Missing dependencies\n\nrequests==2.32.0\n")])
+        update = make_agent_node(rt, rt.cfg.steps[0])(make_state())
+        assert update["failed"] is False
 
 
 class TestAgentNode:

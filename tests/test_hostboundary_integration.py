@@ -60,6 +60,7 @@ def _runtime(backend, ws, script, tmp_path):
         "name": "probe",
         "llm": {"model": "openai/test-model", "api_key_env": "K"},
         "agents_dir": "agents",
+        "lockfiles": ["uv.lock"],
         "steps": [{"name": "probe", "action": "probe", "on_pass": "success"}],
     })
     runtime = Runtime(cfg=cfg, registry=reg,

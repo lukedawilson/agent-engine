@@ -21,6 +21,7 @@ def _cfg(agents_dir="sdk_agents", additional_files=()):
         "llm": {"model": "m", "api_key_env": "K"},
         "agents_dir": agents_dir,
         "additional_files": list(additional_files),
+        "lockfiles": ["uv.lock"],
         "steps": [{"name": "dev", "agent": "dev", "on_pass": "success"}],
     })
 

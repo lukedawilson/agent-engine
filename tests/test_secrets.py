@@ -23,6 +23,7 @@ def _base() -> dict:
         "name": "test-pipeline",
         "llm": {"model": "m", "api_key_env": "K"},
         "agents_dir": "sdk_agents",
+        "lockfiles": ["uv.lock"],
         "steps": [{"name": "dev", "agent": "dev", "on_pass": "success"}],
     }
 

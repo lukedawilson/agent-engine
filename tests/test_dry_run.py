@@ -26,6 +26,7 @@ llm:
   api_key_env: OPENAI_API_KEY
 state_dir: .pr
 agents_dir: sdk_agents
+deps_policy: open
 steps:
   - name: dev
     agent: dev

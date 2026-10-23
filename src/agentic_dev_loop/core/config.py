@@ -214,6 +214,27 @@ class PipelineConfig(BaseModel):
     max_attempts: int = 3
     agents_dir: str
     steps: list[StepConfig] = Field(min_length=1)
+    # 021 supply-chain dependency dial: `locked` (default) = the human-owned
+    # lockfile is the source of truth and the agent may not add dependencies;
+    # `open` = the bootstrap protocol (the agent may add exact-pinned manifest
+    # entries for the restore step to fetch). `lockfiles` names the pipeline's
+    # declared lockfile(s) — injected into agent context and named by the
+    # missing-dependency fail-fast.
+    deps_policy: str = "locked"
+    lockfiles: list[str] = []
+
+    @field_validator("deps_policy")
+    @classmethod
+    def _known_deps_policy(cls, v: str) -> str:
+        if v not in ("locked", "open"):
+            raise ValueError(
+                f"deps_policy must be 'locked' or 'open', got {v!r}")
+        return v
+
+    @field_validator("lockfiles", mode="before")
+    @classmethod
+    def _coerce_lockfiles(cls, v: Any) -> Any:
+        return [v] if isinstance(v, str) else v
 
     @field_validator("secrets", mode="before")
     @classmethod
@@ -231,6 +252,15 @@ class PipelineConfig(BaseModel):
                     "{from: ..., key: ...}, not a literal value — secret "
                     "values never belong in the pipeline yaml")
         return v
+
+    @model_validator(mode="after")
+    def _locked_requires_lockfiles(self) -> "PipelineConfig":
+        if self.deps_policy == "locked" and not self.lockfiles:
+            raise ValueError(
+                "deps_policy 'locked' requires at least one entry in "
+                "'lockfiles:' — name the lockfile(s) the locked boundary "
+                "enforces, or set 'deps_policy: open'")
+        return self
 
     @model_validator(mode="after")
     def _check_graph(self) -> "PipelineConfig":

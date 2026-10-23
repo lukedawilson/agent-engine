@@ -34,6 +34,7 @@ llm:
 state_dir: .pr
 max_attempts: 3
 agents_dir: sdk_agents
+deps_policy: open
 steps:
   - name: dev
     agent: dev
@@ -76,6 +77,7 @@ llm:
 state_dir: .pr
 max_attempts: 3
 agents_dir: sdk_agents
+deps_policy: open
 steps:
   - name: dev
     agent: dev
@@ -263,6 +265,42 @@ class TestRunPipeline:
         with pytest.raises(RuntimeError, match="refusing to build context"):
             run_pipeline("empty.yaml", args(empty=True, plan=None))
         assert fake_agents.calls == []
+
+
+LOCKED_YAML = YOSK_YAML.replace(
+    "deps_policy: open\n",
+    "deps_policy: locked\nlockfiles: [uv.lock]\n",
+    1)
+
+
+class TestDependencyDial:
+    def _write_locked(self, repo):
+        (repo / "locked.yaml").write_text(LOCKED_YAML)
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "add locked pipeline")
+
+    def test_missing_dependency_fails_fast_not_retry_loop(self, repo,
+                                                          fake_agents):
+        self._write_locked(repo)
+        fake_agents.set("dev", [("write", "implementation-summary.md",
+            "## Missing dependencies\n\nrequests==2.32.0\n")])
+        ok, attempts = run_pipeline("locked.yaml", args())
+        assert (ok, attempts) == (False, 1)
+        assert fake_agents.agents_called() == ["dev"]
+        err = (repo / ".pr" / "last-error.md").read_text()
+        assert "Extend `uv.lock`" in err
+        assert "requests==2.32.0" in err
+
+    def test_locked_context_names_lockfile_in_dev_message(self, repo,
+                                                          fake_agents):
+        self._write_locked(repo)
+        script_all_pass(fake_agents)
+        ok, attempts = run_pipeline("locked.yaml", args())
+        assert (ok, attempts) == (True, 1)
+        (dev_msg,) = fake_agents.messages_for("dev")
+        assert "## Dependency policy" in dev_msg
+        assert "`uv.lock`" in dev_msg
+        assert "Do not add it to the manifest." in dev_msg
 
 
 class TestCommandStep:

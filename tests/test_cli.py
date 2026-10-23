@@ -22,6 +22,7 @@ llm:
   api_key_env: TEST_LLM_KEY
 state_dir: .pr
 agents_dir: sdk_agents
+deps_policy: open
 steps:
   - name: dev
     agent: dev
@@ -37,6 +38,7 @@ llm:
   api_key_env: TEST_LLM_KEY
 state_dir: .pr
 agents_dir: sdk_agents
+deps_policy: open
 steps:
   - name: dev
     agent: dev
@@ -58,6 +60,7 @@ llm:
   api_key_env: TEST_LLM_KEY
 max_attempts: 1
 agents_dir: sdk_agents
+deps_policy: open
 steps:
   - name: dev
     agent: dev
@@ -329,6 +332,7 @@ llm:
   api_key_env: TEST_LLM_KEY
 state_dir: .pr
 agents_dir: sdk_agents
+deps_policy: open
 isolation:
   state_dir: {iso_state_dir}
 steps:

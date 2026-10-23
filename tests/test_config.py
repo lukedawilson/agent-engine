@@ -29,6 +29,7 @@ llm:
 state_dir: .pr
 max_attempts: 3
 agents_dir: sdk_agents
+deps_policy: open
 
 steps:
   - name: dev
@@ -69,6 +70,7 @@ def _base() -> dict:
         "name": "test-pipeline",
         "llm": {"model": "m", "api_key_env": "K"},
         "agents_dir": "sdk_agents",
+        "lockfiles": ["uv.lock"],
         "steps": [{"name": "dev", "agent": "dev", "on_pass": "success"}],
     }
 
@@ -494,3 +496,36 @@ class TestStepNetwork:
         data["steps"] = [{"name": "commit", "action": "commit", "network": False,
                           "on_pass": "success"}]
         assert _load(tmp_path, data).steps[0].network is False
+
+
+class TestDepsPolicy:
+    def test_defaults_to_locked_with_declared_lockfiles(self, tmp_path):
+        cfg = _load(tmp_path, _base())
+        assert cfg.deps_policy == "locked"
+        assert cfg.lockfiles == ["uv.lock"]
+
+    def test_locked_without_lockfiles_rejected(self, tmp_path):
+        data = {k: v for k, v in _base().items() if k != "lockfiles"}
+        with pytest.raises(ValidationError,
+                           match="requires at least one entry"):
+            _load(tmp_path, data)
+
+    def test_open_policy_loads_without_lockfiles(self, tmp_path):
+        data = {k: v for k, v in _base().items() if k != "lockfiles"} \
+            | {"deps_policy": "open"}
+        assert _load(tmp_path, data).deps_policy == "open"
+        assert _load(tmp_path, data).lockfiles == []
+
+    def test_unknown_policy_rejected(self, tmp_path):
+        data = _base() | {"deps_policy": "bootstrap"}
+        with pytest.raises(ValidationError,
+                           match="deps_policy must be 'locked' or 'open'"):
+            _load(tmp_path, data)
+
+    def test_lockfiles_accepts_a_list(self, tmp_path):
+        data = _base() | {"lockfiles": ["uv.lock", "package-lock.json"]}
+        assert _load(tmp_path, data).lockfiles == ["uv.lock", "package-lock.json"]
+
+    def test_lockfiles_accepts_a_single_string(self, tmp_path):
+        data = _base() | {"lockfiles": "uv.lock"}
+        assert _load(tmp_path, data).lockfiles == ["uv.lock"]

@@ -55,6 +55,7 @@ agentic-dev-loop = "agentic_dev_loop.engine.cli:main"
 dev = [
     "hypothesis>=6.0",
     "pytest>=8.0",
+    "pip-audit>=2.0",
 ]
 
 [tool.setuptools.packages.find]

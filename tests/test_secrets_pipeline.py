@@ -19,6 +19,7 @@ llm:
   model: m
   api_key_env: TEST_LLM_KEY
 agents_dir: agents
+deps_policy: open
 secrets:
   probe-secret:
     from: env
@@ -37,6 +38,7 @@ llm:
   model: m
   api_key_env: TEST_LLM_KEY
 agents_dir: agents
+deps_policy: open
 steps:
   - name: dev
     agent: dev

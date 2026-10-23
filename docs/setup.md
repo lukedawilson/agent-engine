@@ -84,6 +84,18 @@ isolation:
   `last-error.md` live there, **outside** the workspace mount, unreachable by
   the sandbox. An explicit `state_dir:` keeps working unchanged; pointing it
   inside the workspace is an author-accepted exposure.
+- **`deps_policy` / `lockfiles`** — `deps_policy: locked` (default) makes the
+  human-owned lockfile the source of truth and injects the canonical
+  dependency rule into every agent step; a non-empty `## Missing dependencies`
+  declaration in an agent's final response fails the run fast. `deps_policy:
+  open` injects the bootstrap protocol instead. `lockfiles:` names the
+  lockfile(s) (workspace-relative) the rule and fail-fast reference — e.g.
+  `uv.lock` (python), `package-lock.json` (node), `packages.lock.json` (.NET).
+  A `locked` pipeline with no `lockfiles:` entry fails fast at load. The
+  restore step runs the toolchain's locked mode (`uv sync --locked`, `npm
+  ci`, or `dotnet restore --locked-mode`) and fails on known-CVE findings
+  at a per-toolchain threshold (`pip-audit`, `npm audit --audit-level=high`,
+  NuGetAudit at `error`).
 
 ## 4. Caching
 

@@ -32,6 +32,7 @@ from openhands.sdk import Conversation
 
 from .agents import load_agent, register_sandbox_terminal
 from agentic_dev_loop.core.config import TERMINALS, PipelineConfig, Route, StepConfig, route_target
+from .deps import extension_message, parse_missing_dependencies, policy_injection
 from .isolation import SandboxExecutionRequest, command_argv, resolve_sandbox_env
 from .outputs import CapturedOutput
 from .secrets import redact_values, step_secret_env
@@ -198,11 +199,13 @@ def _run_command(command: str, workspace: Path, timeout: float,
 def build_context(runtime: Runtime, docs: dict[str, str], subject: str,
                   notes: list[str] | None = None) -> str:
     """Assemble the attempt's shared message: subject, doc bundle, the
-    expected-output-paths section generated from step defs (a prompt merely
-    naming files lets agents skip them), and previous-attempt notes."""
+    canonical dependency-policy paragraph (021), the expected-output-paths
+    section generated from step defs (a prompt merely naming files lets agents
+    skip them), and previous-attempt notes."""
     parts = [f"You are working on {subject}.\n"]
     for name, content in docs.items():
         parts.append(f"## {name}\n\n{content}")
+    parts.append("## Dependency policy\n\n" + policy_injection(runtime.cfg))
     lines = []
     for step in runtime.cfg.steps:
         if step.agent is None:
@@ -300,6 +303,22 @@ def make_agent_node(runtime: Runtime, step: StepConfig):
                     "notes": [_unclear_note(runtime, step, attempt, None,
                                             result.truncated, max_iterations)],
                     "retry_target": _unclear_target(runtime, step)}
+
+        # 021: under `locked`, a declared missing dependency is a fail-fast —
+        # one human lockfile edit, never a retry loop. The extension message
+        # is written to last-error.md (the run-failure channel) and printed.
+        if (runtime.cfg.deps_policy == "locked"
+                and result.response is not None):
+            pins = parse_missing_dependencies(result.response)
+            if pins:
+                msg = extension_message(runtime.cfg, pins)
+                runtime.state_dir.mkdir(parents=True, exist_ok=True)
+                (runtime.state_dir / LAST_ERROR).write_text(
+                    f"# Missing dependencies\n\n```\n{msg}\n```\n",
+                    encoding="utf-8")
+                print(redact_values(msg, runtime.secrets.values()),
+                      file=sys.stderr, flush=True)
+                return {"failed": True, "failed_step": step.name}
 
         if verdicts_map is None:
             merged = {**state["step_verdicts"], step.name: "pass"} if captures else \
