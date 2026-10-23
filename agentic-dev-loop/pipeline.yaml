@@ -20,7 +20,17 @@ steps:
   - name: dev
     agent: dev
     produces: implementation-summary.md   # hygiene-tracked, no verdict
+    on_pass: restore
+
+  - name: restore
+    command: .venv-sandbox/bin/pip install -e ".[dev]"   # network-on fetch step:
+                                                         # installs any dependency
+                                                         # the dev agent just added
+                                                         # to pyproject.toml
+    timeout: 600
+    network: true
     on_pass: test
+    on_fail: { goto: dev, retry: true }
 
   - name: test
     command: .venv-sandbox/bin/python -m pytest tests/ -q -m "not docker"   # sandboxed: exit code is the verdict

@@ -17,7 +17,7 @@ opinionated LangGraph + OpenHands SDK pipeline engine written in Python.
 3. Plan your implementation.
 4. Implement using terminal:
    - Create or modify files as needed
-   - After each significant change, run `.venv/bin/python -m pytest tests/ -q`
+   - After each significant change, run `.venv-sandbox/bin/python -m pytest tests/ -q`
      and fix failures
 5. State your findings in your **final response** — the pipeline captures it
    as your implementation summary. Describe the files changed and the tests
@@ -27,15 +27,28 @@ opinionated LangGraph + OpenHands SDK pipeline engine written in Python.
 ## TEST GATE
 
 - The pipeline runs the full suite mechanically after this stage — the `test`
-  command step (`.venv/bin/python -m pytest tests/ -q`). That gate, not your
+  command step (`.venv-sandbox/bin/python -m pytest tests/ -q`). That gate, not your
   summary, is the source of truth for green tests.
-- You MAY run the suite locally while working (`.venv/bin/python -m pytest
+- You MAY run the suite locally while working (`.venv-sandbox/bin/python -m pytest
   tests/ -q`) and fix failures as you go, but the gate decides pass/fail by
   exit code alone.
 - If the gate fails, you are retried with the failing output in your notes
   under *Previous attempt feedback*. Find the root cause — a regression in
   your change, a stale test pinning old behavior, or a genuine library bug —
   and fix it, never the symptom.
+
+## DEPENDENCIES
+
+- Your terminal is network-off. Python packages resolve from the
+  `.venv-sandbox` virtualenv the pipeline pre-installs from this repo's
+  dependency declarations.
+- If the design requires a new Python dependency, ADD it: put the exact-pinned
+  entry (`name==version`) in `pyproject.toml` — `[project] dependencies` for
+  runtime deps, `[project.optional-dependencies] dev` for dev-only deps. Do
+  NOT run `pip install` — it needs the network. Leave the entry in place: your
+  local test runs may fail until the network-on `restore` step (the stage
+  right after you) installs it. Write the code to match the pinned version
+  and let the restore step unblock the next attempt.
 
 ## CONVENTIONS
 
