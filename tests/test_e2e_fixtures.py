@@ -27,10 +27,11 @@ EXAMPLE = Path(__file__).resolve().parent.parent / "agentic-dev-loop"
 
 
 # Scripted stand-in for the shipped example's mechanical test command. The
-# example runs `.venv/bin/python -m pytest tests/ -q`, which cannot run inside
-# the consumer-repo copy (no .venv, no tests/) — so this fixture scripts the
-# seam locally. The real subprocess path stays covered by test_stages.py and
-# test_graph.py. Behaviors: ("pass",) → (0, "", False); ("fail", output) →
+# example runs `.venv-sandbox/bin/python -m pytest tests/ -q -m "not docker"`,
+# which cannot run inside the consumer-repo copy (no .venv-sandbox, no tests/)
+# — so this fixture scripts the seam locally. The real subprocess path stays
+# covered by test_stages.py and test_graph.py. Behaviors: ("pass",) →
+# (0, "", False); ("fail", output) →
 # (1, output, False); ("timeout", output) → (None, output, True); the last
 # behavior repeats; empty queue → default pass.
 _COMMAND_QUEUE: list[tuple] = []

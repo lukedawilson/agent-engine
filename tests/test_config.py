@@ -402,6 +402,17 @@ class TestIsolationConfig:
         data = _base() | {"isolation": {"memory": memory}}
         assert _load(tmp_path, data).isolation.memory == memory
 
+    def test_sandbox_venv_dir_accepts_and_round_trips(self, tmp_path):
+        """022: `sandbox_venv_dir` is an optional relocation opt-in. It loads
+        verbatim here; the outside-workspace validation happens at startup
+        (where the workspace is known), not at config load."""
+        data = _base() | {"isolation": {"sandbox_venv_dir":
+                                        "~/.agentic-dev-loop/venvs/engine"}}
+        iso = _load(tmp_path, data).isolation
+        assert iso.sandbox_venv_dir == "~/.agentic-dev-loop/venvs/engine"
+        roundtripped = type(iso).model_validate(iso.model_dump())
+        assert roundtripped.sandbox_venv_dir == iso.sandbox_venv_dir
+
     @pytest.mark.parametrize("memory", ["8", "g", "8G", "8 g", ""])
     def test_invalid_memory_rejected(self, tmp_path, memory):
         data = _base() | {"isolation": {"memory": memory}}

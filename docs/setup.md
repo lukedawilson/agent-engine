@@ -59,6 +59,7 @@ isolation:
   cpus: 2                 # execution-container cpu cap
   allow_git_mutations: false
   state_dir: ~/.agentic-dev-loop/state   # host-only stamps + audit (never mounted)
+  sandbox_venv_dir: ~/.agentic-dev-loop/venvs/agent-engine   # optional relocation (022)
 ```
 
 - **`env:` (per step)** — `VAR: value` sets it in the sandbox; `VAR: null`
@@ -79,6 +80,14 @@ isolation:
 - **Git mutations** are blocked by default inside the sandbox (commit, push,
   branch/tag create/delete, rebase, …); reads (`status`/`log`/`diff`) always
   work. `allow_git_mutations: true` re-allows them per-pipeline.
+- **`sandbox_venv_dir` (optional, 022)** — relocates the container-built
+  `.venv-sandbox` out of the workspace. When set, it is `expanduser`ed,
+  made absolute, and must resolve **outside** the workspace (an in-workspace
+  value fails fast); the engine bind-mounts it rw at the unchanged container
+  path `{ws}/.venv-sandbox` in both the exec and provision containers, keeping
+  the repo free of container venv artifacts. Unset keeps the legacy
+  workspace-local `.venv-sandbox` unchanged. The host `.venv` is always masked
+  from the sandbox by a read-only empty tmpfs.
 - **`state_dir` (run state)** defaults to
   `~/.agentic-dev-loop/runs/<pipeline-hash>/` — the checkpoint DB and
   `last-error.md` live there, **outside** the workspace mount, unreachable by
@@ -117,7 +126,9 @@ executable/importable — the classic case is a host-built (macOS) venv whose
 container — the engine removes the invalid venv and re-provisions it. A
 missing venv is left to the (idempotent) setup hook and is not treated as a
 self-heal trigger. If the invalid venv cannot be removed, startup fails loudly
-with `AE-SBX-014`.
+with `AE-SBX-014`. When `sandbox_venv_dir` relocates the venv (022), only the
+outside dir's contents are removed — the mount-source dir itself is kept so the
+still-running container stays valid (§3).
 
 ## 5. Troubleshooting
 
@@ -137,7 +148,8 @@ Every fail-fast error points here (`AE-SBX-<NNN>`):
 | AE-SBX-010 | container create/start/exec failure | inspect the docker error |
 | AE-SBX-012 | daemon lost mid-run | restart the engine; cleanup is best-effort |
 | AE-SBX-013 | networked container create/route failure | inspect the docker error; a step declared `network: true` but no bridge container started (§3) |
-| AE-SBX-014 | invalid sandbox venv could not be removed | remove `.venv-sandbox` manually and re-run (§4) |
+| AE-SBX-014 | invalid sandbox venv could not be removed | remove the invalid venv at the path named in the error and re-run (§4) |
+| AE-SBX-015 | `sandbox_venv_dir` resolves inside the workspace | set it to a path outside the workspace (§3) |
 
 The audit trail of every sandboxed execution is at
 `~/.agentic-dev-loop/state/sandbox-audit.jsonl` (rotates at 5 MB); run state

@@ -79,6 +79,13 @@ class IsolationConfig(BaseModel):
     cpus: float | None = None           # override exec container cpus
     allow_git_mutations: bool = False   # BR-6 knob
     state_dir: str = "~/.agentic-dev-loop/state"  # stamps + audit (host-only)
+    # 022 relocation opt-in: an out-of-workspace host dir that is bind-mounted
+    # at ``{ws}/.venv-sandbox`` (rw) in both the exec and provision containers,
+    # keeping the workspace free of container venv artifacts. Unset keeps the
+    # legacy workspace-local ``.venv-sandbox`` unchanged. Must resolve outside
+    # the workspace — validated at startup, not load (the workspace is unknown
+    # here).
+    sandbox_venv_dir: str | None = None
 
     @field_validator("memory")
     @classmethod

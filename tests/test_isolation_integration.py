@@ -215,3 +215,75 @@ class TestVenvSelfHealE2E:
         assert result.exit_code == 0, result.stderr
         assert "ok" in result.stdout
         assert read_stamp(stamp_dir, key)
+
+
+class TestRelocatedVenvE2E:
+    """022: `sandbox_venv_dir` relocates the sandbox venv outside the workspace.
+    The outside dir is bind-mounted at `{ws}/.venv-sandbox` in BOTH containers,
+    so the venv materializes there and stays absent from the repo dir — and the
+    probe/remove_sandbox_venv self-heal keeps operating at the unchanged
+    container path (the mount)."""
+
+    def _relocated_backend(self, tmp_path):
+        reason = _docker_available()
+        if reason is not None:
+            pytest.skip(reason)
+        inspect = SubprocessRunner().run(
+            ["docker", "image", "inspect", TEST_IMAGE, "--format", "{{.Id}}"],
+            timeout=30)
+        if inspect.exit_code != 0:
+            pytest.skip(f"integration image {TEST_IMAGE!r} not present locally")
+        ws = tmp_path / "ws"
+        ws.mkdir()
+        venv_dir = tmp_path / "outside-venv"
+        profile = resolve_effective_profile(IsolationConfig(image=TEST_IMAGE))
+        b = DockerBackend(image=TEST_IMAGE, workspace=str(ws),
+                          iso_state_dir=str(tmp_path / "state"), profile=profile,
+                          sandbox_venv_dir=str(venv_dir))
+        b.ensure_image()
+        b.create_execution_container()
+        return b, ws, venv_dir
+
+    def test_relocated_venv_materializes_outside_workspace(self, tmp_path):
+        b, ws, venv_dir = self._relocated_backend(tmp_path)
+        try:
+            b.provision("python -m venv .venv-sandbox", "k1",
+                        str(tmp_path / "stamps"), force=False)
+            assert (venv_dir / "bin" / "python").exists()
+            assert not (ws / ".venv-sandbox").exists()
+            req = SandboxExecutionRequest(
+                argv=[".venv-sandbox/bin/python", "-c", "import sys; print('ok')"],
+                cwd=ws,
+                env={"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": "/tmp"})
+            result = b.run(req)
+            assert result.exit_code == 0, result.stderr
+            assert "ok" in result.stdout
+        finally:
+            b.close()
+
+    def test_relocated_self_heal_reprovisions_broken_venv(self, tmp_path):
+        b, ws, venv_dir = self._relocated_backend(tmp_path)
+        try:
+            # Simulate a host-built venv broken inside the Linux container.
+            (venv_dir / "bin").mkdir(parents=True)
+            (venv_dir / "bin" / "python").symlink_to(
+                "/opt/homebrew/opt/python@3.14/bin/python3.14")
+            stamp_dir = tmp_path / "stamps"
+            key = "warm-stamp"
+            write_stamp(stamp_dir, key)
+
+            b.provision("python -m venv .venv-sandbox", key, str(stamp_dir),
+                        force=False)
+
+            # contents cleared (mount source dir kept) and re-provisioned.
+            assert venv_dir.is_dir()
+            req = SandboxExecutionRequest(
+                argv=[".venv-sandbox/bin/python", "-c", "import sys; print('ok')"],
+                cwd=ws,
+                env={"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": "/tmp"})
+            result = b.run(req)
+            assert result.exit_code == 0, result.stderr
+            assert "ok" in result.stdout
+            assert read_stamp(stamp_dir, key)
+        finally:
+            b.close()

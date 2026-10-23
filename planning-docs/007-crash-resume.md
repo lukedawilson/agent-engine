@@ -35,7 +35,7 @@ Resume with: agent-engine <pipeline> --resume <thread_id>
 
 - TDD red→green→refactor for every task
 - Mock policy unchanged (repo rule): LLM stays behind the `fake_agents` seam; no new seams
-- Full suite green at the end of every task: `.venv/bin/python -m pytest tests/ -q`
+- Full suite green at the end of every task: `.venv-sandbox/bin/python -m pytest tests/ -q`
 - `BaseException` semantics unchanged — KeyboardInterrupt/SIGKILL still propagate out of `run_pipeline`
 
 ## Locked decisions (from investigation)
@@ -91,7 +91,7 @@ Resume with: agent-engine <pipeline> --resume <thread_id>
 
 ## Verification
 
-1. `.venv/bin/python -m pytest tests/ -q` green.
+1. `.venv-sandbox/bin/python -m pytest tests/ -q` green.
 2. New tests prove: Exception crash → `(False, 1)` + resume hint → `--resume` completes `(True, 1)` with only the crashed stage re-run.
 3. Real pipeline smoke — **user triggers** (makes LLM calls): re-run a pipeline against a previously-crashed thread; confirm re-entry at the crashed stage.
 

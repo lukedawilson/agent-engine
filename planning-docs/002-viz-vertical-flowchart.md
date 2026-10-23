@@ -32,7 +32,7 @@ graph TD;
 - TDD red→green→refactor for every task
 - Mock policy unchanged (repo rule): `topology_mermaid` is a pure function — no new seams; only the three existing CLI-lifecycle seams stay monkeypatched in `main()` lifecycle tests
 - `viz_bus=None` default → byte-identical behavior without `--viz`; existing suites keep passing
-- Full suite green at the end of every task: `.venv/bin/python -m pytest tests/ -q`
+- Full suite green at the end of every task: `.venv-sandbox/bin/python -m pytest tests/ -q`
 
 ## Locked decisions (from user)
 
@@ -103,7 +103,7 @@ graph TD;
 
 ## Verification
 
-1. `.venv/bin/python -m pytest tests/ -q` green.
+1. `.venv-sandbox/bin/python -m pytest tests/ -q` green.
 2. Manual smoke: `./run-demo.sh` — single vertical chain of rectangles; `test -.FAIL.-> dev` arc on attempt 1; badges reset on bump (log only); attempt 2 lights the chain to `success`; banner. **User eyeballs.**
 3. Real `agent-engine examples/self/pipeline.yaml --plan <doc> --viz` run — **user triggers** (makes LLM calls).
 

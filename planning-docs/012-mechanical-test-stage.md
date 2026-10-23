@@ -24,7 +24,7 @@
 
 ```yaml
 - name: test
-  command: .venv/bin/python -m pytest tests/ -q
+  command: .venv-sandbox/bin/python -m pytest tests/ -q
   timeout: 600            # optional, seconds; default 600
   on_pass: review
   on_fail: { goto: dev, retry: true }
@@ -55,12 +55,12 @@ Design choices:
 - `run_pipeline` (graph.py:96-234): `Runtime(workspace=Path.cwd())` — the command's cwd. `commit_allowed = git_worktree_clean(...)` computed once before the run; `.gitignore` already ignores `.pytest_cache/` and `.pr/`, so the suite's pytest cache cannot dirty the worktree before the commit action.
 - `build_context` (stages.py:104-124): :114 `if step.agent is None: continue` already skips command steps from "Expected output paths" with **no change**.
 - viz: `topology_mermaid` (viz.py:33-66) is kind-agnostic; :50-54 `label = step.verdicts.fail if step.verdicts is not None else "retry"` is the only kind-aware spot. `ConsoleCapture` tees node stdout/stderr to the viz bus — command-step output gets viz attribution for free.
-- **Real-run cwd:** `trigger-agent-engine.sh` does `cd "$ROOT"` (repo root) before `exec .venv/bin/agent-engine examples/self/pipeline.yaml` — so the example's command `.venv/bin/python -m pytest tests/ -q` resolves for real self-runs.
+- **Real-run cwd:** `trigger-agent-engine.sh` does `cd "$ROOT"` (repo root) before `exec .venv/bin/agent-engine examples/self/pipeline.yaml` — so the example's command `.venv-sandbox/bin/python -m pytest tests/ -q` resolves for real self-runs.
 - Tests pinning the old message: `tests/test_config.py` L206/L213 (`match="exactly one of 'agent' or 'action'"`). The canonical `FULL_YAML` pin (:11-67) currently holds an **agent step named `test`** (artifact `ci-fix.md`, PASS/FAIL, `on_fail: {goto: dev, retry: true}`); its round-trip test unpacks 6 steps at L103. **This plan replaces that agent step with the mechanical `test` command step** (`command: python -m pytest`, `timeout: 600`) — same position between `dev` and `review`, same `on_fail` wiring, so the 6-way unpack stays 6-way; only the step's field assertions change. The pin's header comment claims verbatim-from-009 and must note the substitution.
 - `tests/test_stages.py`: `STEPS` fixture (:30-39) — `dev` produces, `test` (agent, verdicts on `ci-fix.md`, `on_fail: {goto: dev, retry: true}`), `review` (no `on_fail`). It is index-based (TestRouter uses `runtime.cfg.steps[0/1/2]` + `dataclasses.replace(runtime, cfg=make_cfg([...]))`) — new command-step tests must build their own cfgs, never extend `STEPS`. **This plan renames the `test` agent (step name + agent name) to `check`** — see Task 2.
 - `tests/test_graph.py`: `repo` fixture (:79-94) is a real git repo (committed tree, `monkeypatch.chdir(repo)`). `YOSK_YAML` (:26-71) has the same agent `test` step; its verdict-retry/exception/crash mechanics are **kept intact** but the step+agent is renamed `test` → `check` (Task 2) — the fixture's verdict vehicle is preserved, only its name changes. `TestVizStream`'s node order (:266-332) includes `'test'` → becomes `'check'`.
-- **e2e dogfood surface** (`tests/test_e2e_fixtures.py`): `consumer_repo` fixture (:42-69) copies the shipped example into a fresh git repo (`.pr` excluded), chdirs to repo root, then every test runs `main([.../pipeline.yaml, "--plan", "plan.md", "--no-viz"])` with **real** subprocesses. A real `.venv/bin/python` command would 127-fail in that fixture (no `.venv`, no `tests/`) and break all 6 historical tests + `TestExampleExtensionless` (:162-170, loads the config only — stays valid). **Therefore the e2e fixture scripts `_run_command`** (module-local seam, queue of behaviors, default pass; unit/graph tests keep real commands). `_passing_scripts` (:30-39) covers dev/review/qa only — the test step is mechanical, so `agents_called` assertions in historical tests stay valid as-is.
-- **Agent prompts to rewire:** `examples/self/sdk_agents/dev.agent.md` L20/L24/L28-37 ("You own the test suite — there is no separate test agent. Before you declare the work done, run the full suite: `.venv/bin/python -m pytest tests/ -q`…"); `examples/self/sdk_agents/qa.agent.md` L8 ("already run the test suite (full green required)") and L25 ("Run `.venv/bin/python -m pytest tests/ -q` — the full suite must pass"). `review.agent.md` L18-19 (test-quality checks) stays.
+- **e2e dogfood surface** (`tests/test_e2e_fixtures.py`): `consumer_repo` fixture (:42-69) copies the shipped example into a fresh git repo (`.pr` excluded), chdirs to repo root, then every test runs `main([.../pipeline.yaml, "--plan", "plan.md", "--no-viz"])` with **real** subprocesses. A real `.venv-sandbox/bin/python` command would 127-fail in that fixture (no `.venv`, no `tests/`) and break all 6 historical tests + `TestExampleExtensionless` (:162-170, loads the config only — stays valid). **Therefore the e2e fixture scripts `_run_command`** (module-local seam, queue of behaviors, default pass; unit/graph tests keep real commands). `_passing_scripts` (:30-39) covers dev/review/qa only — the test step is mechanical, so `agents_called` assertions in historical tests stay valid as-is.
+- **Agent prompts to rewire:** `examples/self/sdk_agents/dev.agent.md` L20/L24/L28-37 ("You own the test suite — there is no separate test agent. Before you declare the work done, run the full suite: `.venv-sandbox/bin/python -m pytest tests/ -q`…"); `examples/self/sdk_agents/qa.agent.md` L8 ("already run the test suite (full green required)") and L25 ("Run `.venv-sandbox/bin/python -m pytest tests/ -q` — the full suite must pass"). `review.agent.md` L18-19 (test-quality checks) stays.
 - `tests/test_viz.py::test_shipped_self_loop_topology` (:129-145) asserts the shipped example's chain `['dev','review','qa','commit','success']` + the review/qa fail edges — must be updated when the example gains the `test` step.
 - **Plan-011 interplay:** plan 011 (COMPLETED) rewrites assertions in `test_stages.py`/`test_graph.py`/`test_e2e_fixtures.py` that reference the agent `test` step (e.g. `messages_for("test")[1]`, flows `["dev","test","test",...]`). After this plan's rename those references must read `check`.
 - Uncommitted working-tree changes to `src/agent_engine/verdicts.py` + `tests/test_verdicts.py` (caveat-tolerant verdict parsing) are someone else's in-flight work — **do not touch**.
@@ -85,7 +85,7 @@ Design choices:
 - Mock policy (repo rule): `run_agent` remains the only stubbed *agent* seam (`tests/conftest.py::FakeAgents`). Command steps run **real subprocesses** in `test_stages.py` and `test_graph.py`. The **sole** exception: `tests/test_e2e_fixtures.py` scripts `agent_engine.stages._run_command` (module-local queue, default pass) because the shipped example's real command cannot run in the consumer-repo fixture — the seam is local to that file, never global, and `_run_command` itself stays covered by real-subprocess tests elsewhere.
 - **Fixture naming (user's "use a different name to avoid confusion"):** the internal fixtures' agent step named `test` is **renamed `test` → `check`** (step name + agent name, mechanics untouched) in `tests/test_stages.py::STEPS` and `tests/test_graph.py::YOSK_YAML` + every test that scripts/asserts that agent. The user-facing surfaces drop the agent `test` step entirely and use the name `test` for the mechanical step. After this plan, no agent is ever named `test` anywhere.
 - Do not touch `src/agent_engine/verdicts.py` / `tests/test_verdicts.py` (in-flight uncommitted work).
-- Full suite green at the end of every task: `.venv/bin/python -m pytest tests/ -q` (baseline 258 passed).
+- Full suite green at the end of every task: `.venv-sandbox/bin/python -m pytest tests/ -q` (baseline 258 passed).
 
 ## Locked decisions (from user / research)
 
@@ -101,7 +101,7 @@ Design choices:
 | Retry notes | Same shape as agent-verdict notes: `## {name} output (attempt N)` + output tail (last 4000 chars); timeout variant `(attempt N — timed out)` |
 | `step_verdicts` | Reused as-is: `"pass"` / `"fail"` recorded under the step name; no new state keys (checkpoint format unchanged) |
 | Output | Printed (and viz-attributed) on every run — pass or fail |
-| Dogfooding | **In this plan**: `examples/self/pipeline.yaml` gains the mechanical `test` step (`command: .venv/bin/python -m pytest tests/ -q`, `timeout: 600`, `on_fail: {goto: dev, retry: true}`) between `dev` and `review`; dev/qa agent prompts rewired; e2e fixtures gain the local command seam + failure-replay tests |
+| Dogfooding | **In this plan**: `examples/self/pipeline.yaml` gains the mechanical `test` step (`command: .venv-sandbox/bin/python -m pytest tests/ -q`, `timeout: 600`, `on_fail: {goto: dev, retry: true}`) between `dev` and `review`; dev/qa agent prompts rewired; e2e fixtures gain the local command seam + failure-replay tests |
 
 ## Open questions for the user
 
@@ -166,12 +166,12 @@ Design choices:
 - [x] **Step 1: Example pipeline.** In `examples/self/pipeline.yaml`: `dev.on_pass: test`; insert between `dev` and `review`:
   ```yaml
     - name: test
-      command: .venv/bin/python -m pytest tests/ -q
+      command: .venv-sandbox/bin/python -m pytest tests/ -q
       timeout: 600
       on_pass: review
       on_fail: { goto: dev, retry: true }
   ```
-- [x] **Step 2: Agent prompts.** `dev.agent.md` (L20/L24/L28-37): replace the "You own the test suite — there is no separate test agent… run `.venv/bin/python -m pytest tests/ -q` … state the final test result in the summary" block with pipeline-gate wording: the pipeline runs the suite mechanically after this stage (the `test` command step); you MAY run the suite locally while working, but the gate — not your summary — is the source of truth; if the gate fails you are retried with the failing output in your notes — fix the root cause. `qa.agent.md` L8 and L25: reword to "the pipeline's `test` gate already ran the full suite green" — QA verifies/reviews, it no longer re-runs the suite itself. (`review.agent.md` L18-19 stays.)
+- [x] **Step 2: Agent prompts.** `dev.agent.md` (L20/L24/L28-37): replace the "You own the test suite — there is no separate test agent… run `.venv-sandbox/bin/python -m pytest tests/ -q` … state the final test result in the summary" block with pipeline-gate wording: the pipeline runs the suite mechanically after this stage (the `test` command step); you MAY run the suite locally while working, but the gate — not your summary — is the source of truth; if the gate fails you are retried with the failing output in your notes — fix the root cause. `qa.agent.md` L8 and L25: reword to "the pipeline's `test` gate already ran the full suite green" — QA verifies/reviews, it no longer re-runs the suite itself. (`review.agent.md` L18-19 stays.)
 - [x] **Step 3: e2e seam + failing tests.** In `tests/test_e2e_fixtures.py`: add a module-local command queue + `_fake_run_command(command, workspace, timeout)` dispatcher (behaviors: `("pass",)` → `(0, "", False)`; `("fail", output)` → `(1, output, False)`; `("timeout", output)` → `(None, output, True)`; last behavior repeats; default `("pass",)`), installed by the `consumer_repo` fixture via `monkeypatch.setattr("agent_engine.stages._run_command", _fake_run_command)` with the queue reset, plus a `_script_test(*behaviors)` helper. Historical tests need **no edits** (default pass). Add `TestCommandGate` tests: (1) pass-through: rc 0, `agents_called() == ["dev", "review", "qa"]`, commit log present; (2) `_script_test(("fail", "2 failed, 1 passed in 0.05s\n"), ("pass",))` → rc 0, `agents_called() == ["dev", "dev", "review", "qa"]`, `messages_for("dev")[1]` contains `2 failed, 1 passed` and `test output (attempt 1)`; (3) `_script_test(("timeout", "collected 250 items\n"), ("pass",))` → rc 0, `messages_for("dev")[1]` contains `timed out` and `collected 250 items`; (4) `_script_test(("fail", "boom\n"))` → rc != 0, `agents_called() == ["dev"] * 10` (example `max_attempts: 10`), no `(agent dev loop)` commit.
 - [x] **Step 4: Shipped-topology test.** `tests/test_viz.py::test_shipped_self_loop_topology`: chain becomes `['dev','test','review','qa','commit','success']`; add the `test -. &nbsp;fail&nbsp; .-> dev;` edge assertion; keep the review/qa edge assertions.
 - [x] **Step 5:** Run `tests/test_e2e_fixtures.py` and `tests/test_viz.py` — red where expected, then green with the engine work from Tasks 1-5 in place.
@@ -189,7 +189,7 @@ Design choices:
 
 ### Task 8: full verification
 
-- [x] `.venv/bin/python -m pytest tests/ -q` green (baseline 258 passed).
+- [x] `.venv-sandbox/bin/python -m pytest tests/ -q` green (baseline 258 passed).
 - [x] grep for `exactly one of 'agent' or 'action'` → zero hits outside this plan doc / git history.
 - [x] grep tests/planning-docs for stale "You own the test suite" / "dev agent owns the test suite" prose → none beyond deliberate audit-trail text.
 - [x] grep tests/ for an agent named `test` (e.g. `agent: test`, `"test"` scripting keys) → zero hits; the name `test` remains only on the mechanical step.
@@ -197,7 +197,7 @@ Design choices:
 
 ## Verification
 
-1. `.venv/bin/python -m pytest tests/ -q` green — **325 passed** (was 258 at plan time).
+1. `.venv-sandbox/bin/python -m pytest tests/ -q` green — **325 passed** (was 258 at plan time).
 2. Manual (no LLM calls): `python -c` load a temp pipeline with a `command` step via `agent_engine.config.load_config` — confirm validation (`command` + `timeout`; the exactly-one error when `agent` is also set).
 3. Real run — dogfooded: the engine's own dev loop implemented this plan against a pipeline whose `test` step runs the repo suite (commit `ea2671c`); the user watched the gate live in the viz demo (`run-demo.sh`) and confirmed it runs (`lgtm`).
 
@@ -206,4 +206,4 @@ Design choices:
 - **2026-10-09** — Both open questions resolved by user: default timeout **600s** locked; test-step placement **`dev → test → review`** locked (mechanical gate runs after the dev agent, before the review agent; failure rewinds to `dev` with the output tail in the retry note). No plan changes beyond confirming the already-specified values.
 - **2026-10-09 (implementation)** — Plan implemented and dogfooded (commit `ea2671c`). Two follow-on fixes shipped with completion:
   1. **Viz console hard-wrap** — rich-based SDK output was baked with 80-column newlines (the capture pipe isn't a TTY, so rich fell back to terminal-width wrapping); widening the sidebar couldn't reflow it. Fix: `ConsoleCapture.attach()` now sets `os.environ["COLUMNS"] = str(MAX_LINE)` (save/restore in `detach()`), so captured agent output arrives unwrapped and `pre-wrap` does the reflowing. Covered by `TestConsoleCapture::test_columns_env_wide_during_capture` / `test_columns_env_restored_after_capture`.
-  2. **Demo drift** — `viz_demo.py`'s scripted scenarios predated 012: the graph rendered the new `test` node (topology comes from the real `examples/self/pipeline.yaml`) but the fabricated run skipped it. `run_scenario()` now runs the mechanical gate between `dev` and `review` on every attempt (both scenarios), with command-flavoured console output (`$ .venv/bin/python -m pytest tests/ -q` + green summary). Covered by `TestDemo::test_demo_runs_mechanical_test_step` / `test_demo_failure_scenario_runs_test_step`.
+  2. **Demo drift** — `viz_demo.py`'s scripted scenarios predated 012: the graph rendered the new `test` node (topology comes from the real `examples/self/pipeline.yaml`) but the fabricated run skipped it. `run_scenario()` now runs the mechanical gate between `dev` and `review` on every attempt (both scenarios), with command-flavoured console output (`$ .venv-sandbox/bin/python -m pytest tests/ -q` + green summary). Covered by `TestDemo::test_demo_runs_mechanical_test_step` / `test_demo_failure_scenario_runs_test_step`.

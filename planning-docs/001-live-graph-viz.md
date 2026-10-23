@@ -16,7 +16,7 @@
 - Mock policy (repo rule): `stages.run_agent` is the only stubbed code path (`FakeAgents`); `translate`/`VizBus` are tested against a real tiny `StateGraph` + `MemorySaver`; HTTP is tested over a real socket on port 0. The three thin CLI-lifecycle seams (`viz.serve_viz`, `viz.wait_for_interrupt`, `webbrowser.open`) are the viz equivalent of the `run_agent` boundary — monkeypatched only in `main()` lifecycle tests.
 - Fail fast, never silently degrade: port-bind failure is a loud error naming `--viz-port`, not a fallback port
 - `viz_bus=None` default everywhere → byte-identical behavior without `--viz`; the existing suites (`tests/test_graph.py`, `tests/test_cli.py` — which pin `graph.invoke` semantics, including the resume/crash regression tests) must keep passing untouched
-- Full suite green at the end of every task: `.venv/bin/python -m pytest tests/ -q`
+- Full suite green at the end of every task: `.venv-sandbox/bin/python -m pytest tests/ -q`
 
 ## Locked decisions (from user)
 
@@ -125,7 +125,7 @@ Whitelist for `state` events: `attempt, step_verdicts, outcome, failed`. (`docs`
 
 ## Verification
 
-1. `.venv/bin/python -m pytest tests/ -q` green.
+1. `.venv-sandbox/bin/python -m pytest tests/ -q` green.
 2. Manual smoke: tiny-graph script with `--viz` — page renders, nodes light up in order, verdict badges populate.
 3. Real `agent-engine examples/self/pipeline.yaml --plan <doc> --viz` run — **user triggers** (makes LLM calls).
 

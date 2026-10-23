@@ -54,7 +54,7 @@ The `bump` node's conditional edge already routes to **any** step name in `state
 - Mock policy (repo rule): `run_agent` remains the only stubbed *agent* seam; all graph/stage tests here use the existing `fake_agents` fixture — no new seams.
 - No config surface is added: same-stage unclear retry is a fixed policy, like every other unclear-verdict rule. `on_fail` keeps governing **fail** verdicts only.
 - No graph/viz/serialization changes; `retry_target` semantics are unchanged (a step name, consumed by the bump edge).
-- Full suite green at the end of every task: `.venv/bin/python -m pytest tests/ -q`
+- Full suite green at the end of every task: `.venv-sandbox/bin/python -m pytest tests/ -q`
 
 ## Locked decisions (from user / research)
 
@@ -106,13 +106,13 @@ The `bump` node's conditional edge already routes to **any** step name in `state
 
 ### Task 5: full verification
 
-- [ ] `.venv/bin/python -m pytest tests/ -q` green (baseline: 258 passed).
+- [ ] `.venv-sandbox/bin/python -m pytest tests/ -q` green (baseline: 258 passed).
 - [ ] grep for `_unclear_target` → zero hits.
 - [ ] grep tests/planning-docs for stale "unclear retries entry"-style prose → none beyond deliberate audit-trail text.
 
 ## Verification
 
-1. `.venv/bin/python -m pytest tests/ -q` green.
+1. `.venv-sandbox/bin/python -m pytest tests/ -q` green.
 2. Manual: `python -m pytest tests/test_stages.py tests/test_graph.py tests/test_e2e_fixtures.py -q` and confirm the two graph flows call `dev` exactly once each despite the unclear verdicts.
 3. Real run — **user triggers**: `./trigger-agent-engine.sh --plan <plan doc>` against a pipeline whose verdict agent is instructed to write nothing, to observe same-stage retries live (makes LLM calls; optional).
 

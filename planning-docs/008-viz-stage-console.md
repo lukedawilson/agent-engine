@@ -28,7 +28,7 @@ Today the engine's `print()` lines (stage banners like `[unit] Running dev agent
 - Mock policy unchanged (repo rule): `run_agent` remains the only permitted stub seam. `ConsoleCapture` is unit-tested directly with `io.StringIO` targets and a stub watch; no new seams
 - `PAGE` JS is covered by the existing string-assertion pattern (`test_page_constant_*`); existing page-constant assertions are updated where the new markup conflicts, but their tokens are preserved: `completed`, `errored`, `verdict`, no `" passed"`, `nodeIds.has(ev.node)`
 - Protocol amendment (documented in 001's style): new `console` event. All existing event shapes unchanged
-- Full suite green at the end of every task: `.venv/bin/python -m pytest tests/ -q`
+- Full suite green at the end of every task: `.venv-sandbox/bin/python -m pytest tests/ -q`
 - No new runtime or CDN dependencies; mermaid stays the only CDN script
 
 ## Locked decisions (from user / research)
@@ -150,7 +150,7 @@ class ConsoleCapture:
 
 ## Verification
 
-1. `.venv/bin/python -m pytest tests/ -q` green — 261 passed (2026-10-09).
+1. `.venv-sandbox/bin/python -m pytest tests/ -q` green — 261 passed (2026-10-09).
 2. Manual smoke (Task 7 Step 2) — done: user eyeballed stages/consoles/verdicts, plus the `--flood 600` tailing check (panel pinned to bottom, eviction counter, no yank when scrolled up).
 3. Real `--viz` run (Task 7 Step 3) — done 2026-10-09 (the plan-008 self-run, watched live; feedback captured in 010).
 

@@ -27,7 +27,7 @@
 - TDD red→green→refactor for every task
 - Mock policy unchanged (repo rule): no new seams; `PAGE` changes are covered by the existing string-assertion pattern (`test_page_constant_*`); the `run_started` payload change is covered in `test_viz.py` and `test_cli.py`
 - Protocol amendment (documented in 001's style): `run_started` gains `attempt`. `state` whitelist, `node_started`/`node_finished`/`run_finished` shapes unchanged
-- Full suite green at the end of every task: `.venv/bin/python -m pytest tests/ -q`
+- Full suite green at the end of every task: `.venv-sandbox/bin/python -m pytest tests/ -q`
 
 ## Locked decisions (from user)
 
@@ -102,7 +102,7 @@
 
 ## Verification
 
-1. `.venv/bin/python -m pytest tests/ -q` green.
+1. `.venv-sandbox/bin/python -m pytest tests/ -q` green.
 2. Manual smoke (Task 5) — **user eyeballs.**
 3. Real `agent-engine examples/self/pipeline.yaml --plan <doc> --viz` run — **user triggers** (makes LLM calls): attempt 1/N from the start, no `bump` lines, verdicts on every completion line that has one, failed steps red until re-run.
 

@@ -8,7 +8,7 @@ bump, pass on attempt 2), the attempt counter, the scrolling event log, and
 the run_finished banner.
 
 Usage:
-    .venv/bin/python viz_demo.py [--port 8321] [--scenario success|failure]
+    .venv-sandbox/bin/python viz_demo.py [--port 8321] [--scenario success|failure]
                                  [--no-browser] [--flood N]
 
 --flood N makes the attempt-1 dev node publish N console lines while it
@@ -64,7 +64,7 @@ def emit_node(bus: viz.VizBus, name: str, state: dict | None = None,
                  "text": f"[demo] Running {name} step..."})
     if kind == "command":
         bus.publish({"type": "console", "node": name, "stream": "stdout",
-                     "text": "$ .venv/bin/python -m pytest tests/ -q"})
+                     "text": "$ .venv-sandbox/bin/python -m pytest tests/ -q"})
         bus.publish({"type": "console", "node": name, "stream": "stdout",
                      "text": "388 passed, 10 skipped in 242.86s"})
     else:

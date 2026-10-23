@@ -21,7 +21,8 @@ from agentic_dev_loop.engine.isolation import (
     clean_stamps, docker_create_payload, docker_provision_payload,
     exec_container_name, is_git_mutation, probe_docker, read_stamp,
     remove_sandbox_venv, resolve_effective_profile, resolve_image_ref,
-    resolve_sandbox_env, select_backend, setup_stamp_key, translate_mount_path,
+    resolve_sandbox_env, resolve_sandbox_venv_dir, select_backend,
+    setup_stamp_key, translate_mount_path,
     venv_probe_argv, venv_probe_command, venv_probe_state, write_stamp,
 )
 
@@ -303,6 +304,23 @@ class TestRemoveSandboxVenv:
         with pytest.raises(SandboxError, match="AE-SBX-014"):
             remove_sandbox_venv(ws)
 
+    def test_relocated_clears_contents_keeps_dir(self, tmp_path):
+        """022: a relocated venv is the bind-mount source for the still-running
+        exec container, so only its CONTENTS are removed — deleting the dir
+        would leave the container pointed at a stale inode."""
+        venv = tmp_path / "outside-venv"
+        (venv / "bin").mkdir(parents=True)
+        (venv / "bin" / "python").symlink_to("/opt/homebrew/opt/python/bin/python3.14")
+        (venv / "lib").mkdir(parents=True)
+        (venv / "lib" / "x.txt").write_text("x")
+        remove_sandbox_venv(tmp_path / "ws", sandbox_venv_dir=str(venv))
+        assert venv.is_dir()
+        assert not list(venv.iterdir())  # contents gone, mount source intact
+
+    def test_relocated_missing_is_noop(self, tmp_path):
+        remove_sandbox_venv(tmp_path / "ws",
+                            sandbox_venv_dir=str(tmp_path / "nope"))
+
 
 class TestPayloads:
     def _profile(self):
@@ -388,6 +406,74 @@ class TestPayloads:
         mounts = [p[i + 1] for i, a in enumerate(p) if a == "-v"]
         assert mounts == [f"{ws}:{ws}"]
 
+    def test_create_payload_masks_host_only_venv(self, tmp_path):
+        """022: `.venv` is host-only. It cannot be excluded from the workspace
+        bind, so it is shadowed by a read-only empty tmpfs submount — any
+        container-side write fails loudly instead of mutating the host venv."""
+        ws = str(tmp_path)
+        p = docker_create_payload(run_id="r1", image="img",
+                                  profile=self._profile(), workspace=ws)
+        mask = f"{ws}/.venv:ro"
+        assert mask in p
+        assert p[p.index(mask) - 1] == "--tmpfs"
+        # the mask comes after the workspace bind (submount shadows the bind)
+        assert p.index(mask) > p.index(f"{ws}:{ws}")
+
+    def test_provision_payload_masks_host_only_venv(self, tmp_path):
+        ws = str(tmp_path)
+        p = docker_provision_payload(run_id="r1", image="img", workspace=ws,
+                                     setup_cmd="make")
+        mask = f"{ws}/.venv:ro"
+        assert mask in p
+        assert p[p.index(mask) - 1] == "--tmpfs"
+        assert p.index(mask) > p.index(f"{ws}:{ws}")
+
+    def test_relocated_venv_mount_present_in_both_payloads(self, tmp_path):
+        """022: when ``sandbox_venv_dir`` is set, the outside dir is mounted rw
+        at the unchanged container path ``{ws}/.venv-sandbox`` in BOTH the exec
+        and provision payloads (the provision container runs the setup hook that
+        creates the venv)."""
+        ws = str(tmp_path)
+        venv = str(tmp_path / "outside-venv")
+        target = f"{venv}:{ws}/.venv-sandbox"
+        create = docker_create_payload(run_id="r1", image="img",
+                                       profile=self._profile(), workspace=ws,
+                                       sandbox_venv_dir=venv)
+        provision = docker_provision_payload(run_id="r1", image="img",
+                                             workspace=ws, setup_cmd="make",
+                                             sandbox_venv_dir=venv)
+        for payload in (create, provision):
+            assert target in payload
+            assert payload[payload.index(target) - 1] == "-v"
+            # the venv mount is a submount: it must come after the workspace bind
+            assert payload.index(target) > payload.index(f"{ws}:{ws}")
+
+
+class TestResolveSandboxVenvDir:
+    def test_none_returns_none(self, tmp_path):
+        assert resolve_sandbox_venv_dir(None, tmp_path) is None
+
+    def test_expanduser_and_absolute(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("HOME", str(tmp_path))
+        out = resolve_sandbox_venv_dir("~/venvs/engine", tmp_path / "ws")
+        assert out == str(tmp_path / "venvs" / "engine")
+        assert os.path.isabs(out)
+
+    def test_outside_workspace_accepted(self, tmp_path):
+        ws = tmp_path / "ws"
+        out = resolve_sandbox_venv_dir(str(tmp_path / "venvs"), ws)
+        assert out == str(tmp_path / "venvs")
+
+    def test_in_workspace_fails_loud(self, tmp_path):
+        ws = tmp_path / "ws"
+        with pytest.raises(SandboxError, match="AE-SBX-015"):
+            resolve_sandbox_venv_dir(str(ws / "nested" / "venv"), ws)
+
+    def test_equals_workspace_fails_loud(self, tmp_path):
+        ws = tmp_path / "ws"
+        with pytest.raises(SandboxError, match="AE-SBX-015"):
+            resolve_sandbox_venv_dir(str(ws), ws)
+
 
 class TestExecContainerName:
     def test_default_is_network_none(self):
@@ -460,13 +546,35 @@ class TestResolveImageRef:
 
 
 def _backend(tmp_path, runner, *, image="img@sha256:abc", git_blocked=True,
-              network=False):
+              network=False, sandbox_venv_dir=None):
     return DockerBackend(
         image=image, workspace=str(tmp_path / "ws"),
         iso_state_dir=str(tmp_path / "state"),
         profile=EffectiveProfile(True, True, True, True, git_blocked,
                                  image, "4g", 2.0),
-        runner=runner, network=network)
+        runner=runner, network=network,
+        sandbox_venv_dir=sandbox_venv_dir)
+
+
+class TestRelocatedVenvDirCreation:
+    """022: the relocated venv dir is the bind-mount source. It must be
+    pre-created host-side so Docker never auto-creates a missing source as
+    root on native Linux (the --user uid:gid EACCES class, AE-SBX-009)."""
+
+    def test_missing_dir_created_on_construction(self, tmp_path):
+        venv_dir = tmp_path / "outside-venv"
+        assert not venv_dir.exists()
+        _backend(tmp_path, FakeRunner(), sandbox_venv_dir=str(venv_dir))
+        assert venv_dir.is_dir()
+
+    def test_nested_missing_dir_created(self, tmp_path):
+        venv_dir = tmp_path / "a" / "b" / "venv"
+        _backend(tmp_path, FakeRunner(), sandbox_venv_dir=str(venv_dir))
+        assert venv_dir.is_dir()
+
+    def test_unset_creates_nothing(self, tmp_path):
+        _backend(tmp_path, FakeRunner())
+        assert not (tmp_path / ".venv-sandbox").exists()
 
 
 class TestEnsureImage:
@@ -887,3 +995,49 @@ class TestStartupSandbox:
         sandbox2 = startup_sandbox(cfg, workspace=ws, runner=runner2, refresh=True)
         sandbox2.close()
         assert [c for c in runner2.calls if "python -m venv .venv-sandbox" in c]
+
+    def test_relocated_venv_dir_flows_into_payloads(self, tmp_path, monkeypatch):
+        """022: a set `sandbox_venv_dir` is resolved and threaded into BOTH the
+        exec and provision payloads; the workspace stays free of `.venv-sandbox`
+        noise (the outside dir is mounted at the unchanged container path)."""
+        from agentic_dev_loop.engine.isolation import startup_sandbox
+
+        ws = tmp_path / "ws"
+        ws.mkdir()
+        venv_dir = tmp_path / "outside-venv"
+        cfg = self._cfg(tmp_path, with_setup=True)
+        cfg.isolation.sandbox_venv_dir = str(venv_dir)
+        monkeypatch.setattr("agentic_dev_loop.engine.isolation.shutil.which",
+                            lambda *a: "/usr/bin/docker")
+        monkeypatch.setenv("AGENTIC_DEV_LOOP_DEV_IMAGE", "img:tag")
+        runner = FakeRunner(
+            ok("1.54"),           # probe version
+            ok("linux"),          # probe ostype
+            ok(""),               # image inspect
+            ok(""),               # docker run -d --rm (exec container)
+            ok(""),               # docker run provision
+        )
+        sandbox = startup_sandbox(cfg, workspace=ws, runner=runner)
+        try:
+            target = f"{venv_dir}:{ws}/.venv-sandbox"
+            for argv in runner.calls:
+                if argv[:2] == ["docker", "run"]:
+                    assert target in argv
+                    assert argv[argv.index(target) - 1] == "-v"
+                    assert f"{ws}/.venv:ro" in argv
+        finally:
+            sandbox.close()
+
+    def test_in_workspace_sandbox_venv_dir_fails_loud(self, tmp_path, monkeypatch):
+        from agentic_dev_loop.engine.isolation import startup_sandbox
+
+        ws = tmp_path / "ws"
+        ws.mkdir()
+        cfg = self._cfg(tmp_path, with_setup=False)
+        cfg.isolation.sandbox_venv_dir = str(ws / "nested")
+        monkeypatch.setattr("agentic_dev_loop.engine.isolation.shutil.which",
+                            lambda *a: "/usr/bin/docker")
+        monkeypatch.setenv("AGENTIC_DEV_LOOP_DEV_IMAGE", "img:tag")
+        runner = FakeRunner(ok("1.54"), ok("linux"))
+        with pytest.raises(SandboxError, match="AE-SBX-015"):
+            startup_sandbox(cfg, workspace=ws, runner=runner)

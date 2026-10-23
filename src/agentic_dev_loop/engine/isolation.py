@@ -7,10 +7,13 @@ concrete implementation (user directive 2026-10-19). Everything else here is
 either pure translation logic (the PBT-03 targets) or host-side audit/stamp
 helpers.
 
-Host-only vs sandboxed: the sandbox mount set is EXACTLY {workspace} (Q1).
-The isolation state dir (stamps + audit JSONL) and the pipeline run-state dir
-(checkpoint DB + last-error.md) are never mounted — sandboxed code cannot
-reach them.
+Host-only vs sandboxed: the sandbox mount set is {workspace} plus the
+host-only mask mounts (022): a read-only empty tmpfs at ``{ws}/.venv`` so the
+host's throwaway venv can never be written from inside the sandbox. When
+``isolation.sandbox_venv_dir`` relocates the sandbox venv, one extra rw bind
+mount at ``{ws}/.venv-sandbox`` is added (opt-in). The isolation state dir
+(stamps + audit JSONL) and the pipeline run-state dir (checkpoint DB +
+last-error.md) are never mounted — sandboxed code cannot reach them.
 """
 
 from __future__ import annotations
@@ -74,6 +77,10 @@ PROVISION_TIMEOUT_SECONDS = 3600
 # container, so it must be detected and re-provisioned there.
 SANDBOX_VENV_DIR = ".venv-sandbox"
 SANDBOX_VENV_PYTHON = ".venv-sandbox/bin/python"
+# Host-only dirs masked inside the sandbox (022): each gets a read-only empty
+# tmpfs submount at ``{ws}/<dir>`` so agents fail loudly on any write instead
+# of silently mutating a host-owned throwaway venv.
+HOST_ONLY_DIRS = (".venv",)
 
 
 class SandboxError(RuntimeError):
@@ -277,6 +284,27 @@ def translate_mount_path(path: str) -> str:
     return str(p)
 
 
+def resolve_sandbox_venv_dir(sandbox_venv_dir: str | None,
+                             workspace: str | Path) -> str | None:
+    """Resolve the opt-in relocated sandbox venv (022).
+
+    ``None`` keeps the legacy workspace-local ``.venv-sandbox`` (bit-compatible
+    default — payloads are unchanged). A set value is expanduser + absolute and
+    must resolve OUTSIDE the workspace: an in-workspace value defeats the whole
+    relocation and fails loud (AE-SBX-015).
+    """
+    if sandbox_venv_dir is None:
+        return None
+    resolved = Path(translate_mount_path(sandbox_venv_dir))
+    ws = Path(translate_mount_path(os.fspath(workspace)))
+    if resolved == ws or ws in resolved.parents:
+        raise SandboxError(
+            f"AE-SBX-015: isolation.sandbox_venv_dir {resolved!r} must resolve "
+            "outside the workspace — an in-workspace value defeats the 022 "
+            "relocation (docs/setup.md §3)")
+    return str(resolved)
+
+
 def setup_stamp_key(setup_cmd: str, lockfile_hashes: dict[str, str]) -> str:
     """sha256 hex of canonical JSON {setup_cmd, lockfiles: sorted hashes}."""
     canonical = {
@@ -323,10 +351,44 @@ def venv_probe_state(stdout: str, exit_code: int | None) -> str:
     return line if line in ("valid", "missing", "broken") else "unknown"
 
 
-def remove_sandbox_venv(workspace: str | Path) -> None:
-    """Remove the workspace's sandbox venv before re-provision (016 self-heal).
-    Fails loud when the venv exists but cannot be removed — a silent skip
-    would re-create the ENOENT failure the next run."""
+def _clear_dir_contents(path: Path) -> None:
+    """Delete every entry under ``path``, keeping ``path`` itself. The 022
+    relocated venv is the bind-mount source for the still-running execution
+    container, so the source dir must survive removal (deleting it would leave
+    the container pointed at a stale inode)."""
+    if not path.exists():
+        return
+    for child in path.iterdir():
+        if child.is_symlink() or child.is_file():
+            child.unlink()
+        elif child.is_dir():
+            shutil.rmtree(child)
+
+
+def remove_sandbox_venv(workspace: str | Path, *,
+                        sandbox_venv_dir: str | None = None) -> None:
+    """Remove the sandbox venv before re-provision (016 self-heal). Fails loud
+    when the venv exists but cannot be removed — a silent skip would re-create
+    the ENOENT failure the next run.
+
+    With the 022 relocation opt-in (``sandbox_venv_dir``), the venv lives at
+    that host path and is the source of a live bind mount in the execution
+    container — so only its CONTENTS are removed (the mount source dir stays),
+    leaving the container's ``{ws}/.venv-sandbox`` mount valid for re-provision.
+    The default (unset) path removes the whole workspace-local dir as before.
+    """
+    if sandbox_venv_dir is not None:
+        venv = Path(sandbox_venv_dir)
+        try:
+            if venv.is_symlink() or venv.is_file():
+                venv.unlink()
+            elif venv.is_dir():
+                _clear_dir_contents(venv)
+        except OSError as e:
+            raise SandboxError(
+                f"AE-SBX-014: cannot remove invalid sandbox venv at {venv}: {e} "
+                f"— remove it manually and re-run (docs/setup.md §5)") from e
+        return
     venv = Path(workspace) / SANDBOX_VENV_DIR
     try:
         if venv.is_symlink() or venv.is_file():
@@ -360,15 +422,34 @@ def exec_container_name(run_id: str, network: bool = False) -> str:
     return f"{run_id}-exec-net" if network else f"{run_id}-exec"
 
 
+def _sandbox_mounts(workspace: str, sandbox_venv_dir: str | None) -> list[str]:
+    """The mount segment shared by the exec and provision payloads (022).
+
+    ``{workspace}`` rw is always first; each host-only dir is then shadowed by
+    a read-only empty tmpfs submount (Docker cannot exclude a subdirectory of a
+    bind — a submount is the only way to hide it, and ``ro`` makes any write
+    attempt fail loudly instead of silently succeeding against a decoy). When
+    ``sandbox_venv_dir`` relocates the sandbox venv, one rw bind mount maps it
+    to the unchanged container path ``{ws}/.venv-sandbox``.
+    """
+    mounts = ["-v", f"{workspace}:{workspace}"]
+    for host_only in HOST_ONLY_DIRS:
+        mounts += ["--tmpfs", f"{workspace}/{host_only}:ro"]
+    if sandbox_venv_dir is not None:
+        mounts += ["-v", f"{sandbox_venv_dir}:{workspace}/{SANDBOX_VENV_DIR}"]
+    return mounts
+
+
 def docker_create_payload(*, run_id: str, image: str, profile: EffectiveProfile,
-                          workspace: str, network: bool = False) -> list[str]:
+                          workspace: str, network: bool = False,
+                          sandbox_venv_dir: str | None = None) -> list[str]:
     """Exact ``docker run -d --rm`` argv for the execution container (§3.3, KD-8).
-    Single mount {workspace} (Q1); ``--network none`` (bridge when ``network``
-    is true — 014 per-stage networking), --read-only, --cap-drop ALL; --user
-    host uid:gid (host-owned bind mounts, AE-SBX-009 root cause) with
-    HOME=/tmp (the rootfs is read-only; /tmp is a 1777 tmpfs). ``--rm`` lets the
-    daemon auto-remove the container the instant it exits, however it exits
-    (D1) — a SIGKILLed CLI never reaches close()."""
+    Mount set {workspace} + host-only masks (022); ``--network none`` (bridge
+    when ``network`` is true — 014 per-stage networking), --read-only,
+    --cap-drop ALL; --user host uid:gid (host-owned bind mounts, AE-SBX-009
+    root cause) with HOME=/tmp (the rootfs is read-only; /tmp is a 1777 tmpfs).
+    ``--rm`` lets the daemon auto-remove the container the instant it exits,
+    however it exits (D1) — a SIGKILLed CLI never reaches close()."""
     payload = [
         "docker", "run", "--detach", "--rm", "--name",
         exec_container_name(run_id, network),
@@ -380,8 +461,8 @@ def docker_create_payload(*, run_id: str, image: str, profile: EffectiveProfile,
     user = host_user_flag()
     if user is not None:
         payload.extend(["--user", user, "--env", "HOME=/tmp"])
+    payload.extend(_sandbox_mounts(workspace, sandbox_venv_dir))
     payload.extend([
-        "-v", f"{workspace}:{workspace}",
         "--workdir", workspace,
         image, "sleep", "infinity",
     ])
@@ -389,10 +470,12 @@ def docker_create_payload(*, run_id: str, image: str, profile: EffectiveProfile,
 
 
 def docker_provision_payload(*, run_id: str, image: str, workspace: str,
-                             setup_cmd: str) -> list[str]:
+                             setup_cmd: str,
+                             sandbox_venv_dir: str | None = None) -> list[str]:
     """Exact ``docker run --rm`` argv for the provision container (§3.4).
-    Network ON (default bridge), rw rootfs, --cap-drop ALL, single mount
-    {workspace} (Q1); --user host uid:gid (AE-SBX-009) with HOME=/tmp."""
+    Network ON (default bridge), rw rootfs, --cap-drop ALL, mount set
+    {workspace} + host-only masks (022); --user host uid:gid (AE-SBX-009) with
+    HOME=/tmp."""
     payload = [
         "docker", "run", "--rm", "--name", f"{run_id}-provision",
         "--network", "bridge", "--cap-drop", "ALL",
@@ -401,8 +484,8 @@ def docker_provision_payload(*, run_id: str, image: str, workspace: str,
     user = host_user_flag()
     if user is not None:
         payload.extend(["--user", user, "--env", "HOME=/tmp"])
+    payload.extend(_sandbox_mounts(workspace, sandbox_venv_dir))
     payload.extend([
-        "-v", f"{workspace}:{workspace}",
         "--workdir", workspace,
         image, "sh", "-c", setup_cmd,
     ])
@@ -502,7 +585,7 @@ class DockerBackend(Sandbox):
 
     def __init__(self, *, image: str, workspace: str, iso_state_dir: str,
                  profile: EffectiveProfile, runner: CommandRunner | None = None,
-                 network: bool = False):
+                 network: bool = False, sandbox_venv_dir: str | None = None):
         self._image = image
         self._workspace = workspace
         self._iso_state_dir = Path(iso_state_dir)  # host-only (audit)
@@ -512,6 +595,13 @@ class DockerBackend(Sandbox):
         self._container = exec_container_name(self._run_id, network=False)
         self._network_container = exec_container_name(self._run_id, network=True)
         self._network_enabled = network
+        self._sandbox_venv_dir = sandbox_venv_dir  # 022 relocated venv (opt-in)
+        if sandbox_venv_dir is not None:
+            # 022: the relocated venv dir is a bind-mount source. On native
+            # Linux, Docker auto-creates a missing source as root, which the
+            # --user uid:gid containers then cannot write (the AE-SBX-009
+            # ownership class). Pre-create it host-side so it is uid-owned.
+            Path(sandbox_venv_dir).mkdir(parents=True, exist_ok=True)
         self._started = False
         self._network_started = False
 
@@ -551,7 +641,8 @@ class DockerBackend(Sandbox):
         infrastructure work happens mid-run (014 per-stage networking)."""
         payload = docker_create_payload(
             run_id=self._run_id, image=self._image, profile=self._profile,
-            workspace=self._workspace, network=False)
+            workspace=self._workspace, network=False,
+            sandbox_venv_dir=self._sandbox_venv_dir)
         res = self._runner.run(payload, timeout=60)
         if res.exit_code != 0:
             raise SandboxError(
@@ -562,7 +653,8 @@ class DockerBackend(Sandbox):
             return
         net_payload = docker_create_payload(
             run_id=self._run_id, image=self._image, profile=self._profile,
-            workspace=self._workspace, network=True)
+            workspace=self._workspace, network=True,
+            sandbox_venv_dir=self._sandbox_venv_dir)
         net_res = self._runner.run(net_payload, timeout=60)
         if net_res.exit_code != 0:
             # reclaim the already-started network-none container — never leak it.
@@ -587,12 +679,13 @@ class DockerBackend(Sandbox):
         """
         if not force and read_stamp(Path(stamp_dir), stamp_key):
             if self._probe_venv() == "broken":
-                remove_sandbox_venv(self._workspace)
+                remove_sandbox_venv(self._workspace,
+                                    sandbox_venv_dir=self._sandbox_venv_dir)
             else:
                 return
         payload = docker_provision_payload(
             run_id=self._run_id, image=self._image, workspace=self._workspace,
-            setup_cmd=setup_cmd)
+            setup_cmd=setup_cmd, sandbox_venv_dir=self._sandbox_venv_dir)
         res = self._runner.run(payload, timeout=PROVISION_TIMEOUT_SECONDS)
         if res.exit_code != 0:
             tail = (res.stdout or res.stderr or "")[-4000:]
@@ -846,9 +939,12 @@ def startup_sandbox(cfg: PipelineConfig, *, workspace: Path,
     image = resolve_image_ref(profile.image)
     iso_state_dir = isolation_state_dir(cfg)
     needs_network = any(step.network for step in cfg.steps)
+    sandbox_venv_dir = resolve_sandbox_venv_dir(
+        cfg.isolation.sandbox_venv_dir if cfg.isolation else None, workspace)
     backend = DockerBackend(
         image=image, workspace=str(workspace), iso_state_dir=str(iso_state_dir),
-        profile=profile, runner=runner, network=needs_network)
+        profile=profile, runner=runner, network=needs_network,
+        sandbox_venv_dir=sandbox_venv_dir)
     backend.ensure_image()
     backend.create_execution_container()
     if refresh is None:

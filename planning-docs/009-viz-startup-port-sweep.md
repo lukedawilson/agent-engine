@@ -47,7 +47,7 @@ The `port_sweep` step leaves `examples/self/pipeline.yaml` (the `kill_listeners`
 - Mock policy (repo rule, extended here): `run_agent` remains the only stubbed *agent* seam; process/socket tests stay real (`lsof_required` marker). The CLI-lifecycle tests **must** stub the sweep — a real sweep in a test could kill a contributor's live server on 8321 (the yosk-cms pid on this machine is exactly that case). The seam is `agent_engine.graph.kill_listeners_on_port` (the name `graph` imports), monkeypatched in `main()` lifecycle tests only — the same justification plan 001 gave `serve_viz`/`webbrowser.open`
 - Never silent: the fallback prints a notice naming the busy preferred port and the actual port
 - No new dependencies; `lsof`/`socket`/`errno` only
-- Full suite green at the end of every task: `.venv/bin/python -m pytest tests/ -q`
+- Full suite green at the end of every task: `.venv-sandbox/bin/python -m pytest tests/ -q`
 
 ## Locked decisions (from user / research)
 
@@ -139,7 +139,7 @@ if args.viz_port:
 
 ## Verification
 
-1. `.venv/bin/python -m pytest tests/ -q` green.
+1. `.venv-sandbox/bin/python -m pytest tests/ -q` green.
 2. Manual, staged, on this machine (pid 81855 still holds 8321 — ideal fixture):
    - Run any pipeline (or `viz_demo.py` with `--port 8321`) → notice printed, server on a free port, pid 81855's yosk-cms server untouched.
    - Terminate the yosk-cms server, re-run → binds 8321 (preferred honored).

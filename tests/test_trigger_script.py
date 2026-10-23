@@ -57,6 +57,8 @@ def _make_stub(bin_dir: Path, name: str, body: str) -> None:
     path = bin_dir / name
     path.write_text(f"#!/bin/bash\n{body}\n")
     path.chmod(0o755)
+    if not os.access(path, os.X_OK):
+        pytest.skip("tmp filesystem is mounted noexec; stub executables cannot run")
 
 
 def _env_with(bin_dir: Path | None = None) -> dict:

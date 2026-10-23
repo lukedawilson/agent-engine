@@ -25,7 +25,7 @@ Empirical repro: headless Chrome against the real server with a pre-populated ba
 
 - TDD red→green→refactor for every task
 - Mock policy unchanged (repo rule): no new seams; `PAGE` changes covered by the existing string-assertion pattern (`test_page_constant_*`); no JS test runner — assertions are Python strings on `PAGE`
-- Full suite green at the end of every task: `.venv/bin/python -m pytest tests/ -q`
+- Full suite green at the end of every task: `.venv-sandbox/bin/python -m pytest tests/ -q`
 - No protocol amendment needed (client-only fix)
 
 ## Locked decisions (from user + investigation)
@@ -63,13 +63,13 @@ Empirical repro: headless Chrome against the real server with a pre-populated ba
 
 **Files:** none (possibly extend tests if a gap appears)
 
-- [ ]**Step 1:** Full suite: `.venv/bin/python -m pytest tests/ -q` — existing page-constant tests (`test_page_constant_has_nodes_filter_hook`, `test_page_constant_logs_only_drawn_nodes`, …) and server tests stay green, proving the `nodeIds.has` guards and event protocol are unchanged.
+- [ ]**Step 1:** Full suite: `.venv-sandbox/bin/python -m pytest tests/ -q` — existing page-constant tests (`test_page_constant_has_nodes_filter_hook`, `test_page_constant_logs_only_drawn_nodes`, …) and server tests stay green, proving the `nodeIds.has` guards and event protocol are unchanged.
 - [ ]**Step 2:** Headless Chrome repro (same technique as the diagnosis): real server with a pre-populated backlog (`run_started` + `node_started(dev)`), `--dump-dom`. The dump must now contain the `▶ dev running` log line. (Mermaid CDN is blocked in headless, so graph rendering is not assertable this way — the log line is the signal.)
 - [ ]**Step 3:** Manual smoke: `./run-demo.sh` in a real browser — `dev` flashes amber and pulses while "running", and a mid-run page reload shows the currently-running stage flashing immediately (backlog replayed then rendered).
 
 ## Verification
 
-1. `.venv/bin/python -m pytest tests/ -q` green.
+1. `.venv-sandbox/bin/python -m pytest tests/ -q` green.
 2. Headless Chrome dump shows `▶ dev running` (Task 2 Step 2).
 3. Manual eyeball: `./run-demo.sh` — first stage flashes while running, all later stages flash, log shows every stage. **User eyeballs.**
 

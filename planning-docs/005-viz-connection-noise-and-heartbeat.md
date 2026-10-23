@@ -20,7 +20,7 @@
 
 - TDD red→green→refactor for every task
 - Mock policy unchanged (repo rule): no new seams; `PAGE` changes covered by the existing string-assertion pattern (`test_page_constant_*`); server changes covered in `tests/test_viz.py`
-- Full suite green at the end of every task: `.venv/bin/python -m pytest tests/ -q`
+- Full suite green at the end of every task: `.venv-sandbox/bin/python -m pytest tests/ -q`
 - Protocol amendment (documented in 001's style): new `heartbeat` event. All existing event shapes unchanged.
 
 ## Locked decisions (from user)
@@ -97,7 +97,7 @@
 
 ## Verification
 
-1. `.venv/bin/python -m pytest tests/ -q` green.
+1. `.venv-sandbox/bin/python -m pytest tests/ -q` green.
 2. Manual smoke (Task 5) — **user eyeballs.**
 3. Real `agent-engine <pipeline> --plan <doc>` run — **user triggers**: elapsed line ticks during long nodes; no request-path tracebacks on tab close/refresh.
 

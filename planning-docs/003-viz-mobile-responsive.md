@@ -19,7 +19,7 @@ The breakpoint of 768px stacks on both Bootstrap's `xs` (< 576px) and `sm` (576�
 - TDD red→green→refactor for every task
 - Mock policy unchanged (repo rule): this is a frontend-only change — new coverage is plain string assertions on `PAGE`, matching the existing `test_page_constant_*` pattern; no new seams
 - `viz_bus=` semantics, event protocol, `/topology` payload, and server behavior are untouched (nothing outside the `PAGE` string changes)
-- Full suite green at the end of every task: `.venv/bin/python -m pytest tests/ -q`
+- Full suite green at the end of every task: `.venv-sandbox/bin/python -m pytest tests/ -q`
 
 ## Locked decisions (from user)
 
@@ -76,6 +76,6 @@ The breakpoint of 768px stacks on both Bootstrap's `xs` (< 576px) and `sm` (576�
 
 ## Verification
 
-1. `.venv/bin/python -m pytest tests/ -q` green.
+1. `.venv-sandbox/bin/python -m pytest tests/ -q` green.
 2. Manual smoke (Task 3) — **user eyeballs** at a phone width and at desktop width.
 3. Real `agent-engine examples/self/pipeline.yaml --plan <doc> --viz` run — **user triggers** (makes LLM calls).
