@@ -174,6 +174,8 @@ steps:
 | `isolation:` (optional) | Configures the sandbox — image override, resource caps, `allow_git_mutations`. It can never disable it. |
 | `state_dir` | Defaults to `~/.agentic-dev-loop/runs/<pipeline-hash>/` — artifacts and checkpoints live outside the sandbox mount. |
 | `extensions_dir` | Where consumer `extensions:` modules resolve — defaults to `~/.agentic-dev-loop/extensions`, **outside** the workspace. Workspace-resident extension/tool modules are refused at load. |
+| `deps_policy` | `locked` (default) or `open`. `locked` = the human-owned lockfile is the source of truth and the agent may not add dependencies; `open` = the bootstrap protocol (the agent may add exact-pinned manifest entries). See [Dependency policy](#dependency-policy-locked-by-default). |
+| `lockfiles` | The pipeline's declared lockfile names (workspace-relative), injected into agent context and named by the missing-dependency fail-fast. Required (non-empty) when `deps_policy: locked` — a `locked` pipeline with no lockfiles fails fast at load. |
 
 ### Secrets (`secrets:`) — refs only, never values
 
@@ -238,6 +240,76 @@ steps:
   egress for that stage; the default stays network-off everywhere. Reserve it
   for stages that need it (QA, integration). The residual risk is documented
   in [docs/setup.md](docs/setup.md).
+
+## Dependency policy (locked by default)
+
+The supply-chain dial is a pipeline-level `deps_policy:` field, **locked by
+default**. The engine injects the policy into every agent step's context —
+the rule lives in the engine, not in hand-authored `dev.agent.md` prose (the
+class of rule that deadlocked the NuGet cache).
+
+```yaml
+deps_policy: locked    # or: open    (default: locked)
+lockfiles: [uv.lock]   # or: [packages.lock.json, package-lock.json]
+```
+
+- **`locked`** — the human-owned lockfile is the source of truth; the agent
+  may not add dependencies. The injected rule says *"You may only use
+  dependencies already present in `<lockfile>`. If the design requires a
+  dependency that is not present, declare it in your final response under the
+  fixed header `## Missing dependencies` (one `name==version` per line) and
+  finish what you can. Do not add it to the manifest."* A non-empty
+  `## Missing dependencies` declaration **fails the run fast** with
+  `Extend <lockfile> with these pins and re-run: …` — one human lockfile edit,
+  not a retry loop. The declaration is advisory to the human; the engine never
+  auto-fetches the declared packages.
+- **`open`** — the bootstrap protocol (018): the agent may add exact-pinned
+  manifest entries directly (never a package-manager `add` command); the
+  network-on restore step fetches them. The engine injects the same rule
+  canonically. Nothing about `open` is default.
+
+The **restore step** runs the toolchain's locked mode and fails when the
+manifest and lockfile disagree:
+
+| Toolchain | Locked restore | Lockfile |
+| --- | --- | --- |
+| .NET | `dotnet restore --locked-mode` | `packages.lock.json` (set `RestorePackagesWithLockFile=true`) |
+| node | `npm ci` | `package-lock.json` |
+| python | `uv sync --locked` (or pip-tools `pip-sync requirements.lock`) | `uv.lock` — pip has no native lockfile; `uv` is the canonical locked-install tool |
+
+### Audit escalation in the restore step
+
+The restore step also fails on known-CVE findings, at a per-toolchain
+threshold:
+
+| Toolchain | Audit (fails the step) |
+| --- | --- |
+| .NET | `NuGetAudit` at `error` — any audit finding fails the restore |
+| node | `npm audit --audit-level=high` |
+| python | `pip-audit` — any finding fails |
+
+Under `locked`, a failing audit means the lockfile pins a vulnerable version:
+the run fails and the human regenerates the lockfile at a patched version.
+Under `open`, the failure routes to `dev` like any restore failure — the dev
+agent can bump the pin, but that pin is audited again on the next pass, so
+the loop self-corrects.
+
+### Generating a lockfile
+
+A human generates the lockfile once, on a network machine, and commits it —
+the engine never fetches on the agent's behalf:
+
+```bash
+uv lock                 # python — writes uv.lock from pyproject.toml
+uv sync --locked        # installs exactly uv.lock; fails on any drift
+npm install --package-lock-only   # node — writes package-lock.json
+npm ci                  # installs exactly package-lock.json
+dotnet restore --use-lock-file   # .NET — writes packages.lock.json
+dotnet restore --locked-mode      # installs exactly packages.lock.json
+```
+
+Keep the lockfile tracked (do not gitignore it) and re-run the locked restore
+to prove it holds from a clean cache before setting `deps_policy: locked`.
 
 ## Host boundary (security model)
 

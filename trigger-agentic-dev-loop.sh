@@ -10,7 +10,7 @@ cd "$ROOT"
 # the next run would execute agent-modified engine code in the host. pipx
 # installs into `~/.local/pipx/venvs` — outside the mount set, so the startup
 # self-check accepts it:
-#   pipx install "agentic-dev-loop==1.0.0a9"   # or `pipx install .` for a local snapshot
+#   pipx install agentic-dev-loop   # or `pipx install .` for a local snapshot
 #
 # The pipeline reads the LLM key from the HOST environment (api_key_env:).
 # Do not create a `.env` file here — the engine refuses a run when the
@@ -20,7 +20,7 @@ cd "$ROOT"
 if ! command -v agentic-dev-loop >/dev/null 2>&1; then
   echo "error: agentic-dev-loop is not on PATH" >&2
   echo "       install it outside the workspace with pipx and re-run:" >&2
-  echo "         pipx install \"agentic-dev-loop==1.0.0a9\"" >&2
+  echo "         pipx install agentic-dev-loop" >&2
   exit 1
 fi
 

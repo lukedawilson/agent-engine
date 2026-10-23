@@ -15,6 +15,11 @@ llm:
 
 max_attempts: 10                     # CLI --max-attempts overrides
 agents_dir: sdk_agents               # resolved relative to the pipeline file's dir
+# 021 supply-chain dial: this repo's dogfood loop still runs the bootstrap
+# protocol (its restore step is an open install; no committed lockfile yet —
+# the consumer repos migrate to `locked` per 021 §3). `open` keeps the 018
+# restore behavior verbatim.
+deps_policy: open
 
 steps:
   - name: dev
@@ -23,10 +28,11 @@ steps:
     on_pass: restore
 
   - name: restore
-    command: .venv-sandbox/bin/pip install -e ".[dev]"   # network-on fetch step:
-                                                         # installs any dependency
-                                                         # the dev agent just added
-                                                         # to pyproject.toml
+    # network-on restore step (open bootstrap) + audit escalation: pip-audit
+    # fails the step on a known-CVE pin. Under `open` that failure routes to
+    # `dev` like any restore failure — dev can bump the pin, and the bumped
+    # pin is audited again on the next pass, so the loop self-corrects.
+    command: .venv-sandbox/bin/pip install -e ".[dev]" && .venv-sandbox/bin/pip-audit --skip-editable
     timeout: 600
     network: true
     on_pass: test

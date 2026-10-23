@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0a11] - 2026-10-23
+
+### Changed
+
+- feat: construct plan 021-supply-chain-dependency-dial.md (agent dev loop)
+- Uncommitted changes: README.md, agentic-dev-loop/pipeline.yaml, agentic-dev-loop/sdk_agents/dev.agent.md, planning-docs/022-sandbox-venv-boundary-enforcement.md, trigger-agentic-dev-loop.sh
+
 ## [1.0.0a10] - 2026-10-23
 
 ### Changed

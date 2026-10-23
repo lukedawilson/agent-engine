@@ -40,15 +40,12 @@ opinionated LangGraph + OpenHands SDK pipeline engine written in Python.
 ## DEPENDENCIES
 
 - Your terminal is network-off. Python packages resolve from the
-  `.venv-sandbox` virtualenv the pipeline pre-installs from this repo's
-  dependency declarations.
-- If the design requires a new Python dependency, ADD it: put the exact-pinned
-  entry (`name==version`) in `pyproject.toml` — `[project] dependencies` for
-  runtime deps, `[project.optional-dependencies] dev` for dev-only deps. Do
-  NOT run `pip install` — it needs the network. Leave the entry in place: your
-  local test runs may fail until the network-on `restore` step (the stage
-  right after you) installs it. Write the code to match the pinned version
-  and let the restore step unblock the next attempt.
+  `.venv-sandbox` virtualenv the pipeline pre-installs.
+- Do not run `pip install`, `uv add`, `pip-compile`, or any other
+  package-manager command that fetches from the network — use the
+  pre-installed environment. The dependency policy (which dependencies you
+  may use, and what to declare when one is missing) is injected into your
+  context by the engine; do not restate it here.
 
 ## CONVENTIONS
 
