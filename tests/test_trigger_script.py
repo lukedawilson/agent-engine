@@ -109,3 +109,83 @@ def test_trigger_errors_when_cli_absent():
 
     assert result.returncode != 0
     assert "pipx install" in result.stderr
+
+
+def _stub_env(tmp_path, *, cli_body='echo "cli-ran: $*"', pipx_body="exit 0"):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _make_stub(bin_dir, "agentic-dev-loop", cli_body)
+    _make_stub(bin_dir, "pipx", pipx_body)
+    return bin_dir
+
+
+def test_trigger_rejects_both_flags(tmp_path):
+    bin_dir = _stub_env(tmp_path)
+
+    result = _run_script("--plan", "plan.md", "--aidlc-unit", "unit-3",
+                         env=_env_with(bin_dir))
+
+    assert result.returncode != 0
+    assert ("pass exactly one of --plan <path> or --aidlc-unit <slug>, "
+            "not both") in result.stderr
+    assert "cli-ran:" not in result.stdout
+
+
+def test_trigger_requires_exactly_one_flag(tmp_path):
+    bin_dir = _stub_env(tmp_path)
+
+    result = _run_script(env=_env_with(bin_dir))
+
+    assert result.returncode != 0
+    assert ("pass exactly one of --plan <path> or --aidlc-unit <slug>"
+            in result.stderr)
+    assert "cli-ran:" not in result.stdout
+
+
+def test_trigger_forwards_aidlc_unit(tmp_path):
+    bin_dir = _stub_env(tmp_path)
+
+    result = _run_script("--aidlc-unit", "unit-3", env=_env_with(bin_dir))
+
+    assert result.returncode == 0, result.stderr
+    assert "cli-ran:" in result.stdout
+    assert "--aidlc-unit unit-3" in result.stdout
+
+
+def test_trigger_unit_positional_is_aidlc_shorthand(tmp_path):
+    bin_dir = _stub_env(tmp_path)
+
+    result = _run_script("unit-3", "--dry-run", env=_env_with(bin_dir))
+
+    assert result.returncode == 0, result.stderr
+    assert "--aidlc-unit unit-3" in result.stdout
+    assert "--dry-run" in result.stdout
+
+
+def test_trigger_passes_other_flags_through(tmp_path):
+    bin_dir = _stub_env(tmp_path)
+
+    result = _run_script("--plan", "plan.md", "--dry-run", "--max-attempts", "3",
+                         env=_env_with(bin_dir))
+
+    assert result.returncode == 0, result.stderr
+    assert "--plan plan.md --dry-run --max-attempts 3" in result.stdout
+
+
+def test_trigger_flag_missing_value_is_usage_error(tmp_path):
+    bin_dir = _stub_env(tmp_path)
+
+    result = _run_script("--plan", env=_env_with(bin_dir))
+
+    assert result.returncode != 0
+    assert "--plan requires a path" in result.stderr
+    assert "cli-ran:" not in result.stdout
+
+
+def test_trigger_equals_forms_accepted(tmp_path):
+    bin_dir = _stub_env(tmp_path)
+
+    result = _run_script("--aidlc-unit=unit-3", env=_env_with(bin_dir))
+
+    assert result.returncode == 0, result.stderr
+    assert "--aidlc-unit unit-3" in result.stdout

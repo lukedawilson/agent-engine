@@ -46,4 +46,45 @@ if ! pipx upgrade --cooldown 0 --pip-args="--prerelease=allow" agentic-dev-loop;
   exit 1
 fi
 
-exec agentic-dev-loop "$ROOT/agentic-dev-loop/pipeline.yaml" "$@"
+# Document loader selection — exactly one of:
+#   --plan <path>        one plan doc as the run's full context
+#   --aidlc-unit <slug>  AI-DLC unit docs
+# The engine refuses flags from two loaders in one invocation ("Flags from
+# multiple document loaders in one invocation"), so the trigger enforces
+# exclusivity up front and forwards the chosen flag. The positional `unit-*`
+# first argument remains as shorthand for --aidlc-unit:
+#   ./trigger-agentic-dev-loop.sh unit-3 --dry-run
+PLAN=""
+UNIT=""
+if [[ "${1:-}" == unit-* ]]; then
+    UNIT="$1"
+    shift
+fi
+REMAINING=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --plan)
+            [[ $# -ge 2 ]] || { echo "error: --plan requires a path" >&2; exit 1; }
+            PLAN="$2"; shift 2
+            ;;
+        --plan=*) PLAN="${1#--plan=}"; shift ;;
+        --aidlc-unit)
+            [[ $# -ge 2 ]] || { echo "error: --aidlc-unit requires a slug" >&2; exit 1; }
+            UNIT="$2"; shift 2
+            ;;
+        --aidlc-unit=*) UNIT="${1#--aidlc-unit=}"; shift ;;
+        *) REMAINING+=("$1"); shift ;;
+    esac
+done
+if [[ -n "$PLAN" && -n "$UNIT" ]]; then
+    echo "error: pass exactly one of --plan <path> or --aidlc-unit <slug>, not both" >&2
+    exit 1
+fi
+if [[ -z "$PLAN" && -z "$UNIT" ]]; then
+    echo "error: pass exactly one of --plan <path> or --aidlc-unit <slug> (e.g. --aidlc-unit unit-3)" >&2
+    exit 1
+fi
+if [[ -n "$PLAN" ]]; then
+    exec agentic-dev-loop "$ROOT/agentic-dev-loop/pipeline.yaml" --plan "$PLAN" "${REMAINING[@]+"${REMAINING[@]}"}"
+fi
+exec agentic-dev-loop "$ROOT/agentic-dev-loop/pipeline.yaml" --aidlc-unit "$UNIT" "${REMAINING[@]+"${REMAINING[@]}"}"
