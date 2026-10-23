@@ -12,3 +12,4 @@ build/
 uv.lock
 .DS_Store
 
+.review-venv/
