@@ -5,14 +5,10 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 
 cd "$ROOT"
 
-# Load local secrets (e.g. OPENAI_API_KEY) if present, so the pipeline's
-# `api_key_env:` resolves without an explicit export. Never committed.
-if [ -f "$ROOT/.env" ]; then
-  set -a
-  # shellcheck disable=SC1091
-  . "$ROOT/.env"
-  set +a
-fi
+# The pipeline reads the LLM key from the HOST environment (api_key_env:).
+# Do not create a `.env` file here — the engine refuses a run when the
+# workspace contains `.env*` (019); export the key instead:
+#   export OPENAI_API_KEY=...
 
 exec "$ROOT/.venv/bin/agentic-dev-loop" \
   "$ROOT/agentic-dev-loop/pipeline.yaml" \

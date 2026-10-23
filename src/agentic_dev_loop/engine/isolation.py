@@ -183,11 +183,17 @@ def resolve_effective_profile(isolation: IsolationConfig | None) -> EffectivePro
 
 
 def resolve_sandbox_env(step_env: dict[str, str | None] | None, *,
-                        host_env: Mapping[str, str] | None = None) -> dict[str, str]:
+                        host_env: Mapping[str, str] | None = None,
+                        secrets: Mapping[str, str] | None = None) -> dict[str, str]:
     """Fixed safe base (PATH/HOME/LANG/LC_ALL/TERM) + the step's declared
     ``env:`` mapping only. A declared value of ``None`` inherits the host
     value; the global ``env_allowlist`` is never consulted and the LLM key is
-    never auto-added (NFR-3.1 / BR-9)."""
+    never auto-added (NFR-3.1 / BR-9).
+
+    ``secrets`` (019) carries the per-step resolved secret env — injected last,
+    so a declared ref is authoritative over any same-named ``env:`` entry. It
+    arrives only from ``step_secret_env``, which maps only the refs the step
+    declared, so no secret ever reaches an undeclaring step."""
     source = os.environ if host_env is None else host_env
     env = dict(SANDBOX_ENV_BASE)
     for name, value in (step_env or {}).items():
@@ -196,6 +202,8 @@ def resolve_sandbox_env(step_env: dict[str, str | None] | None, *,
                 env[name] = source[name]
         else:
             env[name] = value
+    for name, value in (secrets or {}).items():
+        env[name] = value
     return env
 
 

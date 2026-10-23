@@ -22,6 +22,7 @@ from agentic_dev_loop.core.config import load_config
 from .isolation import startup_sandbox
 from .llm import build_llm
 from .loaders import resolve_docs
+from .secrets import resolve_secrets, scan_env_files
 from .registry import Registry, default_registry, load_extensions
 from .stages import (Runtime, build_context, clear_attempt_artifacts,
                      make_action_node, make_agent_node, make_bump_node,
@@ -107,6 +108,11 @@ def run_pipeline(cfg_path, args, *, viz_bus=None,
     base = cfg_path.resolve().parent
     max_attempts = getattr(args, "max_attempts", None) or cfg.max_attempts
 
+    # 019: refuse secret-bearing workspace files and resolve declared secret
+    # refs host-side BEFORE any sandbox/LLM work — fail fast, loudly.
+    scan_env_files(Path.cwd())
+    resolved_secrets = resolve_secrets(cfg)
+
     if registry is None:
         registry = default_registry()
         load_extensions(cfg.extensions, registry)
@@ -122,16 +128,17 @@ def run_pipeline(cfg_path, args, *, viz_bus=None,
                                refresh=getattr(args, "refresh", False))
     try:
         return _run_pipeline(cfg, base, registry, state_dir, max_attempts,
-                             args, viz_bus, sandbox)
+                             args, viz_bus, sandbox, resolved_secrets)
     finally:
         sandbox.close()
 
 
 def _run_pipeline(cfg, base, registry, state_dir, max_attempts, args, viz_bus,
-                  sandbox) -> tuple[bool, int]:
+                  sandbox, resolved_secrets) -> tuple[bool, int]:
     runtime = Runtime(cfg=cfg, registry=registry, llm=build_llm(cfg.llm),
                       agents_dir=base / cfg.agents_dir, state_dir=state_dir,
-                      workspace=Path.cwd(), sandbox=sandbox)
+                      workspace=Path.cwd(), sandbox=sandbox,
+                      secrets=resolved_secrets)
     state_dir.mkdir(parents=True, exist_ok=True)
 
     resume = getattr(args, "resume", None)

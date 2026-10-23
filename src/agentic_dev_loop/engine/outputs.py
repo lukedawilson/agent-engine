@@ -16,6 +16,7 @@ from pathlib import Path
 from openhands.sdk.conversation.response_utils import get_agent_final_response
 
 from agentic_dev_loop.core.results import Result
+from .secrets import redact_values
 
 
 class CaptureError(enum.Enum):
@@ -32,11 +33,13 @@ class CapturedOutput:
 
     @staticmethod
     def from_agent_result(
-        conv, artifact: str, state_dir: Path
+        conv, artifact: str, state_dir: Path,
+        redactions: tuple[str, ...] = ()
     ) -> "Result[CapturedOutput, CaptureError]":
         text = _final_agent_text(conv)
         if not text.strip():
             return Result.err(CaptureError.EMPTY_RESPONSE)
+        text = redact_values(text, redactions)
         return Result.ok(CapturedOutput(raw_text=text, artifact_path=state_dir / artifact))
 
     def write(self) -> Result[None, CaptureError]:

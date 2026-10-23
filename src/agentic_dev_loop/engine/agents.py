@@ -110,13 +110,17 @@ class SandboxTerminalExecutor(ToolExecutor):
 def register_sandbox_terminal(sandbox: "Sandbox", *, env: dict[str, str | None] | None = None,
                               workspace: str = "", pipeline: str | None = None,
                               step: str | None = None,
-                              network: bool = False) -> None:
+                              network: bool = False,
+                              secrets: dict[str, str] | None = None) -> None:
     """Per-run re-registration of the `terminal` name (KD-4): a callable
     factory that builds the SDK terminal with a `SandboxTerminalExecutor`.
-    Pipelines are sequential, so re-registering per agent step is safe."""
+    Pipelines are sequential, so re-registering per agent step is safe.
+
+    ``secrets`` (019) is the per-step resolved secret env, injected into the
+    terminal's exec env only for steps that declared the refs."""
     from openhands.sdk.tool import register_tool
 
-    resolved_env = resolve_sandbox_env(env)
+    resolved_env = resolve_sandbox_env(env, secrets=secrets)
 
     def factory(conv_state, **params):
         return TerminalTool.create(

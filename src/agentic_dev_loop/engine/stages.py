@@ -23,7 +23,7 @@ import os
 import subprocess
 import sys
 import traceback
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -34,6 +34,7 @@ from .agents import load_agent, register_sandbox_terminal
 from agentic_dev_loop.core.config import TERMINALS, PipelineConfig, Route, StepConfig, route_target
 from .isolation import SandboxExecutionRequest, command_argv, resolve_sandbox_env
 from .outputs import CapturedOutput
+from .secrets import redact_values, step_secret_env
 from agentic_dev_loop.core.verdict import Verdict
 from .proc import (child_env, host_shell_execution, kill_process_tree,
                    needs_shell, split_command)
@@ -60,6 +61,7 @@ class Runtime:
     state_dir: Path
     workspace: Path
     sandbox: Sandbox | None = None
+    secrets: dict[str, str] = field(default_factory=dict)
 
 
 def prompt_dir(runtime: Runtime) -> str:
@@ -112,7 +114,9 @@ def run_agent(agent_name: str, message: str, runtime: Runtime,
                 workspace=str(runtime.workspace),
                 pipeline=runtime.cfg.name,
                 step=step.name if step is not None else None,
-                network=step.network if step is not None else False)
+                network=step.network if step is not None else False,
+                secrets=(step_secret_env(runtime.cfg, step, runtime.secrets)
+                         if step is not None else None))
         agent = load_agent(runtime.agents_dir, agent_name, runtime.llm)
         conv = Conversation(agent=agent, workspace=str(runtime.workspace),
                             max_iteration_per_run=max_iterations)
@@ -123,7 +127,9 @@ def run_agent(agent_name: str, message: str, runtime: Runtime,
 
         if step is not None and (step.artifact is not None or step.produces):
             artifact = step.artifact if step.artifact is not None else step.produces[0]
-            captured = CapturedOutput.from_agent_result(conv, artifact, runtime.state_dir)
+            captured = CapturedOutput.from_agent_result(
+                conv, artifact, runtime.state_dir,
+                redactions=tuple(runtime.secrets.values()))
             if captured.is_err():
                 return AgentResult(ok=True, truncated=truncated,
                                    capture_error=captured.error.value)
@@ -135,7 +141,7 @@ def run_agent(agent_name: str, message: str, runtime: Runtime,
                                response=captured.unwrap().raw_text)
         return AgentResult(ok=True, truncated=truncated)
     except Exception:
-        err = traceback.format_exc()
+        err = redact_values(traceback.format_exc(), runtime.secrets.values())
         print(err[-4000:], file=sys.stderr, flush=True)
         runtime.state_dir.mkdir(parents=True, exist_ok=True)
         error_path = runtime.state_dir / LAST_ERROR
@@ -338,7 +344,8 @@ def make_command_node(runtime: Runtime, step: StepConfig):
     timeout = step.timeout if step.timeout is not None else DEFAULT_COMMAND_TIMEOUT
     sandbox = runtime.sandbox
     if sandbox is not None:
-        env = resolve_sandbox_env(step.env)
+        env = resolve_sandbox_env(
+            step.env, secrets=step_secret_env(runtime.cfg, step, runtime.secrets))
     else:
         env = child_env(runtime.cfg.env_allowlist, runtime.cfg.llm.api_key_env)
 
@@ -352,9 +359,12 @@ def make_command_node(runtime: Runtime, step: StepConfig):
                 sandbox=sandbox, pipeline=runtime.cfg.name, step=step.name,
                 network=step.network)
         except Exception:
-            print(traceback.format_exc()[-4000:], file=sys.stderr, flush=True)
+            print(redact_values(traceback.format_exc(),
+                                runtime.secrets.values())[-4000:],
+                  file=sys.stderr, flush=True)
             return {"failed": True, "failed_step": step.name}
         if output:
+            output = redact_values(output, runtime.secrets.values())
             print(output, end="" if output.endswith("\n") else "\n", flush=True)
         merged = {**state["step_verdicts"],
                   step.name: "pass" if exit_code == 0 else "fail"}
@@ -383,7 +393,9 @@ def make_action_node(runtime: Runtime, step: StepConfig):
         try:
             return fn(state, step.params) or {}
         except Exception:
-            print(traceback.format_exc()[-4000:], file=sys.stderr, flush=True)
+            print(redact_values(traceback.format_exc(),
+                                runtime.secrets.values())[-4000:],
+                  file=sys.stderr, flush=True)
             return {"failed": True, "failed_step": step.name}
 
     return node

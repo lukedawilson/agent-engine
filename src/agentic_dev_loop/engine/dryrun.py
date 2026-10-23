@@ -17,6 +17,7 @@ from .loaders import resolve_docs
 from .isolation import (isolation_state_dir, resolve_effective_profile,
                         resolve_image_ref)
 from .registry import Registry, default_registry, load_extensions
+from .secrets import scan_env_files
 
 
 def _validate_agents(cfg: PipelineConfig, agents_dir: Path) -> None:
@@ -113,6 +114,7 @@ def dry_run(cfg_path, args, registry: Registry | None = None) -> int:
     cfg_path = Path(cfg_path)
     cfg = load_config(cfg_path)
     base = cfg_path.resolve().parent
+    scan_env_files(Path.cwd())
 
     if registry is None:
         registry = default_registry()

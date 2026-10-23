@@ -38,7 +38,11 @@ _COMMAND_QUEUE: list[tuple] = []
 
 def _fake_sandbox_run(request):
     """Script the example's mechanical test command through the FakeSandbox
-    (the sandbox boundary) — the consumer-repo copy has no `.venv-sandbox`."""
+    (the sandbox boundary) — the consumer-repo copy has no `.venv-sandbox`.
+    Only the pytest gate is scripted; the network-on `restore` step (added
+    later, 016/018) always passes so it never consumes the scripted queue."""
+    if "pytest" not in " ".join(request.argv):
+        return 0, "", False
     if not _COMMAND_QUEUE:
         return 0, "", False
     behavior = _COMMAND_QUEUE[0]

@@ -11,6 +11,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 TERMINALS = frozenset({"success", "failure"})
+KNOWN_SECRET_PROVIDERS = frozenset({"env"})
 
 
 class VerdictSpec(BaseModel):
@@ -34,6 +35,34 @@ def route_target(route: RouteTarget | None) -> str | None:
     if route is None:
         return None
     return route.goto if isinstance(route, Route) else route
+
+
+class SecretSpec(BaseModel):
+    """One ``secrets:`` ref — the locator only, never a value. ``from`` names
+    the provider (``env`` first); ``key`` is that provider's locator (for
+    ``env``, the host environment variable to read and the step env name to
+    inject). Unknown keys fail at load (extra="forbid")."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    from_: str = Field(alias="from")
+    key: str
+
+    @field_validator("from_")
+    @classmethod
+    def _known_provider(cls, v: str) -> str:
+        if v not in KNOWN_SECRET_PROVIDERS:
+            raise ValueError(
+                f"unknown secret provider {v!r} (known: "
+                f"{sorted(KNOWN_SECRET_PROVIDERS)})")
+        return v
+
+    @field_validator("key")
+    @classmethod
+    def _nonempty_key(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("secret key must be a non-empty string")
+        return v
 
 
 class IsolationConfig(BaseModel):
@@ -86,6 +115,7 @@ class StepConfig(BaseModel):
     env: dict[str, str | None] | None = None  # NFR-1: null = inherit host value
     setup: str | None = None  # BR-13: command steps only
     network: bool = False  # per-stage egress (command + agent steps; action steps reject)
+    secrets: list[str] = []  # declared ref names; action steps reject
     on_pass: RouteTarget | None = None
     on_fail: RouteTarget | None = None
 
@@ -148,6 +178,11 @@ class StepConfig(BaseModel):
                 f"step {self.name!r}: 'network' is only allowed on 'agent' or "
                 "'command' steps"
             )
+        if self.secrets and self.action is not None:
+            raise ValueError(
+                f"step {self.name!r}: 'secrets' is only allowed on 'agent' or "
+                "'command' steps"
+            )
         return self
 
 
@@ -170,9 +205,27 @@ class PipelineConfig(BaseModel):
     llm: LlmConfig
     isolation: IsolationConfig | None = None  # None = always-on defaults
     state_dir: str = ".pr"  # default relocated to ~/.agentic-dev-loop/runs/<hash>/ at load
+    secrets: dict[str, SecretSpec] = {}  # ref name -> locator; values never appear here
     max_attempts: int = 3
     agents_dir: str
     steps: list[StepConfig] = Field(min_length=1)
+
+    @field_validator("secrets", mode="before")
+    @classmethod
+    def _reject_value_shaped_refs(cls, v: Any) -> Any:
+        if v is None:
+            return {}
+        if not isinstance(v, dict):
+            raise ValueError(
+                "'secrets' must be a mapping of ref name to "
+                "{from: ..., key: ...}")
+        for name, spec in v.items():
+            if not isinstance(spec, dict):
+                raise ValueError(
+                    f"secret ref {name!r} must be a mapping "
+                    "{from: ..., key: ...}, not a literal value — secret "
+                    "values never belong in the pipeline yaml")
+        return v
 
     @model_validator(mode="after")
     def _check_graph(self) -> "PipelineConfig":
@@ -191,6 +244,12 @@ class PipelineConfig(BaseModel):
                     raise ValueError(
                         f"step {step.name!r}: unknown route target {target!r}"
                     )
+        for step in self.steps:
+            for ref in step.secrets:
+                if ref not in self.secrets:
+                    raise ValueError(
+                        f"step {step.name!r}: secret ref {ref!r} is not "
+                        "declared in the top-level 'secrets:' section")
         return self
 
 

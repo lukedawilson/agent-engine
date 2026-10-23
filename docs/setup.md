@@ -160,3 +160,55 @@ egress for that stage. The networked container stays `--read-only` +
 `--cap-drop ALL`, so the blast radius is data exfiltration and reachability,
 not host compromise. Pipeline authors should reserve networked stages for
 those that need them (QA, integration).
+
+## 7. Secrets (`secrets:`) and the `.env*` ban
+
+Secret values are **refs in config, values only in the host**. Declare the refs
+at the top of `pipeline.yaml` and opt each step into the refs it needs:
+
+```yaml
+secrets:                              # refs only — never values
+  kinde-client-secret:
+    from: env                         # provider name (env ships first)
+    key: KINDIE_CLIENT_SECRET         # host env var to read + step env name
+
+steps:
+  - name: qa
+    command: ./qa/run-against-kinde.sh
+    secrets: [kinde-client-secret]
+```
+
+- **Resolution is host-side, once, at run start.** The `env` provider reads the
+  named host environment variable. A missing variable fails fast naming the
+  ref, the declaring step(s), and the provider error. There is no silent
+  degradation.
+- **Injection is per step.** A resolved value reaches a step's exec env only
+  when that step lists the ref — the same `resolve_sandbox_env` path step
+  `env:` uses today. It never reaches the provision container, `state_dir`, an
+  agent's context, or any other step.
+- **Providers.** Only `env` ships. Later providers (`keychain`, `op`, `sops`)
+  implement the same `resolve(keys) -> {key: value}` interface — that interface
+  is the compatibility contract.
+- **`.env*` ban.** Before anything else runs, the workspace root is scanned for
+  `.env*` files. Any hit fails fast, naming the files, with the remedy text
+  ("move these values into `secrets:` refs / host env and delete the files").
+  The convention fixtures `.env.example`, `.env.template`, `.env.sample` are
+  whitelisted. The ban applies regardless of `network:` flags — the workspace
+  must simply not contain secrets.
+- **Output scrubbing.** Every resolved value is scrubbed from captured step
+  output, retry notes, artifacts, and `state_dir` files before they are written.
+  This is hygiene, not a control: the declaring step's agent has already seen
+  the value in its own env.
+
+### Migration checklist (consumer)
+
+1. Replace secret-bearing workspace files with `secrets:` refs and host env.
+2. Read the values from environment variables in scripts (`qa/common.sh`), not
+   from a committed `.env`.
+3. Delete the `.env` file — the run refuses to start while it exists.
+4. Add the `secrets:` block and the per-step `secrets: [...]` opt-in.
+5. Run `--dry-run` (validates schema/refs) then a full run against the real
+   service with no `.env` in the workspace.
+6. Prefer a mechanical `command` step for secret-consuming work (decision 5):
+   the LLM and the secret never meet. Reserve `agent` + `secrets` for steps
+   whose job genuinely requires the agent to exercise them.

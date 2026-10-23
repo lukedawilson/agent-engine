@@ -153,8 +153,48 @@ steps:
 | `produces:` / `artifact:` + `verdicts:` | Hygiene-tracked outputs vs verdict-parsed routing. The **last** `VERDICT:` line wins; stale artifacts are deleted at each attempt start. |
 | `on_pass:` / `on_fail:` | A step name, terminal `success`/`failure`, or `{goto: X, retry: true}`. No loops happen unless you write them. |
 | `env:` / `setup:` / `network:` | `env:` declares step vars (fixed safe base + declared vars only); `setup:` provisions the sandbox (command steps, network ON, stamp-cached); `network: true` grants egress to a command or agent step (default off) — see [Per-stage networking](#per-stage-networking). |
+| `secrets:` (top-level) / step `secrets:` | Declares secret **refs only — never values**; each step opts in to the refs it needs. Resolved host-side and injected into that step's exec env only. See [Secrets](#secrets--refs-only-never-values). |
 | `isolation:` (optional) | Configures the sandbox — image override, resource caps, `allow_git_mutations`. It can never disable it. |
 | `state_dir` | Defaults to `~/.agentic-dev-loop/runs/<pipeline-hash>/` — artifacts and checkpoints live outside the sandbox mount. |
+
+### Secrets (`secrets:`) — refs only, never values
+
+Secret values never belong in the pipeline yaml, the workspace, or `state_dir`.
+Declare the refs at the top level and opt each step into the refs it needs:
+
+```yaml
+secrets:                              # refs only — never values
+  kinde-client-secret:                # ref name (arbitrary)
+    from: env                         # provider name
+    key: KINDIE_CLIENT_SECRET         # provider-specific locator
+  r2-keys:
+    from: env
+    key: YOSK_R2_KEYS
+
+steps:
+  - name: qa
+    agent: qa
+    secrets: [kinde-client-secret, r2-keys]
+```
+
+- The engine resolves every declared ref **host-side at run start** (the `env`
+  provider reads the named host environment variable). A missing variable, an
+  unknown provider, or a ref a step lists without declaring it fails fast —
+  naming the ref, the step, and the provider error. No silent fallback.
+- A resolved secret is injected into a step's exec env **only when that step
+  lists the ref** — the same path step `env:` uses, no new channel. The secret
+  never reaches the provision container, `state_dir`, or any other step.
+- Prefer a mechanical `command` step for secret-consuming work (a script runs
+  the app with creds) so the LLM and the secret never meet; an `agent` step
+  holds a secret only when its job genuinely requires it.
+- **`.env*` ban.** At run start the workspace root is scanned for `.env*`
+  files. Any hit fails fast, naming the files, with the remedy text. The
+  convention fixtures `.env.example`, `.env.template`, and `.env.sample` are
+  whitelisted. This applies regardless of `network:` flags.
+- **Output scrubbing.** Resolved secret values are scrubbed from every
+  engine-written output — captured step output, retry notes, artifacts, and
+  `state_dir` files. (Hygiene: the declaring step's agent has already seen
+  the value in its own env.)
 
 ### Per-stage networking
 
@@ -187,8 +227,7 @@ steps:
 git clone git@github.com:lukedawilson/agentic-dev-loop.git
 cd agentic-dev-loop
 ./setup-venv.sh                       # idempotent .venv setup (never touches bare pip)
-# create .env with your LLM key (loaded by trigger-agentic-dev-loop.sh, never committed):
-#   echo 'OPENAI_API_KEY=...' > .env
+export OPENAI_API_KEY=...           # set your LLM key in the host env (no .env in the repo)
 python -m pytest tests/ -q            # fast suite
 python -m pytest tests/ -q -m "not docker"   # skip engine-dependent tests
 ./trigger-agentic-dev-loop.sh --dry-run      # run the shipped pipeline against this repo
