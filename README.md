@@ -51,8 +51,17 @@ LLM timeout (agent runs are long).
 | LLM API key | The env var named by your pipeline's `api_key_env` (e.g. `OPENAI_API_KEY`) must be set — a missing key fails fast, naming it. |
 
 ```bash
-pip install "agentic-dev-loop==1.0.0a8"
+pip install "agentic-dev-loop==1.0.0a9"
 agentic-dev-loop --version
+```
+
+If you install with `uv` shortly after a release, pass `--refresh` — PyPI
+serves the package index with `Cache-Control: max-age=600`, and uv otherwise
+reuses a pre-upload snapshot of the index for up to 10 minutes, reporting
+"no version of agentic-dev-loop==X.Y.Z" for a version that is already live:
+
+```bash
+uv pip install --refresh "agentic-dev-loop==1.0.0a9"
 ```
 
 On the first run the engine pulls the **digest-pinned** dev image
