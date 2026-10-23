@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 #
-# setup-venv.sh — create/repair the .venv that ./trigger-agentic-dev-loop.sh needs.
+# setup-venv.sh — create/repair the throwaway .venv for local `pytest` runs.
+#
+# The loop itself runs from a pipx install (OUTSIDE the workspace — 020);
+# this .venv is dev-only tooling, never the host engine. The pipeline's
+# `test` step provisions its own `.venv-sandbox` inside the sandbox.
 #
 # Idempotent. Safe to re-run after a breakage or on a fresh checkout.
 #
@@ -107,26 +111,27 @@ fi
 
 # ---------------------------------------------------------------------------
 # 5. Install the package (non-editable) with dev extras.
-#    Dev extras include pytest + hypothesis, which the pipeline's `test` step
-#    runs via `.venv/bin/python -m pytest tests/ -q`.
+#    Dev extras include pytest + hypothesis, which local runs invoke via
+#    `.venv/bin/python -m pytest tests/ -q`.
 # ---------------------------------------------------------------------------
 "$VENV/bin/pip" install ".[dev]"
 
 # ---------------------------------------------------------------------------
-# 6. Smoke check the entry point that trigger-agentic-dev-loop.sh execs.
+# 6. Smoke check that the test runner works.
 # ---------------------------------------------------------------------------
-if [ ! -x "$VENV/bin/agentic-dev-loop" ]; then
-  echo "error: .venv/bin/agentic-dev-loop was not created" >&2
+if ! "$VENV/bin/python" -c 'import pytest, hypothesis' >/dev/null 2>&1; then
+  echo "error: .venv/bin/python lacks pytest/hypothesis" >&2
   exit 1
 fi
 
 cat <<EOF
 
 setup complete:
-  .venv/bin/agentic-dev-loop  ->  $(command -v "$VENV/bin/agentic-dev-loop")
-  .venv/bin/python        ->  $("$VENV/bin/python" -c 'import sysconfig; print(sysconfig.get_platform())')
+  .venv/bin/python  ->  $("$VENV/bin/python" -c 'import sysconfig; print(sysconfig.get_platform())')
 
 next steps:
-  export OPENAI_API_KEY=...          # the pipeline fails fast without it
-  ./trigger-agentic-dev-loop.sh --ai-dlc-unit U2
+  .venv/bin/python -m pytest tests/ -q   # run the fast suite locally
+  pipx install "agentic-dev-loop==1.0.0a9"   # install the loop engine OUTSIDE the workspace
+  export OPENAI_API_KEY=...               # the pipeline fails fast without it
+  agentic-dev-loop agentic-dev-loop/pipeline.yaml --dry-run
 EOF

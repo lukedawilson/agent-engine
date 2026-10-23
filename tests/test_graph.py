@@ -231,8 +231,26 @@ class TestRunPipeline:
         assert git(repo, "status", "--porcelain")  # dirty file untouched
 
     def test_missing_additional_file_fails_fast(self, repo, fake_agents):
+        # A committed additional file that has been deleted is a *dirty tooling
+        # file* (020) — the run-start integrity check names it before the
+        # loader ever reads it.
+        from agentic_dev_loop.engine.hostboundary import HostBoundaryError
         (repo / "coding-standards-ddd.yaml").unlink()
-        with pytest.raises(FileNotFoundError, match="coding-standards-ddd.yaml"):
+        with pytest.raises(HostBoundaryError, match="coding-standards-ddd.yaml"):
+            run_pipeline("pipeline.yaml", args())
+        assert fake_agents.calls == []
+
+    def test_never_committed_missing_additional_file_fails_fast(self, repo,
+                                                                fake_agents):
+        # A clean (never-committed) additional file that simply does not exist
+        # is not a tooling modification — the loader's missing-file guard is
+        # what catches it.
+        (repo / "pipeline.yaml").write_text(
+            YOSK_YAML.replace("coding-standards-ddd.yaml",
+                              "no-such-shared-file.yaml"))
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "reference missing additional file")
+        with pytest.raises(FileNotFoundError, match="no-such-shared-file.yaml"):
             run_pipeline("pipeline.yaml", args())
         assert fake_agents.calls == []
 
@@ -240,7 +258,9 @@ class TestRunPipeline:
         (repo / "empty.yaml").write_text(YOSK_YAML.replace(
             "agentic_dev_loop.engine.extensions.aidlc:AidlcExtension",
             "sample_ext:EmptyLoaderExtension"))
-        with pytest.raises(RuntimeError, match="empty"):
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "add empty-loader pipeline")
+        with pytest.raises(RuntimeError, match="refusing to build context"):
             run_pipeline("empty.yaml", args(empty=True, plan=None))
         assert fake_agents.calls == []
 

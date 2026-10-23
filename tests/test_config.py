@@ -479,14 +479,15 @@ class TestStepNetwork:
                           "on_pass": "success"}]
         assert _load(tmp_path, data).steps[0].network is True
 
-    def test_network_on_action_step_rejected(self, tmp_path):
+    def test_network_on_action_step_allowed_at_config_level(self, tmp_path):
+        """020: the schema can't distinguish a host-side built-in action from
+        a sandbox action, so `network` on an action step is accepted here and
+        rejected later (host-side) once the registry is known — see
+        `validate_action_network`."""
         data = _base()
         data["steps"] = [{"name": "commit", "action": "commit", "network": True,
                           "on_pass": "success"}]
-        with pytest.raises(ValidationError,
-                           match="'network' is only allowed on 'agent' or "
-                                 "'command' steps"):
-            _load(tmp_path, data)
+        assert _load(tmp_path, data).steps[0].network is True
 
     def test_network_false_on_action_step_allowed(self, tmp_path):
         data = _base()

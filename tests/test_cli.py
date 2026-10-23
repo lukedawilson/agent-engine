@@ -101,6 +101,8 @@ def repo(tmp_path, monkeypatch, fake_sandbox):
 
 def write_pipeline(repo: Path, name: str, text: str) -> str:
     (repo / name).write_text(text)
+    git(repo, "add", "-A")
+    git(repo, "commit", "-m", f"add {name}")
     return name
 
 

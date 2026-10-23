@@ -70,11 +70,12 @@ isolation:
   that runs in the **provision container with network ON** at startup, before
   any step executes. Outputs land in the bind-mounted workspace. Agent and
   action steps reject `setup:` at load.
-- **`network:` (command and agent steps)** — `network: true` grants the step
-  egress by running it in a second, otherwise-identical bridge-network
-  container (`--read-only`, `--cap-drop ALL`, single workspace mount). Default
-  is `false` — every step stays network-off unless it opts in. Action steps
-  reject `network:` at load (they are host-side).
+- **`network:` (command, agent, and sandbox-action steps)** — `network: true`
+  grants the step egress by running it in a second, otherwise-identical
+  bridge-network container (`--read-only`, `--cap-drop ALL`, single workspace
+  mount). Default is `false` — every step stays network-off unless it opts
+  in. The host-side built-in `commit` action rejects `network:` (refused once
+  the registry is known).
 - **Git mutations** are blocked by default inside the sandbox (commit, push,
   branch/tag create/delete, rebase, …); reads (`status`/`log`/`diff`) always
   work. `allow_git_mutations: true` re-allows them per-pipeline.
@@ -143,8 +144,9 @@ rootfs, `--cap-drop ALL`, with writes only on the single bind-mounted
 workspace. A step that declares `network: true` runs in a second,
 otherwise-identical bridge-network container; network access otherwise exists
 only in the trusted provision phase. The Docker socket is never mounted.
-Action steps, the LangGraph runtime, LLM calls, the viz server, and the commit
-action stay host-side.
+The host-side `commit` action, the LangGraph runtime, LLM calls, and the viz
+server stay host-side; consumer actions run inside the sandbox like command
+steps.
 
 Git hooks during the commit action are **mitigated**, not a residual risk: the
 commit action runs `git -c core.hooksPath=<trusted dir>`, so repo hooks in

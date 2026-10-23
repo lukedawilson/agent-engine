@@ -13,10 +13,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from agentic_dev_loop.core.config import PipelineConfig, StepConfig, load_config
+from .hostboundary import check_orchestrator_install, check_tooling_integrity
 from .loaders import resolve_docs
 from .isolation import (isolation_state_dir, resolve_effective_profile,
                         resolve_image_ref)
-from .registry import Registry, default_registry, load_extensions
+from .registry import (Registry, default_registry, load_extensions,
+                       validate_action_network)
 from .secrets import scan_env_files
 
 
@@ -32,12 +34,18 @@ def _validate_agents(cfg: PipelineConfig, agents_dir: Path) -> None:
 
 def _validate_actions(cfg: PipelineConfig, registry: Registry) -> None:
     """Unknown action names fail at graph build time; catch them here so a
-    dry run is a true load pass."""
+    dry run is a true load pass. Host-side built-in actions cannot take
+    ``network`` (020) — deferred here because the config schema can't
+    distinguish host-side from sandbox actions."""
+    known = set(registry.actions) | set(registry.sandbox_actions)
     for step in cfg.steps:
-        if step.action is not None and step.action not in registry.actions:
+        if step.action is None:
+            continue
+        if step.action not in known:
             raise ValueError(
                 f"step {step.name!r}: unknown action {step.action!r} "
-                f"(registered: {sorted(registry.actions)})")
+                f"(registered: {sorted(known)})")
+        validate_action_network(step.name, step.action, step.network, registry)
 
 
 def _resolved_image(cfg: PipelineConfig) -> tuple[str, str, float]:
@@ -114,11 +122,15 @@ def dry_run(cfg_path, args, registry: Registry | None = None) -> int:
     cfg_path = Path(cfg_path)
     cfg = load_config(cfg_path)
     base = cfg_path.resolve().parent
+    check_orchestrator_install(Path.cwd())
     scan_env_files(Path.cwd())
+    check_tooling_integrity(cfg, cfg_path, base, Path.cwd())
 
     if registry is None:
         registry = default_registry()
-        load_extensions(cfg.extensions, registry)
+        load_extensions(cfg.extensions, registry,
+                        extensions_dir=cfg.extensions_dir,
+                        workspace=Path.cwd())
 
     _validate_agents(cfg, base / cfg.agents_dir)
     _validate_actions(cfg, registry)

@@ -55,6 +55,14 @@ pip install "agentic-dev-loop==1.0.0a9"
 agentic-dev-loop --version
 ```
 
+The canonical consumer install is **pipx**, which puts the engine's venv
+*outside* the workspace — the sandbox mount set is exactly `{workspace}`, so an
+out-of-workspace install is unmounted and never agent-writable:
+
+```bash
+pipx install "agentic-dev-loop==1.0.0a9"
+```
+
 If you install with `uv` shortly after a release, pass `--refresh` — PyPI
 serves the package index with `Cache-Control: max-age=600`, and uv otherwise
 reuses a pre-upload snapshot of the index for up to 10 minutes, reporting
@@ -158,13 +166,14 @@ steps:
 
 | Key | Notes |
 | --- | --- |
-| `agent:` / `command:` / `action:` | Exactly one per step. Agents live in `agents_dir` as `<name>.agent.md`; commands run sandboxed (mechanical, never an LLM call); actions are registered host-side functions. |
+| `agent:` / `command:` / `action:` | Exactly one per step. Agents live in `agents_dir` as `<name>.agent.md`; commands run sandboxed (mechanical, never an LLM call). `commit` is the sole host-side built-in action; consumer actions are sandbox-executed, command-shaped scripts (see [Host boundary](#host-boundary-security-model)). |
 | `produces:` / `artifact:` + `verdicts:` | Hygiene-tracked outputs vs verdict-parsed routing. The **last** `VERDICT:` line wins; stale artifacts are deleted at each attempt start. |
 | `on_pass:` / `on_fail:` | A step name, terminal `success`/`failure`, or `{goto: X, retry: true}`. No loops happen unless you write them. |
 | `env:` / `setup:` / `network:` | `env:` declares step vars (fixed safe base + declared vars only); `setup:` provisions the sandbox (command steps, network ON, stamp-cached); `network: true` grants egress to a command or agent step (default off) — see [Per-stage networking](#per-stage-networking). |
 | `secrets:` (top-level) / step `secrets:` | Declares secret **refs only — never values**; each step opts in to the refs it needs. Resolved host-side and injected into that step's exec env only. See [Secrets](#secrets--refs-only-never-values). |
 | `isolation:` (optional) | Configures the sandbox — image override, resource caps, `allow_git_mutations`. It can never disable it. |
 | `state_dir` | Defaults to `~/.agentic-dev-loop/runs/<pipeline-hash>/` — artifacts and checkpoints live outside the sandbox mount. |
+| `extensions_dir` | Where consumer `extensions:` modules resolve — defaults to `~/.agentic-dev-loop/extensions`, **outside** the workspace. Workspace-resident extension/tool modules are refused at load. |
 
 ### Secrets (`secrets:`) — refs only, never values
 
@@ -223,28 +232,79 @@ steps:
   sandbox container (`--read-only`, `--cap-drop ALL`, single workspace mount)
   on the Docker bridge network — the default network-none container is always
   created too, so no infrastructure work happens mid-run.
-- **Command and agent steps** may declare it. Action steps are host-side and
-  never take it (a load-time error).
+- **Command, agent, and sandbox-action steps** may declare it. The host-side
+  built-in `commit` action never takes it (refused once the registry is known).
 - **Author opt-in is the control.** A networked step gives its agent raw
   egress for that stage; the default stays network-off everywhere. Reserve it
   for stages that need it (QA, integration). The residual risk is documented
   in [docs/setup.md](docs/setup.md).
+
+## Host boundary (security model)
+
+The orchestrator, tool layer, and the `commit` action run in the **host
+process** — they hold your credentials and your full user account, so the
+engine keeps anything agent-writable out of that process:
+
+- **Consumer actions are sandbox-executed.** An action you register via an
+  extension is a command-shaped script (`script + params`), run through the
+  same sandbox path as command steps — the exit code is the verdict, and the
+  code never runs in the host. Only the engine's trusted built-ins (`commit`,
+  document loaders) run host-side.
+- **Extensions load from outside the workspace.** `extensions_dir` defaults to
+  `~/.agentic-dev-loop/extensions`; at load time any extension or tool module
+  whose file resolves under the workspace is refused *before import*, naming
+  the file.
+- **The engine installs outside the workspace.** Install with pipx so the venv
+  is unmounted from the sandbox; a startup self-check refuses to run if
+  `agentic_dev_loop` resolves under the workspace (an editable install bypasses
+  everything).
+- **Tooling is read-only by the loop.** At run start the pipeline file,
+  `agents_dir`, `additional_files`, `aidlc-docs/`, and `tools/` must be
+  git-clean relative to HEAD — otherwise the run refuses, naming the dirty
+  files. The `commit` action excludes those paths from its sweep, so the loop
+  never commits its own tooling.
+- **`commit` stays host-side, deliberately.** It holds push credentials; moving
+  it into the sandbox would trade host-exec-of-trusted-code for
+  credential-in-sandbox. It runs argv-style with a scrubbed child env and
+  `-c core.hooksPath=~/.agentic-dev-loop/state/hooks` so repo hooks never
+  execute.
+
+Net: the host executes nothing from the workspace, reads only git-clean
+control files, and the only agent-writable host-consumed thing left is the code
+the loop is building.
+
+### Consumer migration notes
+
+- **Actions** — replace a host-side `fn` registration with
+  `registry.add_sandbox_action(name, script)`. `script` is a command string
+  rendered with the step's `params:` plus `{subject}`; the exit code is the
+  verdict. `add_action` (host-side) is now engine-built-in-only and is refused
+  from extensions.
+- **Extensions** — move workspace-resident extension modules (e.g.
+  `extensions/*.py`) into `~/.agentic-dev-loop/extensions/` (or whatever
+  `extensions_dir:` names), and reinstall the engine via pipx so it is not
+  editable/in-workspace.
+- **Tooling** — commit the pipeline, agent defs, shared `additional_files`,
+  `aidlc-docs/`, and `tools/` before running: the run refuses dirty tooling,
+  and `commit` never commits it.
 
 ## Development environment
 
 ```bash
 git clone git@github.com:lukedawilson/agentic-dev-loop.git
 cd agentic-dev-loop
-./setup-venv.sh                       # idempotent .venv setup (never touches bare pip)
+pipx install "agentic-dev-loop==1.0.0a9"   # engine venv OUTSIDE the workspace (self-check)
 export OPENAI_API_KEY=...           # set your LLM key in the host env (no .env in the repo)
-python -m pytest tests/ -q            # fast suite
+python -m pytest tests/ -q            # fast suite (in-repo .venv is for tests only)
 python -m pytest tests/ -q -m "not docker"   # skip engine-dependent tests
-./trigger-agentic-dev-loop.sh --dry-run      # run the shipped pipeline against this repo
+agentic-dev-loop agentic-dev-loop/pipeline.yaml --dry-run   # run the shipped pipeline
 ./run-demo.sh                         # viz demo — scripted run replay, no pipeline needed
 ```
 
-- `setup-venv.sh` is safe to re-run and picks the right interpreter even on
-  machines with exotic Python installations.
+- `setup-venv.sh` builds the throwaway `.venv` for local `pytest` runs (the
+  pipeline's `test` step provisions its own `.venv-sandbox` inside the
+  sandbox). The loop itself must run from the pipx install — never an
+  in-workspace `.venv`, which the startup self-check refuses.
 - Docker-marked integration tests need a local daemon; CI runs them on Linux.
 - The shipped pipeline (`agentic-dev-loop/pipeline.yaml`) **dogfoods the tool on
   its own repo** — dev → test → review → qa → commit, with the engine's own

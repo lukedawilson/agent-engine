@@ -71,7 +71,8 @@ def _registry_for(cfg_path: Path) -> tuple[Registry, PipelineConfig]:
     run path instead of being rebuilt."""
     cfg = load_config(cfg_path)
     registry = default_registry()
-    load_extensions(cfg.extensions, registry)
+    load_extensions(cfg.extensions, registry,
+                    extensions_dir=cfg.extensions_dir, workspace=Path.cwd())
     return registry, cfg
 
 

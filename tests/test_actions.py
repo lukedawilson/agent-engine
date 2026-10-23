@@ -15,7 +15,7 @@ import pytest
 
 from agentic_dev_loop.engine.actions import (_listening_pids, _parse_cwd_output, _pid_cwd,
                                   _trusted_hooks_dir, commit, git_worktree_clean,
-                                  kill_listeners_on_port)
+                                  kill_listeners_on_port, tooling_exclude_pathspec)
 
 lsof_required = pytest.mark.skipif(
     shutil.which("lsof") is None, reason="lsof required")
@@ -455,3 +455,41 @@ class TestCommitNode:
         assert len(add_calls) == 1
         assert not any(a.startswith(":(exclude)") for a in add_calls[0])
         assert "feat: construct unit U2 (agent dev loop)" in git_log(repo)
+
+class TestToolingExcludePathspec:
+    def test_empty_when_no_paths(self):
+        assert tooling_exclude_pathspec(None) == []
+        assert tooling_exclude_pathspec([]) == []
+
+    def test_excludes_relative_paths(self):
+        assert tooling_exclude_pathspec(["tools", "aidlc-docs", "pipeline.yaml"]) == \
+            [":(exclude)tools", ":(exclude)aidlc-docs", ":(exclude)pipeline.yaml"]
+
+    def test_skips_empty_and_parent_markers(self):
+        assert tooling_exclude_pathspec(["", ".", ".."]) == []
+
+
+class TestCommitExcludesTooling:
+    def test_tooling_changes_not_swept_into_commit(self, tmp_path, monkeypatch):
+        repo = tmp_path / "repo"
+        init_git_repo(repo)
+        (repo / "tools").mkdir()
+        (repo / "tools" / "gate.sh").write_text("#!/bin/sh\ntrue\n")
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-m", "add tooling"], cwd=repo,
+                       check=True, capture_output=True)
+        # dirty tooling + constructed work
+        (repo / "tools" / "gate.sh").write_text("#!/bin/sh\nfalse\n")
+        (repo / "feature.cs").write_text("// constructed by the pipeline")
+        monkeypatch.chdir(repo)
+
+        commit({"subject": "unit U2", "commit_allowed": True,
+                "tooling_paths": ["tools"]}, COMMIT_PARAMS)
+
+        assert "feat: construct unit U2 (agent dev loop)" in git_log(repo)
+        tracked = subprocess.run(["git", "ls-files"], cwd=repo,
+                                 capture_output=True, text=True).stdout
+        assert "feature.cs" in tracked
+        status = subprocess.run(["git", "status", "--porcelain"], cwd=repo,
+                                capture_output=True, text=True).stdout
+        assert "tools/gate.sh" in status  # still dirty — never swept

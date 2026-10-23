@@ -186,6 +186,23 @@ def checkpoint_exclude_pathspec(state_dir: str | None, cwd: Path) -> str | None:
     return f":(exclude){rel}/*.sqlite*"
 
 
+def tooling_exclude_pathspec(tooling_paths: list[str] | None) -> list[str]:
+    """git pathspecs excluding tooling paths from ``git add -A`` (020).
+
+    The loop must never commit its own tooling (pipeline, agent defs,
+    additional files, aidlc-docs, tools): the run-start integrity check
+    requires those paths to be clean relative to HEAD, so the auto-commit
+    must sweep everything *except* them. Empty when there is nothing to
+    exclude."""
+    specs = []
+    for rel in (tooling_paths or []):
+        rel = rel.replace(os.sep, "/")
+        if rel in ("", ".", ".."):
+            continue
+        specs.append(f":(exclude){rel}")
+    return specs
+
+
 def commit(state: dict, params: dict) -> dict:
     """The pipeline's only commit point. Skipped loudly when the worktree was
     dirty at run start, so the auto-commit can never swallow pre-existing
@@ -205,9 +222,13 @@ def commit(state: dict, params: dict) -> dict:
     cwd = Path.cwd()
     hooks = _trusted_hooks_dir()
     add_argv = ["-c", f"core.hooksPath={hooks}", "add", "-A"]
-    exclude = checkpoint_exclude_pathspec(state.get("state_dir"), cwd)
-    if exclude:
-        add_argv += ["--", exclude]
+    excludes = []
+    checkpoint_exclude = checkpoint_exclude_pathspec(state.get("state_dir"), cwd)
+    if checkpoint_exclude:
+        excludes.append(checkpoint_exclude)
+    excludes.extend(tooling_exclude_pathspec(state.get("tooling_paths")))
+    if excludes:
+        add_argv += ["--", *excludes]
     added = _git(add_argv, cwd=cwd)
     if added.returncode != 0:
         # The add is the step that touches the most files (a locked DB, a

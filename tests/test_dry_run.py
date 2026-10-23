@@ -111,6 +111,45 @@ class TestDryRun:
         assert "test [command]" in out
         assert "network=True" in out
 
+    def test_sandbox_action_passes_dry_run(self, repo, capsys):
+        """020: a consumer (sandbox) action is a registered action for the
+        dry-run validation — `unknown action` must not be raised for it."""
+        (repo / "action.yaml").write_text(
+            "extensions:\n  - sample_ext:SampleExtension\n"
+            + DRY_RUN_YAML.replace(
+                "    on_pass: success\n",
+                "    on_pass: success\n")
+            .replace(
+                "steps:\n",
+                "steps:\n"
+                "  - name: lint\n"
+                "    action: sample_action\n"
+                "    network: true\n"
+                "    on_pass: dev\n")
+        )
+        assert main(["action.yaml", "--dry-run", "--plan", "plan.md"]) == 0
+        out = capsys.readouterr().out
+        assert "lint [action]" in out
+        assert "network=True" in out
+
+    def test_host_side_action_rejects_network_in_dry_run(self, repo):
+        (repo / "hostnet.yaml").write_text(
+            DRY_RUN_YAML.replace(
+                "    on_pass: success\n",
+                "    on_pass: success\n")
+            .replace(
+                "steps:\n",
+                "steps:\n"
+                "  - name: commit\n"
+                "    action: commit\n"
+                "    network: true\n"
+                "    params: { message: \"x {subject}\" }\n"
+                "    on_pass: success\n")
+        )
+        result = run_cli(repo, "hostnet.yaml", "--dry-run")
+        assert result.returncode == 1
+        assert "host-side" in result.stderr
+
     def test_tool_extension_loads_once(self, repo, capsys):
         """A tool-registering extension must survive the CLI's two-phase load:
         build_parser loads extensions once for loader-contributed flags, and

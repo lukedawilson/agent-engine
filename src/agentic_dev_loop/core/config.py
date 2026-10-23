@@ -114,7 +114,7 @@ class StepConfig(BaseModel):
     timeout: float | None = Field(default=None, gt=0)  # seconds, command steps only
     env: dict[str, str | None] | None = None  # NFR-1: null = inherit host value
     setup: str | None = None  # BR-13: command steps only
-    network: bool = False  # per-stage egress (command + agent steps; action steps reject)
+    network: bool = False  # per-stage egress (command/agent + sandbox actions; host-side actions reject at registry time)
     secrets: list[str] = []  # declared ref names; action steps reject
     on_pass: RouteTarget | None = None
     on_fail: RouteTarget | None = None
@@ -173,11 +173,11 @@ class StepConfig(BaseModel):
             raise ValueError(
                 f"step {self.name!r}: 'setup' is only allowed on 'command' steps"
             )
-        if self.network and self.action is not None:
-            raise ValueError(
-                f"step {self.name!r}: 'network' is only allowed on 'agent' or "
-                "'command' steps"
-            )
+        # `network` is NOT rejected here: the schema can't tell a host-side
+        # built-in action (e.g. `commit`, which must never take egress) from
+        # a sandbox-executed consumer action (which may, like a command step).
+        # That distinction is enforced once the registry is known — see
+        # `validate_action_network` (020).
         if self.secrets and self.action is not None:
             raise ValueError(
                 f"step {self.name!r}: 'secrets' is only allowed on 'agent' or "
@@ -201,6 +201,11 @@ class PipelineConfig(BaseModel):
     name: str
     extensions: list[str] = []
     additional_files: list[str] = []
+    # Where consumer `extensions:` modules resolve (work item 020). Must live
+    # OUTSIDE the workspace — the host refuses workspace-resident extension and
+    # tool-handler modules, so agent-writable files are never imported by the
+    # host process.
+    extensions_dir: str = "~/.agentic-dev-loop/extensions"
     env_allowlist: list[str] = []
     llm: LlmConfig
     isolation: IsolationConfig | None = None  # None = always-on defaults

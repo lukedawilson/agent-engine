@@ -15,7 +15,7 @@ from openhands.sdk import LLM
 from openhands.sdk.conversation.state import ConversationExecutionStatus
 
 from agentic_dev_loop.core.config import PipelineConfig
-from agentic_dev_loop.engine.registry import default_registry
+from agentic_dev_loop.engine.registry import Registry, default_registry
 from agentic_dev_loop.engine.stages import (
     Runtime, _run_command, build_context, make_action_node, make_agent_node,
     make_bump_node, make_command_node, make_router, run_agent,
@@ -428,6 +428,55 @@ class TestBumpNode:
         assert "## plan.md\n\nTHE PLAN" in update["context"]
         for stale in ("ci-fix.md", "implementation-summary.md", "last-error.md"):
             assert not (runtime.state_dir / stale).exists()
+
+
+class TestSandboxActionNode:
+    """020: consumer actions are sandbox-executed command-shaped scripts —
+    the exit code is the verdict, and no consumer code runs host-side."""
+
+    def _rt(self, runtime, script, **extra):
+        reg = Registry()
+        reg.add_sandbox_action("consumer", script)
+        cfg = make_cfg([{"name": "consumer", "action": "consumer",
+                         "on_pass": "success", **extra}])
+        return dataclasses.replace(runtime, registry=reg, cfg=cfg), cfg
+
+    def test_runs_via_sandbox_and_records_pass(self, runtime, fake_sandbox):
+        rt, cfg = self._rt(runtime, "echo sandboxed")
+        update = make_action_node(rt, cfg.steps[0])(make_state())
+        assert update["step_verdicts"] == {"consumer": "pass"}
+        assert update["failed"] is False
+        assert fake_sandbox.requests
+        assert fake_sandbox.requests[0].argv == ["echo", "sandboxed"]
+
+    def test_renders_subject_and_params(self, runtime, fake_sandbox):
+        rt, cfg = self._rt(runtime, "echo {subject} {greeting}",
+                           params={"greeting": "hi"})
+        make_action_node(rt, cfg.steps[0])(make_state())
+        assert fake_sandbox.requests[0].argv == ["echo", "plan", "plan.md", "hi"]
+
+    def test_nonzero_exit_records_fail(self, runtime, fake_sandbox):
+        rt, cfg = self._rt(runtime, 'python -c "import sys; sys.exit(1)"',
+                           on_fail={"goto": "success", "retry": False})
+        update = make_action_node(rt, cfg.steps[0])(make_state())
+        assert update["step_verdicts"] == {"consumer": "fail"}
+        assert "failed" not in update
+        assert "notes" in update
+
+    def test_missing_param_fails_loud_not_silent(self, runtime, fake_sandbox):
+        rt, cfg = self._rt(runtime, "echo {missing}")
+        update = make_action_node(rt, cfg.steps[0])(make_state())
+        assert update == {"failed": True, "failed_step": "consumer"}
+        assert fake_sandbox.requests == []
+
+    def test_requires_a_sandbox(self, runtime):
+        reg = Registry()
+        reg.add_sandbox_action("consumer", "echo hi")
+        cfg = make_cfg([{"name": "consumer", "action": "consumer",
+                         "on_pass": "success"}])
+        rt = dataclasses.replace(runtime, registry=reg, cfg=cfg, sandbox=None)
+        with pytest.raises(ValueError, match="requires a sandbox"):
+            make_action_node(rt, cfg.steps[0])
 
 
 class FakeConversation:

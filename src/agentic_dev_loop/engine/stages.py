@@ -384,19 +384,82 @@ def make_command_node(runtime: Runtime, step: StepConfig):
     return node
 
 
+def _render_action_script(script: str, params: dict, subject: str) -> str:
+    """Render a sandbox-action script with the step's ``params:`` plus the
+    run ``{subject}``. A placeholder missing from both fails loudly (no
+    silent ``{key}`` passthrough)."""
+    values = dict(params)
+    values["subject"] = subject
+    return script.format_map(values)
+
+
 def make_action_node(runtime: Runtime, step: StepConfig):
-    """Node closure for an action step: invoke the registered action with the
-    step's params. An action exception fails the run (same as an agent's)."""
-    fn = runtime.registry.actions[step.action]
+    """Node closure for an action step.
+
+    Host-side built-ins (``commit``) invoke their trusted ``fn`` in the host
+    process; every other action is a sandbox-executed, command-shaped script
+    (020) run through the same sandbox path as command steps — exit code is
+    the verdict, and consumer action code never runs in the host. An action
+    exception fails the run (same as an agent's)."""
+    if step.action in runtime.registry.actions:
+        fn = runtime.registry.actions[step.action]
+
+        def node(state: dict) -> dict:
+            try:
+                return fn(state, step.params) or {}
+            except Exception:
+                print(redact_values(traceback.format_exc(),
+                                    runtime.secrets.values())[-4000:],
+                      file=sys.stderr, flush=True)
+                return {"failed": True, "failed_step": step.name}
+
+        return node
+
+    script = runtime.registry.sandbox_actions[step.action]
+    if runtime.sandbox is None:
+        raise ValueError(
+            f"sandbox action {step.action!r} requires a sandbox — consumer "
+            "actions must execute inside the sandbox, never the host")
+    timeout = DEFAULT_COMMAND_TIMEOUT
+    env = resolve_sandbox_env(step.env)
 
     def node(state: dict) -> dict:
+        attempt = state["attempt"]
+        subject = state["subject"]
         try:
-            return fn(state, step.params) or {}
+            command = _render_action_script(script, step.params, subject)
+        except KeyError as e:
+            print(redact_values(traceback.format_exc(),
+                                runtime.secrets.values())[-4000:],
+                  file=sys.stderr, flush=True)
+            return {"failed": True, "failed_step": step.name}
+        print(f"[{subject}] Running action `{step.action}`...", flush=True)
+        try:
+            exit_code, output, timed_out = _run_command(
+                command, runtime.workspace, timeout, env, sandbox=runtime.sandbox,
+                pipeline=runtime.cfg.name, step=step.name, network=step.network)
         except Exception:
             print(redact_values(traceback.format_exc(),
                                 runtime.secrets.values())[-4000:],
                   file=sys.stderr, flush=True)
             return {"failed": True, "failed_step": step.name}
+        if output:
+            output = redact_values(output, runtime.secrets.values())
+            print(output, end="" if output.endswith("\n") else "\n", flush=True)
+        merged = {**state["step_verdicts"],
+                  step.name: "pass" if exit_code == 0 else "fail"}
+        if exit_code == 0:
+            print(f"[{subject}] {step.name} action passed on attempt {attempt}.",
+                  flush=True)
+            return {"step_verdicts": merged, "failed": False}
+        print(f"[{subject}] {step.name} action failed on attempt {attempt}.",
+              flush=True)
+        label = f"attempt {attempt} — timed out" if timed_out else f"attempt {attempt}"
+        update = {"step_verdicts": merged,
+                  "notes": [f"## {step.name} output ({label})\n\n{output[-4000:]}"]}
+        if isinstance(step.on_fail, Route) and step.on_fail.retry:
+            update["retry_target"] = step.on_fail.goto
+        return update
 
     return node
 
@@ -404,8 +467,14 @@ def make_action_node(runtime: Runtime, step: StepConfig):
 def make_router(runtime: Runtime, step: StepConfig):
     """Router closure — a pure function of state, so control flow is
     deterministic by construction. Return values are node names (resolved
-    dynamically by LangGraph), "bump", "success", or END (failure)."""
+    dynamically by LangGraph), "bump", "success", or END (failure).
+
+    Sandbox-executed actions (020) are verdict-routed like command steps
+    (exit code ⇒ pass/fail); host-side built-in actions keep the plain
+    fire-and-continue routing."""
     order = [s.name for s in runtime.cfg.steps]
+    is_sandbox_action = (step.action is not None
+                         and step.action in runtime.registry.sandbox_actions)
 
     def resolve(route) -> str:
         target = route_target(route)
@@ -419,7 +488,7 @@ def make_router(runtime: Runtime, step: StepConfig):
     def router(state: dict) -> str:
         if state["failed"]:
             return END
-        if step.verdicts is None and step.command is None:
+        if step.verdicts is None and step.command is None and not is_sandbox_action:
             # Capture-applying steps without verdicts (produces-only) retry on
             # empty responses: the node signals it by recording None plus a
             # retry_target. Steps that don't capture never retry here.

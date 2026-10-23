@@ -8,7 +8,20 @@ class SampleExtension:
     name = "sample"
 
     def register(self, registry):
-        registry.add_action("sample_action", lambda state, params: {"ran": True})
+        # 020: consumer actions are sandbox-executed, command-shaped scripts —
+        # never a host-side function.
+        registry.add_sandbox_action(
+            "sample_action", "echo sample-ran {subject}")
+
+
+class HostActionExtension:
+    """Tries to register a host-side function — the sealed built-in-only path
+    must refuse it (020 action-contract rule)."""
+
+    name = "host-action"
+
+    def register(self, registry):
+        registry.add_action("host_action", lambda state, params: {"ran": True})
 
 
 class BoomExtension:

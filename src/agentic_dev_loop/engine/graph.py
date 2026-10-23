@@ -19,11 +19,14 @@ from langgraph.graph import END, START, StateGraph
 from agentic_dev_loop import viz
 from .actions import git_worktree_clean, kill_listeners_on_port
 from agentic_dev_loop.core.config import load_config
+from .hostboundary import (check_orchestrator_install,
+                           check_tooling_integrity, tooling_rel_paths)
 from .isolation import startup_sandbox
 from .llm import build_llm
 from .loaders import resolve_docs
 from .secrets import resolve_secrets, scan_env_files
-from .registry import Registry, default_registry, load_extensions
+from .registry import (Registry, default_registry, load_extensions,
+                       validate_action_network)
 from .stages import (Runtime, build_context, clear_attempt_artifacts,
                      make_action_node, make_agent_node, make_bump_node,
                      make_command_node, make_router, success_node)
@@ -46,6 +49,7 @@ class LoopState(TypedDict):
     outcome: str | None                # "success" once routed to the success terminal
     commit_allowed: bool               # worktree was clean at run start
     state_dir: str                     # resolved pipeline state dir (for the commit action)
+    tooling_paths: list[str]          # workspace-relative paths the commit never sweeps
     step_verdicts: dict[str, str | None]  # per-step pass/fail/None(unclear)
     retry_target: str | None           # where the bump node loops back to
     thread_id: str
@@ -55,11 +59,17 @@ def build_graph(runtime: Runtime, checkpointer=None):
     """Compile the pipeline's state graph: one node per step (agent, command,
     or action), plus the bump retry node and the success terminal. Unknown
     action names fail here, at build time, not mid-run."""
+    known_actions = (set(runtime.registry.actions)
+                     | set(runtime.registry.sandbox_actions))
     for step in runtime.cfg.steps:
-        if step.action is not None and step.action not in runtime.registry.actions:
+        if step.action is None:
+            continue
+        if step.action not in known_actions:
             raise ValueError(
                 f"step {step.name!r}: unknown action {step.action!r} "
-                f"(registered: {sorted(runtime.registry.actions)})")
+                f"(registered: {sorted(known_actions)})")
+        validate_action_network(step.name, step.action, step.network,
+                                runtime.registry)
     graph = StateGraph(LoopState)
     for step in runtime.cfg.steps:
         if step.kind == "agent":
@@ -108,14 +118,20 @@ def run_pipeline(cfg_path, args, *, viz_bus=None,
     base = cfg_path.resolve().parent
     max_attempts = getattr(args, "max_attempts", None) or cfg.max_attempts
 
-    # 019: refuse secret-bearing workspace files and resolve declared secret
-    # refs host-side BEFORE any sandbox/LLM work — fail fast, loudly.
+    # 020: the host must execute nothing from the workspace — refuse an
+    # in-workspace engine install, then the 019 env-file ban, before any
+    # sandbox/LLM work. Tooling integrity is checked once the config is known.
+    check_orchestrator_install(Path.cwd())
     scan_env_files(Path.cwd())
     resolved_secrets = resolve_secrets(cfg)
+    check_tooling_integrity(cfg, cfg_path, base, Path.cwd())
+    tooling_paths = tooling_rel_paths(cfg, cfg_path, base, Path.cwd())
 
     if registry is None:
         registry = default_registry()
-        load_extensions(cfg.extensions, registry)
+        load_extensions(cfg.extensions, registry,
+                        extensions_dir=cfg.extensions_dir,
+                        workspace=Path.cwd())
 
     state_dir = Path(cfg.state_dir).expanduser()
     if not state_dir.is_absolute():
@@ -128,13 +144,14 @@ def run_pipeline(cfg_path, args, *, viz_bus=None,
                                refresh=getattr(args, "refresh", False))
     try:
         return _run_pipeline(cfg, base, registry, state_dir, max_attempts,
-                             args, viz_bus, sandbox, resolved_secrets)
+                             args, viz_bus, sandbox, resolved_secrets,
+                             tooling_paths)
     finally:
         sandbox.close()
 
 
 def _run_pipeline(cfg, base, registry, state_dir, max_attempts, args, viz_bus,
-                  sandbox, resolved_secrets) -> tuple[bool, int]:
+                  sandbox, resolved_secrets, tooling_paths) -> tuple[bool, int]:
     runtime = Runtime(cfg=cfg, registry=registry, llm=build_llm(cfg.llm),
                       agents_dir=base / cfg.agents_dir, state_dir=state_dir,
                       workspace=Path.cwd(), sandbox=sandbox,
@@ -170,6 +187,7 @@ def _run_pipeline(cfg, base, registry, state_dir, max_attempts, args, viz_bus,
             # itself dirty the worktree.
             "commit_allowed": git_worktree_clean(Path.cwd()),
             "state_dir": str(state_dir),
+            "tooling_paths": tooling_paths,
             "step_verdicts": {},
             "retry_target": None,
             "thread_id": thread_id,
