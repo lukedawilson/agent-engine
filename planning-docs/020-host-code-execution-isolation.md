@@ -1,5 +1,7 @@
 # 020 — Host-side code execution: shrink the host to the engine
 
+> **Status: COMPLETED**
+
 **Origin:** security review of the agentic-dev-loop sandbox boundary (2026-10-23). Of the three mapped surfaces (secret exfiltration → 019, typosquat → 018 mechanism + lockfile dial follow-up, host-side code execution → this plan), host execution has the highest severity ceiling: code running in the host process has the full user account — SSH keys, keychain, persistence, survives the run.
 
 **Agreed decisions (user, 2026-10-23):**

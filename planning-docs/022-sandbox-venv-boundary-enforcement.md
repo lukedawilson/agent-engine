@@ -1,8 +1,6 @@
 # 022 — Sandbox venv boundary enforcement (mask `.venv`, relocate `.venv-sandbox`, purge docs)
 
-**Status:** PLANNED — analysis complete. Inline TDD implementation was started
-and stopped at user request ("This change is more complex than I thought").
-No code was written or reverted for this plan (investigation reads only).
+> **Status: COMPLETED**
 
 ---
 

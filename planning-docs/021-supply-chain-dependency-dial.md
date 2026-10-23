@@ -1,5 +1,7 @@
 # 021 — Supply-chain dependency dial: locked-by-default lockfile policy
 
+> **Status: COMPLETED**
+
 **Origin:** 018's fix-decision record already made the decision — *"Security dial: locked (human lockfile) default; open (bootstrap) opt-in"* — after shipping the restore-step mechanism. This plan implements that decision.
 
 **Assumptions:** plans 018 (restore step between dev and test in both pipelines), 019 (secrets store + `.env*` ban), and 020 (host executes nothing from the workspace; tooling integrity check) are all implemented. This plan depends on none of their code but assumes the pipelines they leave behind.
