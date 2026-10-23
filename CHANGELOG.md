@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0a10] - 2026-10-23
+
+### Changed
+
+- feat: construct plan 020-host-code-execution-isolation.md (agent dev loop)
+- docs: pin README install to 1.0.0a9 + uv --refresh note
+
 ## [1.0.0a9] - 2026-10-23
 
 ### Changed
