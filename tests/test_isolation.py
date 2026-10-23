@@ -459,6 +459,21 @@ class TestResolveSandboxVenvDir:
         assert out == str(tmp_path / "venvs" / "engine")
         assert os.path.isabs(out)
 
+    def test_home_wins_over_userprofile(self, tmp_path, monkeypatch):
+        # The engine is driven from bash, where HOME is the authoritative home
+        # on every platform — CPython's Windows expanduser ignores HOME in
+        # favour of USERPROFILE, which would resolve `~` inconsistently.
+        monkeypatch.setenv("HOME", str(tmp_path / "home"))
+        monkeypatch.setenv("USERPROFILE", str(tmp_path / "prof"))
+        out = resolve_sandbox_venv_dir("~/venvs/engine", tmp_path / "ws")
+        assert out == str(tmp_path / "home" / "venvs" / "engine")
+
+    def test_userprofile_fallback_when_home_unset(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("HOME", raising=False)
+        monkeypatch.setenv("USERPROFILE", str(tmp_path / "prof"))
+        out = resolve_sandbox_venv_dir("~/venvs/engine", tmp_path / "ws")
+        assert out == str(tmp_path / "prof" / "venvs" / "engine")
+
     def test_outside_workspace_accepted(self, tmp_path):
         ws = tmp_path / "ws"
         out = resolve_sandbox_venv_dir(str(tmp_path / "venvs"), ws)

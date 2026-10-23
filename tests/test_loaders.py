@@ -5,7 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from agentic_dev_loop.engine.loaders import PlanDocumentLoader, resolve_plan_docs, select_loader
+from agentic_dev_loop.engine.loaders import (
+    PlanDocumentLoader, mark_plan_completed, resolve_plan_docs, select_loader,
+)
 from agentic_dev_loop.engine.registry import Registry, default_registry
 
 
@@ -116,3 +118,110 @@ class TestSelectLoader:
 
         with pytest.raises(ValueError, match="[Dd]efaultable"):
             select_loader(reg, _args(a=None, b=None))
+
+
+class TestMarkPlanCompleted:
+    def _write(self, tmp_path, text):
+        plan = tmp_path / "plan.md"
+        plan.write_text(text)
+        return plan
+
+    @pytest.mark.parametrize("status_line", [
+        "> **Status: COMPLETED** (2026-10-23)",
+        "> **Status: DONE**",
+        "Status: COMPLETED — shipped",
+        "**Status:** COMPLETED (2026-10-10)",
+        "- **Status**: COMPLETED — all stages done",
+    ])
+    def test_replaces_existing_status_line(self, tmp_path, status_line):
+        plan = self._write(tmp_path, f"# Plan\n\n{status_line}\n\nBody\n")
+
+        mark_plan_completed(plan)
+
+        assert plan.read_text() == "# Plan\n\n> **Status: COMPLETED**\n\nBody\n"
+
+    def test_replaces_inline_bold_status_line_entirely(self, tmp_path):
+        """The 013-style line with trailing prose is replaced wholesale."""
+        plan = self._write(
+            tmp_path,
+            "# Plan\n\n"
+            "**Status**: Completed — shipped: ... **Status: COMPLETED** (2026-10-23).\n\n"
+            "Body\n")
+
+        mark_plan_completed(plan)
+
+        assert plan.read_text() == "# Plan\n\n> **Status: COMPLETED**\n\nBody\n"
+
+    def test_inserts_after_title_when_no_status(self, tmp_path):
+        plan = self._write(tmp_path, "# Plan\n\nBody\n")
+
+        mark_plan_completed(plan)
+
+        assert plan.read_text() == "# Plan\n\n> **Status: COMPLETED**\n\nBody\n"
+
+    def test_inserts_at_top_when_no_title(self, tmp_path):
+        plan = self._write(tmp_path, "THE PLAN")
+
+        mark_plan_completed(plan)
+
+        assert plan.read_text() == "> **Status: COMPLETED**\n\nTHE PLAN"
+
+    def test_title_without_blank_separator_still_gets_separators(self, tmp_path):
+        plan = self._write(tmp_path, "# Plan\nBody\n")
+
+        mark_plan_completed(plan)
+
+        assert plan.read_text() == "# Plan\n\n> **Status: COMPLETED**\n\nBody\n"
+
+    def test_status_heading_is_not_treated_as_status_line(self, tmp_path):
+        plan = self._write(tmp_path, "# Plan\n\n## Status history\n\nBody\n")
+
+        mark_plan_completed(plan)
+
+        assert plan.read_text() == (
+            "# Plan\n\n> **Status: COMPLETED**\n\n## Status history\n\nBody\n")
+
+    def test_deep_status_line_is_ignored_and_stamp_inserted_after_title(self, tmp_path):
+        """Only the top of the doc is scanned; a status buried beyond the
+        first ten lines is not the 'existing status recorded' — the stamp
+        goes in after the title and the deep line stays untouched."""
+        filler = "\n".join(f"line {i}" for i in range(1, 15))
+        plan = self._write(tmp_path,
+                           f"# Plan\n\n{filler}\n> **Status: IN PROGRESS**\n")
+
+        mark_plan_completed(plan)
+
+        text = plan.read_text()
+        assert text.startswith("# Plan\n\n> **Status: COMPLETED**\n\n")
+        assert "> **Status: IN PROGRESS**" in text
+
+    def test_idempotent_rerun(self, tmp_path):
+        plan = self._write(tmp_path, "# Plan\n\n> **Status: DONE**\n\nBody\n")
+
+        mark_plan_completed(plan)
+        once = plan.read_text()
+        mark_plan_completed(plan)
+
+        assert once == "# Plan\n\n> **Status: COMPLETED**\n\nBody\n"
+        assert plan.read_text() == once
+
+    def test_preserves_trailing_newline_absence(self, tmp_path):
+        plan = self._write(tmp_path, "# Plan\n\nBody")  # no trailing newline
+
+        mark_plan_completed(plan)
+
+        assert plan.read_text() == "# Plan\n\n> **Status: COMPLETED**\n\nBody"
+
+    def test_preserves_trailing_newline(self, tmp_path):
+        plan = self._write(tmp_path, "# Plan\n\nBody\n")
+
+        mark_plan_completed(plan)
+
+        assert plan.read_text() == "# Plan\n\n> **Status: COMPLETED**\n\nBody\n"
+
+    def test_accepts_string_path(self, tmp_path):
+        plan = self._write(tmp_path, "THE PLAN")
+
+        mark_plan_completed(str(plan))
+
+        assert plan.read_text() == "> **Status: COMPLETED**\n\nTHE PLAN"

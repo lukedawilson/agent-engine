@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0a13] - 2026-10-23
+
+### Changed
+
+- Mark plans as completed
+- fix(trigger): require exactly one loader flag, safe under set -u
+- Uncommitted changes: src/agentic_dev_loop/engine/cli.py, src/agentic_dev_loop/engine/isolation.py, src/agentic_dev_loop/engine/loaders.py, tests/test_cli.py, tests/test_isolation.py, tests/test_isolation_integration.py, tests/test_loaders.py
+
 ## [1.0.0a12] - 2026-10-23
 
 ### Changed

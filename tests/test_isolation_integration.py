@@ -3,6 +3,7 @@ reason when no daemon or integration image is present; never silently skipped
 in CI (the workflows pre-install Docker and the image)."""
 from __future__ import annotations
 
+import os
 import shutil
 
 import pytest
@@ -249,8 +250,14 @@ class TestRelocatedVenvE2E:
         try:
             b.provision("python -m venv .venv-sandbox", "k1",
                         str(tmp_path / "stamps"), force=False)
-            assert (venv_dir / "bin" / "python").exists()
-            assert not (ws / ".venv-sandbox").exists()
+            # 022: the venv materialized OUTSIDE the workspace. bin/python is
+            # a symlink to the CONTAINER's interpreter, which dangles on the
+            # host — existence must be checked without following links.
+            assert os.path.lexists(venv_dir / "bin" / "python")
+            assert (venv_dir / "pyvenv.cfg").exists()
+            # No venv content leaked into the workspace. Docker auto-creates
+            # the empty mountpoint dir, so its mere existence is not a leak.
+            assert not (ws / ".venv-sandbox" / "pyvenv.cfg").exists()
             req = SandboxExecutionRequest(
                 argv=[".venv-sandbox/bin/python", "-c", "import sys; print('ok')"],
                 cwd=ws,

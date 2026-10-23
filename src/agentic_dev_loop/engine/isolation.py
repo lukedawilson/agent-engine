@@ -274,11 +274,32 @@ def is_git_mutation(argv: list[str]) -> bool:
     return True
 
 
+def _expand_home(path: str) -> str:
+    """Expand a leading ``~`` against ``$HOME``, falling back to
+    ``USERPROFILE`` (Windows).
+
+    The engine is driven from bash on every platform (Windows via Git Bash),
+    where HOME is the authoritative home. CPython's Windows expanduser ignores
+    HOME in favour of USERPROFILE, so a literal ``~`` in a config file would
+    resolve inconsistently on Windows. Only a leading tilde (``~``, ``~/``,
+    ``~\\``) is handled here; ``~user`` forms and the no-HOME/no-USERPROFILE
+    case fall through to the stdlib below.
+    """
+    if path != "~" and not path.startswith(("~/", "~\\")):
+        return path
+    home = os.environ.get("HOME") or os.environ.get("USERPROFILE")
+    if home:
+        return home + path[1:]
+    return path
+
+
 def translate_mount_path(path: str) -> str:
     """expanduser + absolute resolution without symlink chasing. Identity on
     macOS/Windows/WSL2-with-Docker-Desktop (verbatim passthrough — Docker
-    Desktop translates). Idempotent: translate(translate(p)) == translate(p)."""
-    p = Path(path).expanduser()
+    Desktop translates). Idempotent: translate(translate(p)) == translate(p).
+    A leading ``~`` resolves against $HOME first (USERPROFILE fallback), then
+    the stdlib handles anything left (pwd on POSIX)."""
+    p = Path(_expand_home(path)).expanduser()
     if not p.is_absolute():
         p = p.absolute()
     return str(p)

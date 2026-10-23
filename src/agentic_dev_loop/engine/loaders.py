@@ -1,6 +1,7 @@
 """Built-in `plan` document loader + the loader-selection flow."""
 
 import argparse
+import re
 from pathlib import Path
 
 from agentic_dev_loop.core.config import PipelineConfig
@@ -16,6 +17,46 @@ def resolve_plan_docs(plan_path: Path | str) -> dict[str, str]:
     if not path.is_file():
         raise FileNotFoundError(f"Plan doc not found: {path}")
     return {path.name: path.read_text()}
+
+
+# A status line at the top of a planning doc, in any recorded form:
+# `> **Status: COMPLETED** (date)`, `**Status:** ...`, `- **Status**: ...`,
+# or bare `Status: ...`.
+_STATUS_LINE = re.compile(r"^\s*(?:>\s*)?(?:[-*]\s+)?\*{0,2}Status\*{0,2}\s*:")
+# The status only counts as "recorded at the top" when it appears early —
+# buried history (e.g. `## Status history` or a later `Status: ...` line)
+# is not the doc's current status.
+_STATUS_SCAN_LINES = 10
+_STAMP = "> **Status: COMPLETED**"
+
+
+def mark_plan_completed(plan_path: Path | str) -> None:
+    """Stamp the plan doc as COMPLETED after a successful run.
+
+    Replaces the first status line found within the top of the doc, or
+    inserts the stamp right after the `# ` title (blank separators around
+    it) — or at the very top when there is no title. Trailing-newline
+    presence is preserved."""
+    path = Path(plan_path)
+    text = path.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    trailing = "\n" if text.endswith("\n") else ""
+
+    for idx in range(min(len(lines), _STATUS_SCAN_LINES)):
+        if _STATUS_LINE.match(lines[idx]):
+            lines[idx] = _STAMP
+            break
+    else:
+        title_idx = next((i for i, line in enumerate(lines)
+                          if line.startswith("# ")), None)
+        insert_at = 0 if title_idx is None else title_idx + 1
+        stamp_block = [_STAMP]
+        if insert_at > 0 and lines[insert_at - 1] != "":
+            stamp_block.insert(0, "")   # blank separator above the stamp
+        if insert_at < len(lines) and lines[insert_at] != "":
+            stamp_block.append("")      # blank separator below the stamp
+        lines[insert_at:insert_at] = stamp_block
+    path.write_text("\n".join(lines) + trailing, encoding="utf-8")
 
 
 class PlanDocumentLoader:

@@ -12,6 +12,7 @@ from pathlib import Path
 from agentic_dev_loop.core.config import PipelineConfig, load_config
 from .dryrun import dry_run
 from .isolation import clean_stamps, isolation_state_dir
+from .loaders import mark_plan_completed
 from .registry import Registry, default_registry, load_extensions
 
 
@@ -112,6 +113,10 @@ def main(argv: list[str] | None = None) -> int:
     # dry run, --clean-stamps, and --help stay side-effect free.
     from .graph import run_pipeline
     success, _attempts = run_pipeline(args.pipeline, args, registry=registry)
+    if success and args.plan is not None:
+        # Only a completed run earns the stamp — failed runs leave the plan
+        # as-is. AI-DLC runs never pass --plan, so aidlc docs stay untouched.
+        mark_plan_completed(args.plan)
     if not success:
         print("agentic-dev-loop: pipeline failed — exiting with code 1",
               file=sys.stderr)

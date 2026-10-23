@@ -202,6 +202,54 @@ class TestRun:
         # dev completed before the crash — only test re-ran on resume
         assert fake_agents.agents_called() == ["dev", "check", "check"]
 
+    def test_success_stamps_plan_completed(self, repo, fake_agents):
+        fake_agents.set("dev", [("write", "implementation-summary.md", "done")])
+
+        assert main(["pipeline.yaml", "--plan", "plan.md", "--no-viz"]) == 0
+
+        assert (repo / "plan.md").read_text() == (
+            "> **Status: COMPLETED**\n\nTHE PLAN")
+
+    def test_success_replaces_existing_status(self, repo, fake_agents):
+        (repo / "plan.md").write_text(
+            "# Plan\n\n> **Status: DONE**\n\nTHE PLAN\n")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "record status")
+        fake_agents.set("dev", [("write", "implementation-summary.md", "done")])
+
+        assert main(["pipeline.yaml", "--plan", "plan.md", "--no-viz"]) == 0
+
+        assert (repo / "plan.md").read_text() == (
+            "# Plan\n\n> **Status: COMPLETED**\n\nTHE PLAN\n")
+
+    def test_failed_run_does_not_stamp(self, repo, fake_agents):
+        write_pipeline(repo, "retry.yaml", RETRY_YAML)
+        fake_agents.set("dev", [("write", "implementation-summary.md", "done")])
+        fake_agents.set("check", [("write", "ci-fix.md", "VERDICT: FAIL")])
+
+        assert main(["retry.yaml", "--plan", "plan.md", "--no-viz"]) == 1
+
+        assert (repo / "plan.md").read_text() == "THE PLAN"
+
+    def test_aidlc_run_leaves_docs_untouched(self, repo, fake_agents):
+        write_pipeline(repo, "aidlc.yaml", with_extensions(
+            PLAIN_YAML, "agentic_dev_loop.engine.extensions.aidlc:AidlcExtension"))
+        unit_dir = repo / "aidlc-docs" / "construction" / "unit-3"
+        unit_dir.mkdir(parents=True)
+        (unit_dir / "design.md").write_text("# Design")
+        (repo / "aidlc-docs" / "aidlc-state.md").write_text(
+            "# State\n\n- **Current Stage**: CONSTRUCTION — Unit unit-3 (SCAN).\n")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "aidlc fixture")
+        fake_agents.set("dev", [("write", "implementation-summary.md", "done")])
+        state_before = (repo / "aidlc-docs" / "aidlc-state.md").read_text()
+
+        assert main(["aidlc.yaml", "--aidlc-unit", "unit-3", "--no-viz"]) == 0
+
+        assert (repo / "aidlc-docs" / "aidlc-state.md").read_text() == state_before
+        assert (repo / "aidlc-docs" / "construction" / "unit-3" / "design.md").read_text() == "# Design"
+        assert (repo / "plan.md").read_text() == "THE PLAN"
+
 
 class TestViz:
     def test_no_viz_flags_parse(self, repo):
