@@ -32,7 +32,11 @@ steps:
     # fails the step on a known-CVE pin. Under `open` that failure routes to
     # `dev` like any restore failure — dev can bump the pin, and the bumped
     # pin is audited again on the next pass, so the loop self-corrects.
-    command: .venv-sandbox/bin/pip install -e ".[dev]" && .venv-sandbox/bin/pip-audit --skip-editable
+    # pip is upgraded first (022 bootstrap hygiene): the dev image's ensurepip
+    # bundles a stale wheel, and pip is not a pyproject pin dev can bump, so
+    # the audit would otherwise deadlock on pip's own CVEs. Cheap no-op once
+    # current; keeps the audit scoped to project pins only.
+    command: .venv-sandbox/bin/pip install --upgrade pip && .venv-sandbox/bin/pip install -e ".[dev]" && .venv-sandbox/bin/pip-audit --skip-editable
     timeout: 600
     network: true
     on_pass: test
