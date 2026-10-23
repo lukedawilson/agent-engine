@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0a12] - 2026-10-23
+
+### Changed
+
+- feat: construct plan 022-sandbox-venv-boundary-enforcement.md (agent dev loop)
+- fix(tests): run trigger-script tests through bash for Windows
+- chore: drop tracked .review-venv junk and ignore it
+- chore: ignore .tmp-exec pytest tmpdir
+- docs: record 022 bootstrap pip-hygiene findings
+- fix(pipeline): upgrade pip before restore to keep pip-audit project-scoped
+- fix(trigger): converge on latest prerelease reliably
+- fix(trigger): upgrade pipx-managed engine install on every run
+- Uncommitted changes: agentic-dev-loop/pipeline.yaml, aidlc-docs/construction/plans/unit-2-code-generation-plan.md
+
 ## [1.0.0a11] - 2026-10-23
 
 ### Changed
