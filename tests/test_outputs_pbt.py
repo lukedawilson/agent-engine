@@ -26,7 +26,7 @@ _tail = st.one_of(
     st.just(""),
     st.builds(
         lambda c, p: f" {c}{p}",
-        st.sampled_from("—–,;:."),
+        st.sampled_from("\u2014\u2013,;:."),
         _prose,
     ),
 )
@@ -102,6 +102,6 @@ def test_capture_write_round_trip(text: str):
         state_dir = Path(td) / ".pr"
         captured = CapturedOutput(raw_text=text, artifact_path=state_dir / "out.md")
         assert captured.write().is_ok()
-        # Product artifacts are UTF-8 by contract (BR-6) — reads must never
+        # Product artifacts are UTF-8 by contract (BR-6) - reads must never
         # fall back to the locale encoding (cp1252 on Windows CI).
         assert (state_dir / "out.md").read_text(encoding="utf-8") == text

@@ -2,7 +2,7 @@
 
 Expected conditions are modelled as values, never exceptions (DDD rule):
 callers decide routing based on the error code. `unwrap()` exists for
-programming errors only — calling it on an error is a bug.
+programming errors only - calling it on an error is a bug.
 """
 
 from __future__ import annotations

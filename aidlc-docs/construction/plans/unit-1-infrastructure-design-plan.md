@@ -1,4 +1,4 @@
-# Infrastructure Design Plan — unit-1 (output-passing fix)
+# Infrastructure Design Plan - unit-1 (output-passing fix)
 
 ## Assessment Context
 
@@ -20,13 +20,13 @@ Unit-1 modifies the internal feedback channel of one pipeline step (capture fina
 | Compute Infrastructure | N/A | Runs inside the existing pipeline process (LangGraph runtime); no new compute. |
 | Storage Infrastructure | N/A | `state_dir` on local disk, existing structure; unit-1 writes to existing artifact paths only (NFR-1.2). No schema, no database. |
 | Messaging Infrastructure | N/A | In-process step routing (LangGraph); no queues, no async boundaries. |
-| Networking Infrastructure | N/A | Unit-1 adds no network surface. (Unit-3 introduces the container daemon socket — its infrastructure belongs to unit-3's design.) |
+| Networking Infrastructure | N/A | Unit-1 adds no network surface. (Unit-3 introduces the container daemon socket - its infrastructure belongs to unit-3's design.) |
 | Monitoring Infrastructure | N/A | Existing viz/console capture unchanged; no new observability surface. |
 | Shared Infrastructure | N/A | Nothing shared across units at the infrastructure level in unit-1. |
 
 ## Open Questions
 
-None. Every category is N/A with justification — unit-1 has zero infrastructure footprint. Proceeding directly to artifact generation.
+None. Every category is N/A with justification - unit-1 has zero infrastructure footprint. Proceeding directly to artifact generation.
 
 ## Verification
 

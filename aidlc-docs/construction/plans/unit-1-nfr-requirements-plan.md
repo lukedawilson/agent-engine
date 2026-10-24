@@ -1,4 +1,4 @@
-# NFR Requirements Plan — unit-1 (output-passing fix)
+# NFR Requirements Plan - unit-1 (output-passing fix)
 
 ## NFR Assessment Context
 
@@ -32,15 +32,15 @@ Desktop CLI library; unit-1 changes the internal feedback channel of one pipelin
 
 FD-2 requires typed `Result[Verdict]` (NO_VERDICT/AMBIGUOUS) and BR-3 typed errors (EMPTY_RESPONSE/IO_ERROR). How should `Result` be implemented in the codebase?
 
-A) Small generic `Result[T, E]` value type (new module, ~40 lines) with typed error-code enums — reusable across all three units (recommended; DDD-compliant, no exceptions for expected conditions)
+A) Small generic `Result[T, E]` value type (new module, ~40 lines) with typed error-code enums - reusable across all three units (recommended; DDD-compliant, no exceptions for expected conditions)
 
-B) Pydantic discriminated union per domain object — more ceremony, less reusable
+B) Pydantic discriminated union per domain object - more ceremony, less reusable
 
-C) Specific exception subclasses — violates the DDD rule (exceptions for expected conditions)
+C) Specific exception subclasses - violates the DDD rule (exceptions for expected conditions)
 
 X) Other
 
-[Answer]: A — generic Result[T, E] value type in a new module (~40 lines), reusable across all three units
+[Answer]: A - generic Result[T, E] value type in a new module (~40 lines), reusable across all three units
 
 ---
 
@@ -48,24 +48,24 @@ X) Other
 
 NFR-6/PBT extension (blocking for pure functions) requires property-based tests on `Verdict.from_text` and `CapturedOutput` round-trips. Add `hypothesis` now?
 
-A) Yes — add `hypothesis` as a dev dependency in unit-1; PBT tests ship with the capture/parse change (recommended — properties already identified in FD PBT-01)
+A) Yes - add `hypothesis` as a dev dependency in unit-1; PBT tests ship with the capture/parse change (recommended - properties already identified in FD PBT-01)
 
-B) No — plain example-based tests for unit-1; add Hypothesis later in a dedicated pass
+B) No - plain example-based tests for unit-1; add Hypothesis later in a dedicated pass
 
 X) Other
 
-[Answer]: A — add hypothesis as a dev dependency in unit-1; PBT tests ship with the capture/parse change
+[Answer]: A - add hypothesis as a dev dependency in unit-1; PBT tests ship with the capture/parse change
 
 ---
 
 ### Question NFR-3: Security scope confirmation
 
-The security baseline is blocking. For unit-1 the applicable rules are fail-safe handling (typed errors — already designed) and least privilege. Data-protection scope to confirm: captured responses are the model's own output written to local `state_dir` — no encryption, no access control, no secret scrubbing, correct?
+The security baseline is blocking. For unit-1 the applicable rules are fail-safe handling (typed errors - already designed) and least privilege. Data-protection scope to confirm: captured responses are the model's own output written to local `state_dir` - no encryption, no access control, no secret scrubbing, correct?
 
-A) Confirm — artifacts are local plaintext model output, same exposure as today's agent-written files; no new data-protection requirements (recommended)
+A) Confirm - artifacts are local plaintext model output, same exposure as today's agent-written files; no new data-protection requirements (recommended)
 
 B) Add secret scrubbing / restrictive file permissions on captured artifacts
 
 X) Other
 
-[Answer]: A — confirm: artifacts are local plaintext model output, same exposure as today's agent-written files; no new data-protection requirements
+[Answer]: A - confirm: artifacts are local plaintext model output, same exposure as today's agent-written files; no new data-protection requirements

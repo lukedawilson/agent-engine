@@ -9,7 +9,7 @@ echo "=== Importing OpenCode commands and skills → $CLAUDE_LOCAL ==="
 rm -rf "$CLAUDE_LOCAL/commands" "$CLAUDE_LOCAL/skills"
 mkdir -p "$CLAUDE_LOCAL/commands" "$CLAUDE_LOCAL/skills"
 
-# — commands —
+# - commands -
 exported_commands=0
 for cmd in "$REPO_ROOT/.opencode/commands"/*.md; do
   [ -e "$cmd" ] || continue
@@ -27,7 +27,7 @@ for cmd in "$REPO_ROOT/.opencode/commands"/*.md; do
 done
 echo "  → $exported_commands commands imported"
 
-# — skills —
+# - skills -
 imported_skills=0
 for skill_dir in "$REPO_ROOT/.opencode/skills"/*; do
   [ -d "$skill_dir" ] || continue

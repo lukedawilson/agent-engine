@@ -67,20 +67,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - feat: construct plan 016-sandbox-venv-hardening.md (agent dev loop)
 - docs: split sandbox-venv hardening plan from unit-4 removal (016/017) + revert agent edits
-- docs: wontship unit-4 Claude adapter — removal plan 016 + bookkeeping
+- docs: wontship unit-4 Claude adapter - removal plan 016 + bookkeeping
 
 ## [1.0.0a6] - 2026-10-22
 
 ### Changed
 
-- feat: unit-4 Claude Dynamic Workflows driver — hard module break: the flat
+- feat: unit-4 Claude Dynamic Workflows driver - hard module break: the flat
   `agentic_dev_loop` package splits into `core` (pipeline model + parse +
   workflow projection), `engine` (graph/stages/sandbox/CLI), and `viz`
   (live-graph server + workflow ingest). No re-export shims.
-- feat: build-time workflow projection — `project_workflow`, prompt-reference
+- feat: build-time workflow projection - `project_workflow`, prompt-reference
   validation, deterministic `render_workflow_js`, and the docker-free commit
   shim; skill payload (`/agentic-dev-loop`) ships in the wheel.
-- feat: extras inversion — base install is `core` + `viz` (pydantic + PyYAML
+- feat: extras inversion - base install is `core` + `viz` (pydantic + PyYAML
   only); the heavy OpenHands-SDK engine moves to the `[engine]` extra
   (`[workflow]` is the base). The generated workflow JS is a real wheel-shipped
   template implementing the deterministic loop (routing, attempt counter,
@@ -118,7 +118,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - docs: plan per-stage networking (014)
-- fix: cap agent-client-protocol below 1.0.0 — its rc drops acp.helpers
+- fix: cap agent-client-protocol below 1.0.0 - its rc drops acp.helpers
 - Fix opencode publish command double-cutting
 
 ## [1.0.0rc1] - 2026-10-20
@@ -132,7 +132,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - feat: construct plan 015-container-lifecycle-rm-fix.md (agent dev loop)
-- docs: plan 015 — container lifecycle --rm cleanup fix
+- docs: plan 015 - container lifecycle --rm cleanup fix
 
 ## [1.0.0a1] - 2026-10-20
 

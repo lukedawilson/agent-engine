@@ -1,4 +1,4 @@
-# Infrastructure Design Plan — unit-2 (SDK-level hardening)
+# Infrastructure Design Plan - unit-2 (SDK-level hardening)
 
 ## Assessment Context
 
@@ -20,13 +20,13 @@ Unit-2 hardens host-side subprocess invocation (command/action steps) and tool r
 | Compute Infrastructure | N/A | Command/action subprocesses are children of the existing pipeline process on the host; no new compute service. |
 | Storage Infrastructure | N/A | `env_allowlist` is a YAML config field, not storage; `state_dir` unchanged. No schema, no database. |
 | Messaging Infrastructure | N/A | In-process step routing (LangGraph); no queues, no async boundaries. |
-| Networking Infrastructure | N/A | Unit-2 adds no network surface. (Unit-3 introduces the container daemon socket — its infrastructure belongs to unit-3's design.) |
+| Networking Infrastructure | N/A | Unit-2 adds no network surface. (Unit-3 introduces the container daemon socket - its infrastructure belongs to unit-3's design.) |
 | Monitoring Infrastructure | N/A | Existing viz/console capture unchanged; no new observability surface. |
 | Shared Infrastructure | N/A | Nothing shared across units at the infrastructure level in unit-2. |
 
 ## Open Questions
 
-None. Every category is N/A with justification — unit-2 has zero infrastructure footprint. Proceeding directly to artifact generation.
+None. Every category is N/A with justification - unit-2 has zero infrastructure footprint. Proceeding directly to artifact generation.
 
 ## Verification
 

@@ -1,6 +1,6 @@
 """`--dry-run`: the full load-and-validate pass with zero execution.
 
-Everything short of running a step happens here — YAML parse, step schema
+Everything short of running a step happens here - YAML parse, step schema
 validation, extension loading (document loaders included), agents_dir /
 verdict / routing-target resolution, isolation config validation, and pure
 image-ref resolution (no Docker calls). No LLM is built, no sandbox is
@@ -35,7 +35,7 @@ def _validate_agents(cfg: PipelineConfig, agents_dir: Path) -> None:
 def _validate_actions(cfg: PipelineConfig, registry: Registry) -> None:
     """Unknown action names fail at graph build time; catch them here so a
     dry run is a true load pass. Host-side built-in actions cannot take
-    ``network`` (020) — deferred here because the config schema can't
+    ``network`` (020) - deferred here because the config schema can't
     distinguish host-side from sandbox actions."""
     known = set(registry.actions) | set(registry.sandbox_actions)
     for step in cfg.steps:
@@ -107,7 +107,7 @@ def _print_summary(cfg_path: Path, cfg: PipelineConfig, subject: str,
     print(f"  memory: {memory}")
     print(f"  cpus: {cpus}")
     print(f"  state_dir: {state_dir}")
-    print("dry run complete — nothing executed")
+    print("dry run complete - nothing executed")
 
 
 def dry_run(cfg_path, args, registry: Registry | None = None) -> int:
@@ -117,8 +117,8 @@ def dry_run(cfg_path, args, registry: Registry | None = None) -> int:
 
     `registry` carries extensions already loaded by the CLI (build_parser
     loads them once for loader-contributed flags; a second load would
-    collide with the SDK's process-global tool registry). When absent —
-    programmatic calls — the registry is built here."""
+    collide with the SDK's process-global tool registry). When absent -
+    programmatic calls - the registry is built here."""
     cfg_path = Path(cfg_path)
     cfg = load_config(cfg_path)
     base = cfg_path.resolve().parent

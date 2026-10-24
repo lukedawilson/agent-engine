@@ -2,7 +2,7 @@
 
 Infrastructure shared across units and all pipeline runs, first defined during
 unit-3 Infrastructure Design (2026-10-19). Units 1-2 had no infrastructure
-(all categories N/A — they deferred container infra to unit-3).
+(all categories N/A - they deferred container infra to unit-3).
 
 ## 1. Docker sandbox runtime
 
@@ -18,12 +18,12 @@ unit-3 Infrastructure Design (2026-10-19). Units 1-2 had no infrastructure
 
 ## 3. CI workflows
 
-- **What**: `.github/workflows/ci.yml` (ubuntu-latest + windows-latest matrix: unit tests + Docker-backend integration tests) and `publish-image.yml` (image build/push). First CI in the repo — ships with unit-3.
+- **What**: `.github/workflows/ci.yml` (ubuntu-latest + windows-latest matrix: unit tests + Docker-backend integration tests) and `publish-image.yml` (image build/push). First CI in the repo - ships with unit-3.
 - **Who uses it**: the whole repo (units 1-3 tests run together; future units extend the matrix).
 
 ## 4. Per-user state directory
 
-- **What**: `~/.agentic-dev-loop/state/` — provision stamps (`stamps/`) and the sandbox audit log (`sandbox-audit.jsonl`).
+- **What**: `~/.agentic-dev-loop/state/` - provision stamps (`stamps/`) and the sandbox audit log (`sandbox-audit.jsonl`).
 - **Who uses it**: all pipelines on a machine; shared across projects (one stamp per setup key).
 
 ## Change process
@@ -33,8 +33,8 @@ unit-3 Infrastructure Design (2026-10-19). Units 1-2 had no infrastructure
 
 ## 5. Per-user run state (added 2026-10-19, Q1)
 
-- `~/.agentic-dev-loop/runs/<pipeline-hash>/` — default PipelineConfig.state_dir: checkpoint DB + last-error.md + per-run artifacts, OUTSIDE the sandbox mount.
+- `~/.agentic-dev-loop/runs/<pipeline-hash>/` - default PipelineConfig.state_dir: checkpoint DB + last-error.md + per-run artifacts, OUTSIDE the sandbox mount.
 
-## Amendment (2026-10-19) — package rename
+## Amendment (2026-10-19) - package rename
 
 - Package references updated `agent-engine` → `agentic-dev-loop` throughout (module paths, default image `ghcr.io/lukedawilson/agentic-dev-loop/dev`, env var `AGENTIC_DEV_LOOP_DEV_IMAGE`, user state dirs `~/.agentic-dev-loop/*`). No design change.

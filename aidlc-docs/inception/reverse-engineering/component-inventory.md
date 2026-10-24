@@ -2,7 +2,7 @@
 
 ## Application Packages
 
-- `agent_engine` (src/) - The pipeline engine library + CLI — config schema, graph, stages, agents, actions, registry, loaders, verdicts, viz.
+- `agent_engine` (src/) - The pipeline engine library + CLI - config schema, graph, stages, agents, actions, registry, loaders, verdicts, viz.
 
 ## Infrastructure Packages
 

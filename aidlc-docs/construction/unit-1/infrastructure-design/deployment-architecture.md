@@ -1,4 +1,4 @@
-# Deployment Architecture — unit-1 (output-passing fix)
+# Deployment Architecture - unit-1 (output-passing fix)
 
 ## Deployment Model
 
@@ -21,4 +21,4 @@ Unit-1 changes **no deployment characteristics**. The library ships as a pip-ins
 
 ## Cross-platform
 
-Unit-1 introduces no platform-specific behavior — the file-write and string-parse paths are pure stdlib. Platform variance (daemon detection, mounts, CRLF) belongs to unit-3.
+Unit-1 introduces no platform-specific behavior - the file-write and string-parse paths are pure stdlib. Platform variance (daemon detection, mounts, CRLF) belongs to unit-3.

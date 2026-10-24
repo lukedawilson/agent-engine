@@ -28,7 +28,7 @@ def needs_shell(command: str) -> bool:
 
 def split_command(command: str) -> list[str]:
     """Split a simple command into argv via ``shlex.split``. Callers invoke
-    this only when ``needs_shell`` is false — ``shlex`` never sees a shell
+    this only when ``needs_shell`` is false - ``shlex`` never sees a shell
     command (BR-4.1)."""
     return shlex.split(command)
 
@@ -40,7 +40,7 @@ def host_shell_execution(
 
     POSIX: the raw string with ``shell=True`` (unchanged unit-2 behaviour).
     Windows: ``shell=True`` is cmd.exe, which mangles ``$VAR`` expansion and
-    ``|`` pipelines (the CI-red hybrid failures) — prefer the discovered
+    ``|`` pipelines (the CI-red hybrid failures) - prefer the discovered
     POSIX ``sh`` (git-bash) via argv instead; fall back to ``shell=True``
     only when no ``sh`` exists anywhere on PATH.
     """
@@ -56,11 +56,11 @@ def kill_process_tree(proc, *, nt: bool | None = None,
                       run=subprocess.run) -> None:
     """Terminate `proc` and its descendants after a timeout.
 
-    POSIX: ``start_new_session`` made ``proc.pid`` the process-group id —
+    POSIX: ``start_new_session`` made ``proc.pid`` the process-group id -
     ``killpg`` reaps the whole group (a shell wrapper's children survive a
     plain ``kill``).
 
-    Windows: ``proc.kill()`` terminates only the direct child — a git-bash
+    Windows: ``proc.kill()`` terminates only the direct child - a git-bash
     ``sh -c`` wrapper's python child survives and keeps the pipes open, so
     the follow-up ``communicate()`` blocks out the child's full lifetime.
     ``taskkill /T`` walks the process tree while the parent is still alive,
@@ -77,7 +77,7 @@ def kill_process_tree(proc, *, nt: bool | None = None,
 
 
 def is_pid_token(token: str) -> bool:
-    """True only for a plain decimal integer — the only tokens from ``lsof``
+    """True only for a plain decimal integer - the only tokens from ``lsof``
     output safe to hand to ``kill``/``ps`` (BR-5.2)."""
     return token.isascii() and token.isdigit()
 

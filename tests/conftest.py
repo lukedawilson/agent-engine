@@ -1,4 +1,4 @@
-"""Shared test doubles. FakeAgents replaces `stages.run_agent` — the SDK
+"""Shared test doubles. FakeAgents replaces `stages.run_agent` - the SDK
 network boundary (the ONLY permitted stub per repo mock policy); everything
 else runs real: real files, real git, real checkpoint DB."""
 
@@ -8,14 +8,14 @@ from pathlib import Path
 
 # `viz_demo.py` lives at the repo root (a demo script, not part of the
 # package), and plain `pytest` does not put the working directory on
-# sys.path (unlike `python -m pytest`). Insert the repo root — idempotently —
+# sys.path (unlike `python -m pytest`). Insert the repo root - idempotently -
 # so the suite passes under any invocation, including CI.
 _REPO_ROOT = str(Path(__file__).resolve().parents[1])
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 # This repo dogfoods its own published wheel in .venv. The suite must test
-# the WORKING TREE, not the installed wheel — insert src/ ahead of anything
+# the WORKING TREE, not the installed wheel - insert src/ ahead of anything
 # else (idempotently) so `import agentic_dev_loop` always resolves to the
 # source being developed. Pinned by tests/test_source_resolution.py.
 _SRC_DIR = str(Path(__file__).resolve().parents[1] / "src")
@@ -35,19 +35,19 @@ class FakeAgents:
     """Scripted stand-in for stages.run_agent. Behaviors are per-agent lists
     consumed in call order (the last one repeats):
 
-      ("ok",)                                — run finishes, no final response
-      ("write", path, content)               — writes an artifact, finishes
+      ("ok",)                                - run finishes, no final response
+      ("write", path, content)               - writes an artifact, finishes
                                                (final response = content)
-      ("truncated",)                         — cut short, no final response
-      ("write_truncated", path, content)     — writes, then is cut short
-      ("raise",)                             — run_agent internally fails
+      ("truncated",)                         - cut short, no final response
+      ("write_truncated", path, content)     - writes, then is cut short
+      ("raise",)                             - run_agent internally fails
                                                (its contract: never raise,
                                                return ok=False)
-      ("crash",)                             — KeyboardInterrupt escapes the
+      ("crash",)                             - KeyboardInterrupt escapes the
                                                graph (process-death resume)
 
     Capture mirroring: for steps that capture (produces/artifact), ("ok",)
-    and ("truncated",) — which produce no final response — return
+    and ("truncated",) - which produce no final response - return
     capture_error="empty_response", exactly as the real run_agent does.
     """
 
@@ -133,14 +133,14 @@ def _exec_host(request: SandboxExecutionRequest) -> tuple[int | None, str, bool]
     import subprocess
 
     # Host-side approximation of the container: keep the sandbox PATH first
-    # but append the host PATH so host binaries (python) resolve — the real
+    # but append the host PATH so host binaries (python) resolve - the real
     # sandbox image ships python on its own PATH. Env scrubbing is separately
     # covered by the resolve_sandbox_env tests.
     env = dict(request.env)
     env["PATH"] = (request.env.get("PATH", "") + os.pathsep
                    + os.environ.get("PATH", "")).rstrip(os.pathsep)
     # The container resolves '/bin/sh' inside the image; the FAKE executes
-    # host-side, where Windows has no /bin/sh — map to the host's sh (git-bash).
+    # host-side, where Windows has no /bin/sh - map to the host's sh (git-bash).
     argv = list(request.argv)
     if os.name == "nt" and argv and argv[0] == "/bin/sh":
         import shutil

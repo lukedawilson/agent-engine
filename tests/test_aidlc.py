@@ -35,7 +35,7 @@ class TestResolveUnitDocs:
         assert "other.md" not in docs
 
     def test_u_prefixed_id_is_not_mangled(self, tmp_path):
-        """The slug is the directory name — `U2` must NOT resolve `unit-2`."""
+        """The slug is the directory name - `U2` must NOT resolve `unit-2`."""
         unit_dir = tmp_path / "construction" / "unit-2"
         unit_dir.mkdir(parents=True)
         (unit_dir / "design.md").write_text("# Design")
@@ -52,7 +52,7 @@ class TestResolveUnitDocs:
             resolve_unit_docs(tmp_path, "u3")
 
     def test_raises_for_missing_unit_and_lists_available(self, tmp_path):
-        """Unknown unit must fail fast — silently running the pipeline with
+        """Unknown unit must fail fast - silently running the pipeline with
         zero design docs is a forbidden silent fallback. The error names the
         directories that DO exist."""
         (tmp_path / "construction" / "unit-1").mkdir(parents=True)
@@ -78,7 +78,7 @@ class TestResolveUnitDocs:
 
     def test_unit_and_inception_name_collision_kept_separate(self, tmp_path):
         """A unit doc and an inception doc with the same filename must both
-        survive — inception docs are namespaced to avoid silent overwrite."""
+        survive - inception docs are namespaced to avoid silent overwrite."""
         unit_dir = tmp_path / "construction" / "unit-1"
         unit_dir.mkdir(parents=True)
         (unit_dir / "architecture.md").write_text("unit version")
@@ -94,7 +94,7 @@ class TestResolveUnitDocs:
     def test_loads_docs_recursively_from_subdirs(self, tmp_path):
         """Unit dirs may nest docs in subdirectories (unit-3 layout:
         functional-design/business-rules.md). Non-recursive loading silently
-        injected zero unit docs — the 2026-07-19 U3 context bug."""
+        injected zero unit docs - the 2026-07-19 U3 context bug."""
         unit_dir = tmp_path / "construction" / "unit-3"
         (unit_dir / "functional-design").mkdir(parents=True)
         (unit_dir / "functional-design" / "business-rules.md").write_text("# Rules")
@@ -103,14 +103,14 @@ class TestResolveUnitDocs:
 
         assert docs["functional-design/business-rules.md"] == "# Rules"
         # Keys are contract addresses for agents (a Linux container): always
-        # '/'-joined regardless of host OS — backslashes were the CI-red
+        # '/'-joined regardless of host OS - backslashes were the CI-red
         # KeyError on Windows.
         assert all("/" in k for k in docs)
         assert all("\\" not in k for k in docs)
 
     def test_raises_when_unit_dir_yields_no_docs(self, tmp_path):
         """A matched unit dir with no loadable files is a forbidden silent
-        fallback — fail fast like a missing dir does."""
+        fallback - fail fast like a missing dir does."""
         (tmp_path / "construction" / "unit-3" / "functional-design").mkdir(parents=True)
 
         with pytest.raises(RuntimeError, match="no.*docs|zero"):
@@ -144,7 +144,7 @@ class TestResolveUnitDocs:
 
 
 class TestDirectSlugMatching:
-    """The slug IS the directory name — no spelling tolerance, no numeric
+    """The slug IS the directory name - no spelling tolerance, no numeric
     fallback, no prefix mangling."""
 
     def _unit(self, tmp_path, name):
@@ -189,46 +189,46 @@ class TestGetCurrentUnit:
     def test_parses_slug_from_current_stage(self, tmp_path):
         self._write_state(
             tmp_path,
-            "- **Current Stage**: CONSTRUCTION — Unit unit-3 (SCAN) — Code Generation in progress.")
+            "- **Current Stage**: CONSTRUCTION - Unit unit-3 (SCAN) - Code Generation in progress.")
         assert get_current_unit(tmp_path) == "unit-3"
 
     def test_parses_bare_slug_from_current_stage(self, tmp_path):
         self._write_state(
             tmp_path,
-            "- **Current Stage**: CONSTRUCTION — Unit support-for-windows.")
+            "- **Current Stage**: CONSTRUCTION - Unit support-for-windows.")
         assert get_current_unit(tmp_path) == "support-for-windows"
 
     def test_parses_different_slug(self, tmp_path):
         self._write_state(
-            tmp_path, "- **Current Stage**: CONSTRUCTION — Unit unit-12 (REPORT).")
+            tmp_path, "- **Current Stage**: CONSTRUCTION - Unit unit-12 (REPORT).")
         assert get_current_unit(tmp_path) == "unit-12"
 
     def test_ignores_unit_mentions_before_the_stage_line(self, tmp_path):
         """The state file accumulates history; only the Current Stage line
-        decides the unit — an earlier 'Unit N' mention must not win."""
+        decides the unit - an earlier 'Unit N' mention must not win."""
         state = tmp_path / "aidlc-state.md"
         state.write_text(
             "# AI-DLC State Tracking\n\n"
             "- Finished Unit 9 (REPORT) last week.\n"
-            "- **Current Stage**: CONSTRUCTION — Unit unit-3 (SCAN) — Code Generation.\n",
+            "- **Current Stage**: CONSTRUCTION - Unit unit-3 (SCAN) - Code Generation.\n",
             encoding="utf-8")
         assert get_current_unit(tmp_path) == "unit-3"
 
     def test_stage_line_without_unit_raises_despite_earlier_mention(self, tmp_path):
-        """A 'Unit N' somewhere else in the file is not a Current Stage —
+        """A 'Unit N' somewhere else in the file is not a Current Stage -
         falling back to it would silently construct the wrong unit."""
         state = tmp_path / "aidlc-state.md"
         state.write_text(
             "# AI-DLC State Tracking\n\n"
             "- Previously worked on Unit 9.\n"
-            "- **Current Stage**: INCEPTION — requirements gathering.\n",
+            "- **Current Stage**: INCEPTION - requirements gathering.\n",
             encoding="utf-8")
         with pytest.raises(RuntimeError, match="current unit"):
             get_current_unit(tmp_path)
 
     def test_raises_when_no_unit_in_stage_line(self, tmp_path):
-        """A stage line with no unit must fail fast — no silent default."""
-        self._write_state(tmp_path, "- **Current Stage**: INCEPTION — requirements.")
+        """A stage line with no unit must fail fast - no silent default."""
+        self._write_state(tmp_path, "- **Current Stage**: INCEPTION - requirements.")
         with pytest.raises(RuntimeError, match="current unit"):
             get_current_unit(tmp_path)
 
@@ -258,7 +258,7 @@ class TestAidlcDocumentLoader:
     def test_resolve_without_unit_autodetects_current(self, tmp_path):
         self._unit_docs(tmp_path)
         (tmp_path / "aidlc-state.md").write_text(
-            "# State\n\n- **Current Stage**: CONSTRUCTION — Unit unit-3 (SCAN).\n",
+            "# State\n\n- **Current Stage**: CONSTRUCTION - Unit unit-3 (SCAN).\n",
             encoding="utf-8")
         loader = AidlcDocumentLoader(docs_dir=tmp_path)
 
@@ -272,7 +272,7 @@ class TestAidlcDocumentLoader:
         unit_dir.mkdir(parents=True)
         (unit_dir / "design.md").write_text("# Design")
         (tmp_path / "aidlc-state.md").write_text(
-            "# State\n\n- **Current Stage**: CONSTRUCTION — Unit unit-004-preset-management ADL-01.\n",
+            "# State\n\n- **Current Stage**: CONSTRUCTION - Unit unit-004-preset-management ADL-01.\n",
             encoding="utf-8")
         loader = AidlcDocumentLoader(docs_dir=tmp_path)
 

@@ -2,7 +2,7 @@
 
 This repo dogfoods its own published wheel in .venv (deliberate). Plain
 pytest would otherwise import the published code and silently test stale
-behaviour. This test pins the import to src/ — it fails the moment the
+behaviour. This test pins the import to src/ - it fails the moment the
 conftest sys.path insertion stops working.
 """
 
@@ -17,5 +17,5 @@ def test_import_resolves_to_working_tree():
     resolved = Path(agentic_dev_loop.__file__).resolve()
     assert resolved.is_relative_to(REPO_SRC), (
         f"agentic_dev_loop imported from {resolved}, not the working tree "
-        f"({REPO_SRC}) — conftest's src/ sys.path insertion is not effective"
+        f"({REPO_SRC}) - conftest's src/ sys.path insertion is not effective"
     )

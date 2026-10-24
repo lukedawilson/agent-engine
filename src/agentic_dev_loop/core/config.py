@@ -38,7 +38,7 @@ def route_target(route: RouteTarget | None) -> str | None:
 
 
 class SecretSpec(BaseModel):
-    """One ``secrets:`` ref — the locator only, never a value. ``from`` names
+    """One ``secrets:`` ref - the locator only, never a value. ``from`` names
     the provider (``env`` first); ``key`` is that provider's locator (for
     ``env``, the host environment variable to read and the step env name to
     inject). Unknown keys fail at load (extra="forbid")."""
@@ -66,7 +66,7 @@ class SecretSpec(BaseModel):
 
 
 class IsolationConfig(BaseModel):
-    """Optional `isolation:` section — configures the always-on sandbox (BR-2).
+    """Optional `isolation:` section - configures the always-on sandbox (BR-2).
     Absence means opinionated defaults, never unsandboxed behaviour. Unknown
     keys fail at load (BR-5). `state_dir` is HOST-ONLY (stamps + audit) and is
     never mounted into the sandbox (Q1)."""
@@ -83,7 +83,7 @@ class IsolationConfig(BaseModel):
     # at ``{ws}/.venv-sandbox`` (rw) in both the exec and provision containers,
     # keeping the workspace free of container venv artifacts. Unset keeps the
     # legacy workspace-local ``.venv-sandbox`` unchanged. Must resolve outside
-    # the workspace — validated at startup, not load (the workspace is unknown
+    # the workspace - validated at startup, not load (the workspace is unknown
     # here).
     sandbox_venv_dir: str | None = None
 
@@ -104,7 +104,7 @@ class IsolationConfig(BaseModel):
 
 class StepConfig(BaseModel):
     """One pipeline step. Its type IS the key it carries: exactly one of
-    `agent`, `action`, or `command` — empty values do not count, anything
+    `agent`, `action`, or `command` - empty values do not count, anything
     else fails to load. See the `kind` property (the single discriminator
     graph-building dispatches on)."""
     model_config = ConfigDict(extra="forbid")
@@ -183,7 +183,7 @@ class StepConfig(BaseModel):
         # `network` is NOT rejected here: the schema can't tell a host-side
         # built-in action (e.g. `commit`, which must never take egress) from
         # a sandbox-executed consumer action (which may, like a command step).
-        # That distinction is enforced once the registry is known — see
+        # That distinction is enforced once the registry is known - see
         # `validate_action_network` (020).
         if self.secrets and self.action is not None:
             raise ValueError(
@@ -209,7 +209,7 @@ class PipelineConfig(BaseModel):
     extensions: list[str] = []
     additional_files: list[str] = []
     # Where consumer `extensions:` modules resolve (work item 020). Must live
-    # OUTSIDE the workspace — the host refuses workspace-resident extension and
+    # OUTSIDE the workspace - the host refuses workspace-resident extension and
     # tool-handler modules, so agent-writable files are never imported by the
     # host process.
     extensions_dir: str = "~/.agentic-dev-loop/extensions"
@@ -225,7 +225,7 @@ class PipelineConfig(BaseModel):
     # lockfile is the source of truth and the agent may not add dependencies;
     # `open` = the bootstrap protocol (the agent may add exact-pinned manifest
     # entries for the restore step to fetch). `lockfiles` names the pipeline's
-    # declared lockfile(s) — injected into agent context and named by the
+    # declared lockfile(s) - injected into agent context and named by the
     # missing-dependency fail-fast.
     deps_policy: str = "locked"
     lockfiles: list[str] = []
@@ -256,7 +256,7 @@ class PipelineConfig(BaseModel):
             if not isinstance(spec, dict):
                 raise ValueError(
                     f"secret ref {name!r} must be a mapping "
-                    "{from: ..., key: ...}, not a literal value — secret "
+                    "{from: ..., key: ...}, not a literal value - secret "
                     "values never belong in the pipeline yaml")
         return v
 
@@ -265,7 +265,7 @@ class PipelineConfig(BaseModel):
         if self.deps_policy == "locked" and not self.lockfiles:
             raise ValueError(
                 "deps_policy 'locked' requires at least one entry in "
-                "'lockfiles:' — name the lockfile(s) the locked boundary "
+                "'lockfiles:' - name the lockfile(s) the locked boundary "
                 "enforces, or set 'deps_policy: open'")
         return self
 

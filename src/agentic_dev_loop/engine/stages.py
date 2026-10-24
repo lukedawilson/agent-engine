@@ -6,15 +6,15 @@ pipeline config; the fixed policies stay here, not in config:
 - per-attempt hygiene: every declared artifact/produces file + last-error.md
   is deleted at attempt start, so stale files can't be misread
 - capture-first feedback: the pipeline captures each agent's final response
-  and writes the artifact itself — agents no longer file their own reports
+  and writes the artifact itself - agents no longer file their own reports
 - verdict-first truncation: a clear verdict stands even if the run was cut
   short before the agent formally finished
 - empty response / unclear verdict → implicit, attempt-bounded retry with the
-  captured text surfaced into notes (never routable — policy, not config)
+  captured text surfaced into notes (never routable - policy, not config)
 - notes accumulate across attempts into the next attempt's context
 - command steps are mechanical: the exit code is the verdict (0 ⇒ pass,
   anything else ⇒ fail), a timeout kills the whole process group, and the
-  output tail rides into the retry note — "unclear" is impossible
+  output tail rides into the retry note - "unclear" is impossible
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ if TYPE_CHECKING:
     from .isolation import Sandbox
 
 DEFAULT_MAX_ITERATIONS = 500
-DEFAULT_COMMAND_TIMEOUT = 600.0  # seconds — a pytest-class suite budget
+DEFAULT_COMMAND_TIMEOUT = 600.0  # seconds - a pytest-class suite budget
 LAST_ERROR = "last-error.md"
 
 
@@ -68,7 +68,7 @@ class Runtime:
 def prompt_dir(runtime: Runtime) -> str:
     """state_dir as agents must address it. Agents resolve prompt paths
     against their workspace, so a bare `state_dir.name` only reaches the real
-    state_dir when the pipeline file sits at the workspace root — yosk runs
+    state_dir when the pipeline file sits at the workspace root - yosk runs
     agentic-dev-loop/pipeline.yaml from the repo root, where `.pr` and
     `agentic-dev-loop/.pr` diverge. Workspace-relative when under the workspace,
     the absolute path when outside it."""
@@ -83,7 +83,7 @@ class AgentResult:
     """Outcome of a single agent stage run.
 
     ok=False only on unhandled exceptions. truncated=True when the run ended
-    without the agent reaching FINISHED — the turn cap (ERROR) or the SDK's
+    without the agent reaching FINISHED - the turn cap (ERROR) or the SDK's
     stuck detector (STUCK) both land here. response carries the captured final
     agent message (capture-applying steps only); capture_error is set when the
     agent finished but produced no final response ("empty_response")."""
@@ -98,11 +98,11 @@ def run_agent(agent_name: str, message: str, runtime: Runtime,
               step: StepConfig | None = None) -> AgentResult:
     """Run one agent stage. The agent file's body is delivered as a system
     message suffix (AgentContext); the user turn carries only the task.
-    Any failure — setup or run — is reported to <state_dir>/last-error.md.
+    Any failure - setup or run - is reported to <state_dir>/last-error.md.
 
     For steps declaring outputs (produces/artifact), the final response is
     captured from conv.state.events (before conv.close()) and written by the
-    pipeline to the declared artifact path — the agent never files its own
+    pipeline to the declared artifact path - the agent never files its own
     report."""
     conv = None
     try:
@@ -149,7 +149,7 @@ def run_agent(agent_name: str, message: str, runtime: Runtime,
         error_path.write_text(
             f"# Agent run failed\n\n```\n{err[-4000:]}\n```",
             encoding="utf-8")
-        print(f"Agent run failed — error details written to {error_path}", flush=True)
+        print(f"Agent run failed - error details written to {error_path}", flush=True)
         return AgentResult(ok=False, truncated=False)
     finally:
         if conv is not None:
@@ -250,7 +250,7 @@ def _unclear_target(runtime: Runtime, step: StepConfig) -> str:
 def _unclear_note(runtime: Runtime, step: StepConfig, attempt: int,
                   text: str | None, truncated: bool, max_iterations: int,
                   error: str | None = None) -> str:
-    """Explain an unclear verdict to the next attempt — and surface the
+    """Explain an unclear verdict to the next attempt - and surface the
     captured response when it exists, so real findings are never swallowed."""
     expected = ""
     if step.verdicts is not None:
@@ -261,7 +261,7 @@ def _unclear_note(runtime: Runtime, step: StepConfig, attempt: int,
                 f"(hit the {max_iterations}-turn limit or was stopped "
                 f"by stuck detection)")
         if text is not None:
-            return (f"## {step.name} output (attempt {attempt} — truncated)\n\n"
+            return (f"## {step.name} output (attempt {attempt} - truncated)\n\n"
                     f"{lead}. Its findings so far:\n\n{text}")
         return f"{lead} and produced no final response."
     if text is None:
@@ -304,7 +304,7 @@ def make_agent_node(runtime: Runtime, step: StepConfig):
                                             result.truncated, max_iterations)],
                     "retry_target": _unclear_target(runtime, step)}
 
-        # 021: under `locked`, a declared missing dependency is a fail-fast —
+        # 021: under `locked`, a declared missing dependency is a fail-fast -
         # one human lockfile edit, never a retry loop. The extension message
         # is written to last-error.md (the run-failure channel) and printed.
         if (runtime.cfg.deps_policy == "locked"
@@ -358,7 +358,7 @@ def make_command_node(runtime: Runtime, step: StepConfig):
     """Node closure for a mechanical command step. The exit code is the sole
     verdict: 0 ⇒ pass, anything else (nonzero, signal-killed, not-found, or
     killed for exceeding timeout) ⇒ fail. Output is printed and its tail rides
-    into the retry note — mirroring the agent FAIL branch, so a retried dev
+    into the retry note - mirroring the agent FAIL branch, so a retried dev
     agent sees exactly what the gate emitted."""
     timeout = step.timeout if step.timeout is not None else DEFAULT_COMMAND_TIMEOUT
     sandbox = runtime.sandbox
@@ -393,7 +393,7 @@ def make_command_node(runtime: Runtime, step: StepConfig):
             return {"step_verdicts": merged, "failed": False}
         print(f"[{subject}] {step.name} command failed on attempt {attempt}.",
               flush=True)
-        label = f"attempt {attempt} — timed out" if timed_out else f"attempt {attempt}"
+        label = f"attempt {attempt} - timed out" if timed_out else f"attempt {attempt}"
         update = {"step_verdicts": merged,
                   "notes": [f"## {step.name} output ({label})\n\n{output[-4000:]}"]}
         if isinstance(step.on_fail, Route) and step.on_fail.retry:
@@ -417,7 +417,7 @@ def make_action_node(runtime: Runtime, step: StepConfig):
 
     Host-side built-ins (``commit``) invoke their trusted ``fn`` in the host
     process; every other action is a sandbox-executed, command-shaped script
-    (020) run through the same sandbox path as command steps — exit code is
+    (020) run through the same sandbox path as command steps - exit code is
     the verdict, and consumer action code never runs in the host. An action
     exception fails the run (same as an agent's)."""
     if step.action in runtime.registry.actions:
@@ -437,7 +437,7 @@ def make_action_node(runtime: Runtime, step: StepConfig):
     script = runtime.registry.sandbox_actions[step.action]
     if runtime.sandbox is None:
         raise ValueError(
-            f"sandbox action {step.action!r} requires a sandbox — consumer "
+            f"sandbox action {step.action!r} requires a sandbox - consumer "
             "actions must execute inside the sandbox, never the host")
     timeout = DEFAULT_COMMAND_TIMEOUT
     env = resolve_sandbox_env(step.env)
@@ -473,7 +473,7 @@ def make_action_node(runtime: Runtime, step: StepConfig):
             return {"step_verdicts": merged, "failed": False}
         print(f"[{subject}] {step.name} action failed on attempt {attempt}.",
               flush=True)
-        label = f"attempt {attempt} — timed out" if timed_out else f"attempt {attempt}"
+        label = f"attempt {attempt} - timed out" if timed_out else f"attempt {attempt}"
         update = {"step_verdicts": merged,
                   "notes": [f"## {step.name} output ({label})\n\n{output[-4000:]}"]}
         if isinstance(step.on_fail, Route) and step.on_fail.retry:
@@ -484,7 +484,7 @@ def make_action_node(runtime: Runtime, step: StepConfig):
 
 
 def make_router(runtime: Runtime, step: StepConfig):
-    """Router closure — a pure function of state, so control flow is
+    """Router closure - a pure function of state, so control flow is
     deterministic by construction. Return values are node names (resolved
     dynamically by LangGraph), "bump", "success", or END (failure).
 
@@ -525,7 +525,7 @@ def make_router(runtime: Runtime, step: StepConfig):
             if isinstance(step.on_fail, Route) and step.on_fail.retry:
                 return "bump" if state["attempt"] < state["max_attempts"] else END
             return resolve(step.on_fail)
-        # Unclear — implicit retry, attempt-bounded (fixed policy).
+        # Unclear - implicit retry, attempt-bounded (fixed policy).
         return "bump" if state["attempt"] < state["max_attempts"] else END
 
     return router
@@ -533,7 +533,7 @@ def make_router(runtime: Runtime, step: StepConfig):
 
 def make_bump_node(runtime: Runtime):
     """Close the retry cycle: consume one attempt, clear per-attempt
-    artifacts, and rebuild the context with the accumulated notes — the
+    artifacts, and rebuild the context with the accumulated notes - the
     attempt-start duties yosk's dev node owned, generalized to any target."""
 
     def node(state: dict) -> dict:
@@ -549,5 +549,5 @@ def make_bump_node(runtime: Runtime):
 
 
 def success_node(_state: dict) -> dict:
-    """The success terminal as a real node — any step may route here."""
+    """The success terminal as a real node - any step may route here."""
     return {"outcome": "success"}

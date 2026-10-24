@@ -1,7 +1,7 @@
 """Host-side secret store (unit 019): provider registry, run-start resolution,
 the ``.env*`` ban, and output scrubbing.
 
-Secrets are declared in the pipeline yaml as refs only — never values. At run
+Secrets are declared in the pipeline yaml as refs only - never values. At run
 start the engine resolves every declared ref host-side (``env`` provider
 first) and injects each value into a declaring step's exec env only. The
 ``.env*`` ban keeps secret-bearing files out of the workspace, and the
@@ -99,9 +99,9 @@ def redact_values(text: str, values: Iterable[str]) -> str:
 
 
 def scan_env_files(workspace: Path | str) -> None:
-    """The ``.env*`` ban: any ``.env*`` file at the workspace root — other than
+    """The ``.env*`` ban: any ``.env*`` file at the workspace root - other than
     the convention fixtures (``.env.example`` / ``.env.template`` /
-    ``.env.sample``) — fails fast, naming the files and the remedy. Applies
+    ``.env.sample``) - fails fast, naming the files and the remedy. Applies
     regardless of ``network:`` flags: the workspace must simply not hold
     secrets."""
     root = Path(workspace)
@@ -113,6 +113,6 @@ def scan_env_files(workspace: Path | str) -> None:
         raise SecretResolutionError(
             "secret-bearing file(s) found in the workspace root: "
             + ", ".join(hits)
-            + " — move these values into `secrets:` refs / host env and "
+            + " - move these values into `secrets:` refs / host env and "
             "delete the files (`.env.example`, `.env.template`, `.env.sample` "
             "are allowed fixtures)")

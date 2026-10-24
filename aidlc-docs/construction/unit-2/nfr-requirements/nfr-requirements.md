@@ -1,8 +1,8 @@
-# NFR Requirements — unit-2 (SDK-level hardening)
+# NFR Requirements - unit-2 (SDK-level hardening)
 
 ## Assessment Summary
 
-NFR assessment identified one real NFR (subprocess environment hygiene); security is the dominant concern and was already mapped in the Functional Design's business-rules (BR-4/BR-5 + security-baseline dispositions). Everything else is N/A per user scoping (desktop CLI library, single pipeline process, no uptime concept — same as unit-1).
+NFR assessment identified one real NFR (subprocess environment hygiene); security is the dominant concern and was already mapped in the Functional Design's business-rules (BR-4/BR-5 + security-baseline dispositions). Everything else is N/A per user scoping (desktop CLI library, single pipeline process, no uptime concept - same as unit-1).
 
 ## Non-Functional Requirements
 
@@ -19,7 +19,7 @@ NFR assessment identified one real NFR (subprocess environment hygiene); securit
 | Category | Disposition | Justification |
 | --- | --- | --- |
 | Scalability | N/A | Desktop tool, single pipeline process |
-| Performance | N/A | Hardening adds one string scan + one `shlex` split + one env-dict build per command step — negligible |
+| Performance | N/A | Hardening adds one string scan + one `shlex` split + one env-dict build per command step - negligible |
 | Availability | N/A | No uptime concept; crash-safe resume via checkpointing unchanged |
 | Maintainability | N/A | Covered by binding DDD + PBT extension rules |
 | Usability | N/A | CLI UX unchanged; YAML schema gains one optional key only |
@@ -28,11 +28,11 @@ NFR assessment identified one real NFR (subprocess environment hygiene); securit
 
 | Rule | Disposition |
 | --- | --- |
-| SECURITY-01 (encryption) | N/A — no data persistence or transport in scope |
-| SECURITY-02/03 (access/app logging) | N/A — library emits no logs; viz/pipeline logging unchanged |
-| SECURITY-04 (HTTP headers) | N/A — no HTTP server in scope |
-| SECURITY-05 (input validation) | Applicable — NFR-2.2 (`is_pid_token`, tool-name validation) |
-| SECURITY-06 (least privilege) | Applicable — NFR-2.1 (whitelist child env, argv-only action calls; LLM key passed to trusted command/action subprocesses per user decision) |
-| SECURITY-12 (credential hygiene) | Applicable — no hardcoded credentials (key stays in the env var, never in code/logs); key passed to trusted subprocesses by default |
-| SECURITY-15 (fail closed) | Applicable — NFR-2.3 |
-| SECURITY-07..11, 13, 14 | N/A — cloud/network/config posture rules; desktop library |
+| SECURITY-01 (encryption) | N/A - no data persistence or transport in scope |
+| SECURITY-02/03 (access/app logging) | N/A - library emits no logs; viz/pipeline logging unchanged |
+| SECURITY-04 (HTTP headers) | N/A - no HTTP server in scope |
+| SECURITY-05 (input validation) | Applicable - NFR-2.2 (`is_pid_token`, tool-name validation) |
+| SECURITY-06 (least privilege) | Applicable - NFR-2.1 (whitelist child env, argv-only action calls; LLM key passed to trusted command/action subprocesses per user decision) |
+| SECURITY-12 (credential hygiene) | Applicable - no hardcoded credentials (key stays in the env var, never in code/logs); key passed to trusted subprocesses by default |
+| SECURITY-15 (fail closed) | Applicable - NFR-2.3 |
+| SECURITY-07..11, 13, 14 | N/A - cloud/network/config posture rules; desktop library |

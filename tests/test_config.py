@@ -9,7 +9,7 @@ from agentic_dev_loop.core.config import Route, default_state_dir, load_config
 # The plan's yosk-equivalent reference pipeline (009, YAML schema section),
 # verbatim except for two substitutions: 012 replaced the agent step named
 # `test` (artifact ci-fix.md, PASS/FAIL) with the mechanical command step
-# named `test` — same position, same on_fail wiring; and 009 dropped the
+# named `test` - same position, same on_fail wiring; and 009 dropped the
 # port_sweep step (its sweep moved into engine startup, no longer a pipeline
 # step). This is the canonical pin: the documented schema must load.
 FULL_YAML = """\
@@ -138,7 +138,7 @@ def test_minimal_config_applies_defaults(tmp_path):
 
 
 def test_env_allowlist_defaults_to_empty_and_loads(tmp_path):
-    """The subprocess env allowlist is optional and additive (NFR-2.5) —
+    """The subprocess env allowlist is optional and additive (NFR-2.5) -
     absent → empty, present → the exact list."""
     assert _load(tmp_path, _base()).env_allowlist == []
     data = _base() | {"env_allowlist": ["MY_VAR", "OTHER_VAR"]}
@@ -495,7 +495,7 @@ class TestStepNetwork:
     def test_network_on_action_step_allowed_at_config_level(self, tmp_path):
         """020: the schema can't distinguish a host-side built-in action from
         a sandbox action, so `network` on an action step is accepted here and
-        rejected later (host-side) once the registry is known — see
+        rejected later (host-side) once the registry is known - see
         `validate_action_network`."""
         data = _base()
         data["steps"] = [{"name": "commit", "action": "commit", "network": True,

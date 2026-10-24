@@ -1,7 +1,7 @@
 """Two-phase CLI: phase 1 finds the pipeline YAML; phase 2 builds the full
-parser — core flags plus every document loader's contributed args (the
+parser - core flags plus every document loader's contributed args (the
 built-in `plan` loader plus whatever the pipeline's `extensions:` register)
-— and runs the pipeline. A loader's flag therefore exists only when its
+and runs the pipeline. A loader's flag therefore exists only when its
 extension is listed in that pipeline's YAML."""
 
 import argparse
@@ -17,11 +17,11 @@ from .registry import Registry, default_registry, load_extensions
 
 
 def _version() -> str:
-    """The installed distribution version — the single source of truth."""
+    """The installed distribution version - the single source of truth."""
     try:
         return importlib.metadata.version("agentic-dev-loop")
     except importlib.metadata.PackageNotFoundError:
-        print("agentic-dev-loop is not installed — version unavailable; "
+        print("agentic-dev-loop is not installed - version unavailable; "
               "run `pip install -e .`", file=sys.stderr)
         raise SystemExit(1)
 
@@ -36,7 +36,7 @@ def _core_parser() -> argparse.ArgumentParser:
         prog="agentic-dev-loop",
         description="Run an OpenHands agent pipeline defined in YAML. "
                     "Document-loader flags contributed by the pipeline's "
-                    "extensions appear once PIPELINE is known — see "
+                    "extensions appear once PIPELINE is known - see "
                     "`agentic-dev-loop PIPELINE --help`.")
     parser.add_argument("pipeline", type=Path,
                         help="path to the pipeline YAML")
@@ -95,7 +95,7 @@ def main(argv: list[str] | None = None) -> int:
         # No pipeline → the extension surface is unknowable; the core parser
         # handles --help and the missing-positional error itself (both exit).
         _core_parser().parse_args(argv)
-        return 2  # unreachable — parse_args exits first
+        return 2  # unreachable - parse_args exits first
     registry, cfg = _registry_for(known.pipeline)
     parser = _core_parser()
     for loader in registry.document_loaders:
@@ -109,15 +109,15 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.dry_run:
         return dry_run(args.pipeline, args, registry)
-    # The run path alone needs the heavy graph/SDK imports — defer so a
+    # The run path alone needs the heavy graph/SDK imports - defer so a
     # dry run, --clean-stamps, and --help stay side-effect free.
     from .graph import run_pipeline
     success, _attempts = run_pipeline(args.pipeline, args, registry=registry)
     if success and args.plan is not None:
-        # Only a completed run earns the stamp — failed runs leave the plan
+        # Only a completed run earns the stamp - failed runs leave the plan
         # as-is. AI-DLC runs never pass --plan, so aidlc docs stay untouched.
         mark_plan_completed(args.plan)
     if not success:
-        print("agentic-dev-loop: pipeline failed — exiting with code 1",
+        print("agentic-dev-loop: pipeline failed - exiting with code 1",
               file=sys.stderr)
     return 0 if success else 1

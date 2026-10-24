@@ -1,7 +1,7 @@
-"""Verdict parsing tests — ported from test_verdicts.py to the typed
+"""Verdict parsing tests - ported from test_verdicts.py to the typed
 Result API (BR-2): decisions route as `Result.ok(Verdict)`; verdict lines
 without a decision, or conflicting decisions, are typed errors that feed
-the attempt-bounded retry path — never exceptions, never silent routing."""
+the attempt-bounded retry path - never exceptions, never silent routing."""
 
 from agentic_dev_loop.core.verdict import Verdict, VerdictError
 
@@ -48,7 +48,7 @@ class TestVerdictParsing:
 
     def test_last_match_wins(self):
         """Agents weigh outcomes before concluding; the final VERDICT line is
-        the decision, not the first mention — earlier mentions that were
+        the decision, not the first mention - earlier mentions that were
         discussion do not conflict."""
         text = ("VERDICT: NEEDS CHANGES was considered.\n"
                 "But after re-checking, all standards are met.\n"
@@ -75,15 +75,15 @@ class TestVerdictParsing:
 
     def test_test_parse_bold_verdict_with_prose(self):
         """QA run 004 attempts 1-2: test agent styled its verdict as bold
-        with trailing prose — must still parse."""
+        with trailing prose - must still parse."""
         text = ("# CI Fix Report\n\n## Summary\n\n"
-                "**VERDICT: PASS** — All 10/10 conformance checks pass after "
+                "**VERDICT: PASS** \u2014 All 10/10 conformance checks pass after "
                 "fixing code duplication in test files.\n")
         _ok(text, TEST_VERDICTS, "pass")
 
     def test_test_parse_heading_verdict(self):
         """QA run 004 attempt 5: test agent styled its verdict as a
-        markdown heading — must still parse."""
+        markdown heading - must still parse."""
         _ok("## VERDICT: PASS", TEST_VERDICTS, "pass")
         _ok("### VERDICT: FAIL", TEST_VERDICTS, "fail")
 
@@ -106,7 +106,7 @@ class TestVerdictParsing:
             TEST_VERDICTS, "fail")
 
     def test_parse_verdict_tolerates_trailing_period(self):
-        """A trailing full stop is sentence punctuation, not prose — agents
+        """A trailing full stop is sentence punctuation, not prose - agents
         emit `VERDICT: PASS.` constantly and it must not read as unclear."""
         _ok("VERDICT: PASS.", TEST_VERDICTS, "pass")
         _ok("VERDICT: FAIL.", TEST_VERDICTS, "fail")
@@ -117,9 +117,9 @@ class TestVerdictParsing:
         _ok("VERDICT: NEEDS CHANGES. See the notes.", REVIEW_VERDICTS, "needs_changes")
 
     def test_caveat_prose_after_em_dash(self):
-        _ok("VERDICT: APPROVED — pending the divider split", REVIEW_VERDICTS, "approved")
-        _ok("VERDICT: NEEDS CHANGES — see issues below", REVIEW_VERDICTS, "needs_changes")
-        _ok("VERDICT: FAIL — 3 tests broke", TEST_VERDICTS, "fail")
+        _ok("VERDICT: APPROVED \u2014 pending the divider split", REVIEW_VERDICTS, "approved")
+        _ok("VERDICT: NEEDS CHANGES \u2014 see issues below", REVIEW_VERDICTS, "needs_changes")
+        _ok("VERDICT: FAIL \u2014 3 tests broke", TEST_VERDICTS, "fail")
 
     def test_caveat_prose_after_comma(self):
         _ok("VERDICT: APPROVED, but fix the README bullet", REVIEW_VERDICTS, "approved")
@@ -137,7 +137,7 @@ class TestVerdictParsing:
         _ok("VERDICT : APPROVED", REVIEW_VERDICTS, "approved")
 
     def test_bare_prose_still_rejected(self):
-        """No delimiter before the prose means discussion, not a decision —
+        """No delimiter before the prose means discussion, not a decision -
         typed AMBIGUOUS (a verdict line existed but carried no decision)."""
         _err("VERDICT: PASS was considered", TEST_VERDICTS, VerdictError.AMBIGUOUS)
         _err("VERDICT: APPROVED with nits", REVIEW_VERDICTS, VerdictError.AMBIGUOUS)
@@ -156,7 +156,7 @@ class TestVerdictParsing:
 
     def test_not_keyword_with_decoration_prose_and_tenses(self):
         _ok("VERDICT: NOT **APPROVED**", REVIEW_VERDICTS, "needs_changes")
-        _ok("VERDICT: NOT APPROVED — pending the divider split", REVIEW_VERDICTS, "needs_changes")
+        _ok("VERDICT: NOT APPROVED \u2014 pending the divider split", REVIEW_VERDICTS, "needs_changes")
         _ok("VERDICT: DID NOT PASS", TEST_VERDICTS, "fail")
         _ok("VERDICT: DOES NOT PASS", TEST_VERDICTS, "fail")
 

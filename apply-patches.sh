@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 PATCH_DIR=".aidlc/aidlc-patches"
 TARGET_PREFIX=".aidlc/aidlc-rules/aws-aidlc-rule-details"
 
-echo "AI-DLC Patches — applying sequentially..."
+echo "AI-DLC Patches - applying sequentially..."
 echo
 
 applied=0

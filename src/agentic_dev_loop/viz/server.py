@@ -2,12 +2,12 @@
 bus, a config-driven topology renderer, and a stdlib-only HTTP/SSE server
 serving an embedded Mermaid page.
 
-The graph itself is untouched — every live update is derived from LangGraph's
+The graph itself is untouched - every live update is derived from LangGraph's
 ``tasks``/``updates`` stream modes. The viz surface is served by default
 (suppressed with ``--no-viz``); the
 server is stdlib-only (TS-4): the HTTP/SSE server uses only the standard
 library, and the Mermaid topology source is assembled directly from the
-pipeline config — no LangChain renderer — while the page loads Mermaid.js v11
+pipeline config - no LangChain renderer - while the page loads Mermaid.js v11
 from a CDN.
 """
 
@@ -41,7 +41,7 @@ class _Edge:
 
 
 def _render_mermaid(edges: list[_Edge]) -> str:
-    """Assemble the Mermaid source for a list of edges — the exact string the
+    """Assemble the Mermaid source for a list of edges - the exact string the
     old LangChain `draw_mermaid(nodes={}, ...)` renderer produced: a bare
     ``graph TD;`` header (no node declarations, no stadium shapes, no
     terminals), then one tab-indented edge line each."""
@@ -64,7 +64,7 @@ def topology_mermaid(cfg: PipelineConfig) -> tuple[str, list[str]]:
     ``-->`` chain following each step's ``on_pass``; retries render as dotted
     ``-. label .->`` loop-backs, and a non-retry ``on_fail`` as an unlabeled
     dotted edge. Stdlib-only (TS-4): the source is assembled directly, with
-    no node declarations and no terminal stadium shapes — byte-identical to
+    no node declarations and no terminal stadium shapes - byte-identical to
     the previous LangChain renderer's output.
     """
     chain: list[_Edge] = []
@@ -103,7 +103,7 @@ def translate(part: dict) -> list[dict]:
     ``tasks`` parts pair up by id: a part whose data carries ``triggers`` is a
     node start; one carrying ``error`` is the matching finish (``error`` is
     ``None`` on success). ``updates`` parts carry one LoopState delta per node
-    and collapse to a single ``state`` event holding only whitelisted keys —
+    and collapse to a single ``state`` event holding only whitelisted keys -
     ``docs``/``context``/``notes`` are large or internal and never shipped.
     """
     ptype = part.get("type")
@@ -175,7 +175,7 @@ class VizBus:
             self._subscribers.discard(sub)
 
 
-MAX_LINE = 8000  # cap per captured console line — SDK state dumps are huge
+MAX_LINE = 8000  # cap per captured console line - SDK state dumps are huge
 
 
 class _Tee:
@@ -183,7 +183,7 @@ class _Tee:
     unchanged, buffers to line boundaries, and publishes each complete line
     (plus any trailing partial line on detach) as a console event attributed
     to the node NodeWatch currently reports. ANSI escapes pass through
-    verbatim — colour parsing is the frontend's job."""
+    verbatim - colour parsing is the frontend's job."""
 
     def __init__(self, capture: "ConsoleCapture", stream: str, target) -> None:
         self._capture = capture
@@ -405,7 +405,7 @@ def _handler_class(bus: VizBus, topology_mermaid: str,
 
 class _ReuseSafeServer(ThreadingHTTPServer):
     # On Windows SO_REUSEADDR permits binding an in-use port, which defeats
-    # the busy-port fallback (the OS reassigned the SAME port — CI-red).
+    # the busy-port fallback (the OS reassigned the SAME port - CI-red).
     # Disable reuse there; POSIX keeps it for TIME_WAIT rebinding.
     allow_reuse_address = sys.platform != "win32"
 
@@ -413,7 +413,7 @@ class _ReuseSafeServer(ThreadingHTTPServer):
 def serve_viz(bus: VizBus, topology_mermaid: str, subject: str,
               port: int, nodes: Iterable[str] = ()) -> tuple[_ReuseSafeServer, threading.Thread]:
     """Bind a loopback HTTP server on ``port`` and serve it on a daemon
-    thread. Returns ``(httpd, thread)`` — the caller reads the real bound
+    thread. Returns ``(httpd, thread)`` - the caller reads the real bound
     port from ``httpd.server_address[1]``.
 
     ``port`` is preferred, not fixed: when it is already in use
@@ -428,7 +428,7 @@ def serve_viz(bus: VizBus, topology_mermaid: str, subject: str,
             httpd = _ReuseSafeServer(("127.0.0.1", 0), handler)
         else:
             raise OSError(
-                f"Could not bind the viz server to 127.0.0.1:{port} — the "
+                f"Could not bind the viz server to 127.0.0.1:{port} - the "
                 f"--viz-port may already be in use. ({exc})") from exc
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
@@ -495,7 +495,7 @@ PAGE = """<!doctype html>
   .stage-console .omitted { color: #888; font-style: italic; }
   .stage-console .stage-placeholder { color: #888; font-style: italic; }
   /* float puts the button in the wrap's content box, which the scrollbar
-     sits outside of — the scrollbar can never cover it; sticky keeps it
+     sits outside of - the scrollbar can never cover it; sticky keeps it
      pinned to the top-right corner while the console scrolls */
   .copy-btn { position: sticky; top: 6px; float: right; display: flex;
               align-items: center; justify-content: center; width: 26px;

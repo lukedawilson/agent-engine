@@ -1,4 +1,4 @@
-"""Fixture extension module for test_registry — imported by ref string
+"""Fixture extension module for test_registry - imported by ref string
 ('sample_ext:SampleExtension') exactly the way consumer extensions load."""
 
 from openhands.sdk.tool import Action, Observation, ToolDefinition, ToolExecutor
@@ -8,14 +8,14 @@ class SampleExtension:
     name = "sample"
 
     def register(self, registry):
-        # 020: consumer actions are sandbox-executed, command-shaped scripts —
+        # 020: consumer actions are sandbox-executed, command-shaped scripts -
         # never a host-side function.
         registry.add_sandbox_action(
             "sample_action", "echo sample-ran {subject}")
 
 
 class HostActionExtension:
-    """Tries to register a host-side function — the sealed built-in-only path
+    """Tries to register a host-side function - the sealed built-in-only path
     must refuse it (020 action-contract rule)."""
 
     name = "host-action"
@@ -66,7 +66,7 @@ class ToolExtension:
 
 
 class CollisionExtension:
-    """Registers a uniquely-named tool so a second load collides — pins the
+    """Registers a uniquely-named tool so a second load collides - pins the
     load-time collision rejection (BR-3.2)."""
 
     name = "collision-extension"
@@ -77,7 +77,7 @@ class CollisionExtension:
 
 class DryRunProbeTool(ToolDefinition[SampleAction, SampleObservation]):
     # name auto-derived: DryRunProbeTool -> "dry_run_probe"
-    # (a name no other test registers — the SDK tool registry is
+    # (a name no other test registers - the SDK tool registry is
     # process-global, so this one must never collide across tests)
 
     @classmethod
@@ -99,7 +99,7 @@ class DryRunProbeExtension:
 
 
 class EmptyDocsLoader:
-    """Loader whose resolve returns no docs — pins the U3 empty-load guard
+    """Loader whose resolve returns no docs - pins the U3 empty-load guard
     at the run_pipeline call site."""
 
     name = "empty"

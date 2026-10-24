@@ -1,4 +1,4 @@
-"""SDK version guard + shim canary — see COMPAT-SHIMS.md before touching.
+"""SDK version guard + shim canary - see COMPAT-SHIMS.md before touching.
 
 The engine papers over OpenHands SDK reasoning-content bugs with import-time
 shims (src/agentic_dev_loop/llm.py). Those shims go stale silently when the SDK
@@ -29,7 +29,7 @@ def test_openhands_sdk_within_tested_range():
     version = importlib.metadata.version("openhands-sdk")
     assert version.startswith(f"{TESTED_OPENHANDS_SDK}."), (
         f"openhands-sdk {version} is outside the tested range "
-        f"~={TESTED_OPENHANDS_SDK}.0 — the reasoning-content shims in "
+        f"~={TESTED_OPENHANDS_SDK}.0 - the reasoning-content shims in "
         "src/agentic_dev_loop/llm.py target SDK 1.17.x bugs. Read "
         "COMPAT-SHIMS.md, re-verify each shim against the new SDK, remove "
         "any that are no longer needed, then update this pin."
@@ -38,7 +38,7 @@ def test_openhands_sdk_within_tested_range():
 
 def test_canary_sdk_still_drops_reasoning_on_split_tool_call_turn(monkeypatch):
     """Canary: passes while the SDK bug shim 2 works around is still present;
-    fails once the SDK fixes it — shim 2 is then dead code and must be
+    fails once the SDK fixes it - shim 2 is then dead code and must be
     removed per COMPAT-SHIMS.md."""
     monkeypatch.setenv(KEY, "sk-test")
     llm = build_llm(_cfg())
@@ -63,7 +63,7 @@ def test_canary_sdk_still_drops_reasoning_on_split_tool_call_turn(monkeypatch):
 
     assert "reasoning_content" not in out[2], (
         "The SDK now carries reasoning_content on every assistant tool-call "
-        "message — shim 2 in src/agentic_dev_loop/llm.py is dead code. Remove it "
+        "message - shim 2 in src/agentic_dev_loop/llm.py is dead code. Remove it "
         "and update COMPAT-SHIMS.md."
     )
 
@@ -71,7 +71,7 @@ def test_canary_sdk_still_drops_reasoning_on_split_tool_call_turn(monkeypatch):
 def test_canary_sdk_terminal_seam_still_present():
     """Canary for the unit-3 terminal seam (COMPAT-SHIMS.md): passes while the
     SDK still exposes `TerminalTool.create(executor=...)` plus a callable
-    registry factory; fails once the SDK drops/changes either — the
+    registry factory; fails once the SDK drops/changes either - the
     SandboxTerminalExecutor seam is then dead and must be replaced with an
     agentic-dev-loop-owned terminal tool."""
     import inspect
@@ -80,11 +80,11 @@ def test_canary_sdk_terminal_seam_still_present():
     from openhands.tools.terminal import TerminalTool
 
     assert "executor" in inspect.signature(TerminalTool.create).parameters, (
-        "The SDK no longer accepts `executor=` in TerminalTool.create — the "
+        "The SDK no longer accepts `executor=` in TerminalTool.create - the "
         "SandboxTerminalExecutor seam in src/agentic_dev_loop/agents.py is dead. "
         "Replace it with an agentic-dev-loop-owned terminal tool and update "
         "COMPAT-SHIMS.md.")
     assert callable(register_tool), (
-        "The SDK's register_tool no longer accepts a callable factory — the "
+        "The SDK's register_tool no longer accepts a callable factory - the "
         "per-run terminal re-registration in agents.py is dead. Replace it and "
         "update COMPAT-SHIMS.md.")

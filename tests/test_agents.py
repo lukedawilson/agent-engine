@@ -1,4 +1,4 @@
-"""load_agent tests — ported from yosk's TestLoadAgent, retargeted at the
+"""load_agent tests - ported from yosk's TestLoadAgent, retargeted at the
 library signature which also builds the Agent via the SDK factory. Real
 agent files on disk (fail-fast file policy); real LLM/Agent SDK objects
 (constructed locally, no network)."""
@@ -33,7 +33,7 @@ def make_agent(dir: Path, name: str, frontmatter: str, body: str) -> Path:
 class TestLoadAgent:
     """load_agent parses agent files with the SDK's native AgentDefinition
     loader, keeping two pipeline policies on top: the file must exist (fail
-    fast — the SDK's dir loader would silently skip it) and its frontmatter
+    fast - the SDK's dir loader would silently skip it) and its frontmatter
     name must match its filename."""
 
     def test_builds_agent_from_file(self, agents_dir, llm):
@@ -72,13 +72,13 @@ class TestLoadAgent:
 
     def test_unknown_tool_name_fails(self, agents_dir, llm):
         """The SDK factory resolves frontmatter tool names against the
-        registry — an unknown name fails loudly."""
+        registry - an unknown name fails loudly."""
         make_agent(agents_dir, "bad", "name: bad\ntools: [no_such_tool]\n", "# Body")
         with pytest.raises(ValueError):
             load_agent(agents_dir, "bad", llm)
 
     def test_empty_tools_builds_infra_only(self, agents_dir, llm):
-        """`tools: []` yields no capability tools — only the SDK-default
+        """`tools: []` yields no capability tools - only the SDK-default
         infra (FinishTool + ThinkTool) and no regex filtering (BR-1.3,
         BR-1.4, FD-2b)."""
         make_agent(agents_dir, "bare", "name: bare\ntools: []\n", "# Body")

@@ -1,4 +1,4 @@
-# Business Logic Model — unit-2 (SDK-level hardening)
+# Business Logic Model - unit-2 (SDK-level hardening)
 
 ## Core Flow
 
@@ -17,20 +17,20 @@ Unit 2 hardens the host-side surfaces a pipeline exposes to an agent, with no ne
 
 | Decision | Rule |
 | --- | --- |
-| FD-1 | Drop the "create task tracker entries" instruction from `dev.agent.md`; dev stays terminal-only (task_tracker is non-essential bookkeeping — the pipeline owns cross-step progress). |
+| FD-1 | Drop the "create task tracker entries" instruction from `dev.agent.md`; dev stays terminal-only (task_tracker is non-essential bookkeeping - the pipeline owns cross-step progress). |
 | FD-2 | `tools:` is the exact *capability* allowlist; `FinishTool` (done signal) + `ThinkTool` (reasoning scaffold) are always present as infra. Empty `tools:` → the agent can think + finish but touch nothing. |
-| FD-2b | `filter_tools_regex` dropped — the explicit allowlist is the whole story; no regex surface to harden or test. |
-| FD-3 | Command steps: hybrid shell — `shlex`-split to argv when no shell metacharacters, keep `shell=True` for complex commands, env hygiene in both. |
+| FD-2b | `filter_tools_regex` dropped - the explicit allowlist is the whole story; no regex surface to harden or test. |
+| FD-3 | Command steps: hybrid shell - `shlex`-split to argv when no shell metacharacters, keep `shell=True` for complex commands, env hygiene in both. |
 | FD-4 | Tool-name collision = any name already in the SDK global registry (`list_registered_tools()`) + non-empty identifier. |
-| FD-5 | Action steps: deeper — pid-token validation + `shutil.which` binary resolution + explicit `shell=False` + env hygiene. |
+| FD-5 | Action steps: deeper - pid-token validation + `shutil.which` binary resolution + explicit `shell=False` + env hygiene. |
 
 ## Algorithms
 
-**Tool-name validation** (`Registry.add_tool`): reject an empty/whitespace name; reject a name already returned by the SDK's `list_registered_tools()` (covers built-ins, prior extensions, and prior registrations — the SDK currently *silently overwrites* on duplicate, so agent-engine validates first). Fail fast at load (BR-3).
+**Tool-name validation** (`Registry.add_tool`): reject an empty/whitespace name; reject a name already returned by the SDK's `list_registered_tools()` (covers built-ins, prior extensions, and prior registrations - the SDK currently *silently overwrites* on duplicate, so agent-engine validates first). Fail fast at load (BR-3).
 
 **Command classification** (`needs_shell`): scan the command string for shell metacharacters (`&&`, `|`, `;`, `>`, `<`, `$`, backticks, `~`, glob chars). Absent → simple command. Present → shell command. Pure function.
 
-**Command split** (`split_command`): `shlex.split` a simple command into an argv list. The result is used only when `needs_shell` is false — `shlex` is never applied to a shell command (BR-4).
+**Command split** (`split_command`): `shlex.split` a simple command into an argv list. The result is used only when `needs_shell` is false - `shlex` is never applied to a shell command (BR-4).
 
 **Child environment** (`child_env`): build the subprocess environment from a fixed known-safe whitelist (`PATH` + the minimal vars tests/git need), plus the `llm.api_key_env` value (included by default), plus an explicit, author-extensible `env_allowlist` (a new optional config key). Everything else is excluded unless allowlisted (BR-4, BR-5, NFR-1 = C). Pure function over a mapping + allowlist.
 

@@ -1,4 +1,4 @@
-"""Tests for tools/publish.py — the release-cut script behind /publish.
+"""Tests for tools/publish.py - the release-cut script behind /publish.
 
 All tests drive the real CLI via subprocess against temporary git repositories
 with a local bare remote, so commit/tag/push run for real without network or

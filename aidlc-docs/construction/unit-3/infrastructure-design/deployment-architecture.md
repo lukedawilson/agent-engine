@@ -1,4 +1,4 @@
-# Unit 3 Deployment Architecture — kernel-level sandboxing (always-on)
+# Unit 3 Deployment Architecture - kernel-level sandboxing (always-on)
 
 ## Topology: one dev machine
 
@@ -75,7 +75,7 @@ sequenceDiagram
 
 | Aspect | Choice |
 | --- | --- |
-| Engine | Docker Desktop (Linux containers mode — enforced by OSType probe) |
+| Engine | Docker Desktop (Linux containers mode - enforced by OSType probe) |
 | Transport | npipe handled by `docker` CLI |
 | Fail fast | Windows-containers mode → loud error + switch instructions (ID-2) |
 | Deferred | WSL2 file-sharing path translation specifics |
@@ -99,10 +99,10 @@ sequenceDiagram
 ## Fresh-machine deployment steps (what fail-fast must guide the user to)
 
 The full walkthrough ships as the repo user guide (`docs/setup.md`, written at
-Code Generation — see infrastructure-design.md ID-7). The fail-fast messages
+Code Generation - see infrastructure-design.md ID-7). The fail-fast messages
 must direct users to it, not just to the installer pages:
 
-1. Install a compliant Docker engine (links/messages per platform) — Docker Desktop (macOS/Windows), or Docker Engine / OrbStack / Colima / podman on Linux.
+1. Install a compliant Docker engine (links/messages per platform) - Docker Desktop (macOS/Windows), or Docker Engine / OrbStack / Colima / podman on Linux.
 2. Windows only: ensure Linux-containers mode is active.
 3. Start the daemon. On first run the harness pulls the pinned dev image (digest-verified, retried); later runs reuse the local image cache.
 4. `~/.agentic-dev-loop/state/` is created on first use; `--clean-stamps` removes cached provision stamps.
@@ -119,12 +119,12 @@ must direct users to it, not just to the installer pages:
 | Mid-run daemon death | Loud failure; containers cleaned up where possible; no silent degradation |
 | Sandboxed command nonzero exit | Propagated as step result (unchanged pipeline semantics, NFR-3.9) |
 
-## Amendment (2026-10-19) — loop-mechanics hardening
+## Amendment (2026-10-19) - loop-mechanics hardening
 
 - **Runtime sequence (eager startup, Q2)**: probe → pull (digest verify) → create+start exec container → provision all declared setups → graph build → steps (exec only) → destroy. No lazy container creation; no step-boundary provision.
 - **Mount set**: workspace only (Q1); run state/audit/stamps are host-only.
 - **Failure table**: + provision failure at startup aborts before any step executes (AE-SBX-009).
 
-## Amendment (2026-10-19) — package rename
+## Amendment (2026-10-19) - package rename
 
 - Package references updated `agent-engine` → `agentic-dev-loop` throughout (module paths, default image `ghcr.io/lukedawilson/agentic-dev-loop/dev`, env var `AGENTIC_DEV_LOOP_DEV_IMAGE`, user state dirs `~/.agentic-dev-loop/*`). No design change.

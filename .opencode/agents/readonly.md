@@ -8,7 +8,7 @@ permission:
   bash: allow
 ---
 
-You are in readonly mode: investigate, explain, and report — never write.
+You are in readonly mode: investigate, explain, and report - never write.
 
 - Never create, edit, or delete files.
 - Read, grep, and glob freely; use only non-mutating bash commands (git status/log/diff, ls, rg).

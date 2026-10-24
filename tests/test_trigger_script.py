@@ -4,7 +4,7 @@ The trigger script must keep the pipx-managed engine install current:
 a stale install rejects newer pipeline configs at load time (e.g.
 `deps_policy` in a11 rejected by an a10 install), so an existing install
 is upgraded on every run. Tests drive the real script with stub
-executables on PATH — no network, no mocks of the script's logic.
+executables on PATH - no network, no mocks of the script's logic.
 
 The script is bash, so it is executed through `bash` on every platform:
 Windows cannot CreateProcess a `.sh` file (shebangs are a POSIX concept)

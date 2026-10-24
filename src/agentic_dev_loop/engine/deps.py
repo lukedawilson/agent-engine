@@ -1,8 +1,8 @@
 """Supply-chain dependency dial (021): canonical policy injection and
 missing-dependency declaration parsing.
 
-The rule text lives HERE, in the engine, not in consumer `dev.agent.md` prose
-— the hand-authored rule is exactly the class that deadlocked the NuGet cache
+The rule text lives HERE, in the engine, not in consumer `dev.agent.md` prose.
+The hand-authored rule is exactly the class that deadlocked the NuGet cache
 in 018. `deps_policy: locked` (the default) bounds the agent to the
 human-owned lockfile and fails a run fast when an agent declares a missing
 dependency; `deps_policy: open` injects the bootstrap protocol (the agent may
@@ -28,8 +28,8 @@ _LOCKED_TEMPLATE = (
 _OPEN_TEXT = (
     "If the design needs a dependency that is not already present, add the "
     "exact-pinned entry to the dependency manifest directly (do not run a "
-    "package-manager `add` command — it may need the network). Your offline "
-    "builds may fail until the restore step fetches it — that is expected; "
+    "package-manager `add` command - it may need the network). Your offline "
+    "builds may fail until the restore step fetches it - that is expected; "
     "write the code to match and leave the manifest entry in place."
 )
 
@@ -53,7 +53,7 @@ def parse_missing_dependencies(text: str | None) -> list[str]:
     """Parse a final agent response for the fixed ``## Missing dependencies``
     section. Returns the declared pins (one non-empty line each) beneath the
     header, until the next ``## `` section or end of text. An absent header or
-    an empty/malformed section yields an empty list — only a non-empty
+    an empty/malformed section yields an empty list - only a non-empty
     declaration triggers the fail-fast."""
     if not text:
         return []

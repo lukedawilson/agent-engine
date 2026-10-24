@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Release-cut script for /publish — the only place release files get edited.
+"""Release-cut script for /publish - the only place release files get edited.
 
 Bumps `pyproject.toml` [project].version (the single source of truth),
 updates CHANGELOG.md, commits all pending changes, tags v<version>, and
@@ -198,7 +198,7 @@ def changelog_source(
 
 def main(argv: list[str] | None = None) -> int:
     # The release-cut report prints the → arrow (and friends); cp1252
-    # consoles (Windows CI) cannot encode it — pin UTF-8 explicitly instead
+    # consoles (Windows CI) cannot encode it - pin UTF-8 explicitly instead
     # of crashing at the final print.
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
@@ -260,7 +260,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Changelog entry: {source}")
             print(f"Commit:          release: {tag}")
             print(f"Push:            origin {branch}, origin {tag}")
-            print("(dry run — nothing changed)")
+            print("(dry run - nothing changed)")
             return 0
 
         (pyproject).write_text(

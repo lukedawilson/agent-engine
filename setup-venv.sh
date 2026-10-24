@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# setup-venv.sh — create/repair the throwaway .venv for local `pytest` runs.
+# setup-venv.sh - create/repair the throwaway .venv for local `pytest` runs.
 #
-# The loop itself runs from a pipx install (OUTSIDE the workspace — 020);
+# The loop itself runs from a pipx install (OUTSIDE the workspace - 020);
 # this .venv is dev-only tooling, never the host engine. The pipeline's
 # `test` step provisions its own `.venv-sandbox` inside the sandbox.
 #
@@ -69,10 +69,10 @@ PY="$(pick_python)" || {
 echo "using Python: $PY"
 
 # ---------------------------------------------------------------------------
-# 2. Ensure tmux is installed — required by the OpenHands agent terminal.
+# 2. Ensure tmux is installed - required by the OpenHands agent terminal.
 # ---------------------------------------------------------------------------
 if ! command -v tmux >/dev/null 2>&1; then
-  echo "tmux missing — installing"
+  echo "tmux missing - installing"
   if command -v apt-get >/dev/null 2>&1; then
     apt-get update
     apt-get install -y tmux
@@ -87,7 +87,7 @@ fi
 # 3. Ensure venv + pip are available (Debian ships them as separate packages).
 # ---------------------------------------------------------------------------
 if ! "$PY" -c 'import ensurepip' >/dev/null 2>&1; then
-  echo "ensurepip missing — installing python3-venv + python3-pip"
+  echo "ensurepip missing - installing python3-venv + python3-pip"
   if command -v apt-get >/dev/null 2>&1; then
     apt-get update
     apt-get install -y python3-venv python3-pip

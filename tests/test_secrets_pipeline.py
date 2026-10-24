@@ -1,6 +1,6 @@
 """Pipeline-level secrets tests (019): the run refuses a secret-bearing
 workspace, injects a declared secret only into the declaring step's exec env,
-and scrubs the value from every captured output channel. No Docker — the
+and scrubs the value from every captured output channel. No Docker - the
 ``fake_sandbox`` / ``fake_agents`` fixtures stand in for the SDK/Docker
 boundaries (the only permitted stubs)."""
 from __future__ import annotations

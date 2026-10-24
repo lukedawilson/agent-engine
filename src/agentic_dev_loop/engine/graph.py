@@ -43,7 +43,7 @@ class LoopState(TypedDict):
     attempt: int
     max_attempts: int
     notes: Annotated[list[str], operator.add]
-    failed: bool                       # hard stage failure — ends the run
+    failed: bool                       # hard stage failure - ends the run
     failed_step: str | None            # the step that hard-failed (resume target)
     resume_target: str | None          # where a resumed run re-enters (START edge)
     outcome: str | None                # "success" once routed to the success terminal
@@ -94,7 +94,7 @@ def build_graph(runtime: Runtime, checkpointer=None):
 def run_pipeline(cfg_path, args, *, viz_bus=None,
                  registry: Registry | None = None) -> tuple[bool, int]:
     """Load a pipeline YAML, resolve docs via the selected document loader,
-    and run the graph to completion. Returns (success, attempts) — the
+    and run the graph to completion. Returns (success, attempts) - the
     public API, yosk's `construct`/`resume_loop` equivalent.
 
     `args` carries the parsed CLI namespace: loader flags, --resume,
@@ -106,19 +106,19 @@ def run_pipeline(cfg_path, args, *, viz_bus=None,
     or a default-on CLI run switches to ``graph.stream`` and publishes live
     events; the CLI path additionally serves the HTTP page and opens the
     browser, and the process exits as soon as the loop completes.
-    Programmatic Namespaces without a ``no_viz`` attribute get no server —
+    Programmatic Namespaces without a ``no_viz`` attribute get no server -
     default-on is a CLI-layer concern.
 
     ``registry`` carries extensions already loaded by the CLI (it loads them
     once, for loader-contributed flags; a second load would collide with the
-    SDK's process-global tool registry). When absent — programmatic calls —
+    SDK's process-global tool registry). When absent - programmatic calls -
     the registry is built here."""
     cfg_path = Path(cfg_path)
     cfg = load_config(cfg_path)
     base = cfg_path.resolve().parent
     max_attempts = getattr(args, "max_attempts", None) or cfg.max_attempts
 
-    # 020: the host must execute nothing from the workspace — refuse an
+    # 020: the host must execute nothing from the workspace - refuse an
     # in-workspace engine install, then the 019 env-file ban, before any
     # sandbox/LLM work. Tooling integrity is checked once the config is known.
     check_orchestrator_install(Path.cwd())
@@ -181,7 +181,7 @@ def _run_pipeline(cfg, base, registry, state_dir, max_attempts, args, viz_bus,
             "failed_step": None,
             "resume_target": None,
             "outcome": None,
-            # Only a clean-at-start worktree gets an auto-commit — otherwise
+            # Only a clean-at-start worktree gets an auto-commit - otherwise
             # the commit could swallow pre-existing changes. Computed BEFORE
             # the checkpointer creates its db under state_dir, which would
             # itself dirty the worktree.
@@ -196,7 +196,7 @@ def _run_pipeline(cfg, base, registry, state_dir, max_attempts, args, viz_bus,
     with SqliteSaver.from_conn_string(db) as saver:
         if resume and saver.get_tuple(config) is None:
             raise ValueError(
-                f"No checkpoint found for thread {thread_id!r} in {db} — "
+                f"No checkpoint found for thread {thread_id!r} in {db} - "
                 f"nothing to resume.")
         graph = build_graph(runtime, saver)
 
@@ -209,7 +209,7 @@ def _run_pipeline(cfg, base, registry, state_dir, max_attempts, args, viz_bus,
         if resume and initial is None:
             values = graph.get_state(config).values
             if values.get("failed"):
-                # A hard-failed run's checkpoint has no pending work — a
+                # A hard-failed run's checkpoint has no pending work - a
                 # plain resume would return it untouched and exit silently.
                 # Re-enter at the step that failed so the run can complete.
                 failed_step = values.get("failed_step")
@@ -217,7 +217,7 @@ def _run_pipeline(cfg, base, registry, state_dir, max_attempts, args, viz_bus,
                           or cfg.steps[0].name)
                 print(
                     f"[{values.get('subject', '?')}] Resuming hard-failed run "
-                    f"(thread {thread_id}) — re-entering at step {target!r}. "
+                    f"(thread {thread_id}) - re-entering at step {target!r}. "
                     f"Failure details: {state_dir}/last-error.md",
                     flush=True)
                 initial = {**values, "failed": False,
@@ -236,7 +236,7 @@ def _run_pipeline(cfg, base, registry, state_dir, max_attempts, args, viz_bus,
             bound = httpd.server_address[1]
             url = f"http://127.0.0.1:{bound}"
             if args.viz_port and bound != args.viz_port:
-                print(f"viz port {args.viz_port} busy — serving on {url}",
+                print(f"viz port {args.viz_port} busy - serving on {url}",
                       flush=True)
             print(f"Live graph viz: {url}", flush=True)
             webbrowser.open(url)
@@ -294,7 +294,7 @@ def _run_pipeline(cfg, base, registry, state_dir, max_attempts, args, viz_bus,
         if final.get("failed"):
             print(
                 f"[{final['subject']}] FAILED after {final['attempt']} "
-                f"attempt(s) — hard failure at step "
+                f"attempt(s) - hard failure at step "
                 f"{final.get('failed_step', 'unknown')!r}; see "
                 f"{state_dir}/last-error.md",
                 flush=True)

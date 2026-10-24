@@ -19,7 +19,7 @@ stay visible. N must exceed ~13 to overflow the 240px panel and 500 to hit
 the eviction path (600 is a good default).
 
 The process exits when the scripted run finishes. No agents run, no LLM
-calls, no checkpoints — the events are fabricated here; only viz.py's
+calls, no checkpoints - the events are fabricated here; only viz.py's
 server/page code is exercised.
 """
 
@@ -37,13 +37,13 @@ from agentic_dev_loop.core.config import load_config
 EXAMPLE = Path(__file__).parent / "agentic-dev-loop" / "pipeline.yaml"
 SUBJECT = "plan demo.md"
 
-NODE_GAP = 1.0    # between nodes — the pace a watcher sees
+NODE_GAP = 1.0    # between nodes - the pace a watcher sees
 EVENT_GAP = 0.35  # between the started/state/finished bursts of one node
 
 
 def real_topology() -> tuple[str, list[str]]:
-    """The shipped self-loop example's vertical flowchart — solid happy-path
-    chain, dotted labeled loop-backs, and the success terminal — exactly as
+    """The shipped self-loop example's vertical flowchart - solid happy-path
+    chain, dotted labeled loop-backs, and the success terminal - exactly as
     a live run serves it."""
     return viz.topology_mermaid(load_config(EXAMPLE))
 
@@ -155,7 +155,7 @@ def main() -> int:
         webbrowser.open(url)
 
     run_scenario(bus, args.scenario, flood=args.flood)
-    print("Run finished — process exiting.", flush=True)
+    print("Run finished - process exiting.", flush=True)
     return 0
 
 

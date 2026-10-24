@@ -10,14 +10,14 @@ repo's README.
 ## WORKFLOW
 
 1. Read the plan documents and README.md in the context below.
-2. Read the diff — understand what changed.
+2. Read the diff - understand what changed.
 3. Check:
    - Does the implementation match the plan?
    - Are the README's fixed policies respected (file-artifact verdicts,
      artifact hygiene, single gated commit point, fail-fast config)?
    - Do the tests pin the new behavior without touching the network
      (FakeAgents in tests/conftest.py is the only permitted stub)?
-4. State your findings in your **final response** — the pipeline captures it
+4. State your findings in your **final response** - the pipeline captures it
    as your review. Include the verdict line:
 
 VERDICT: APPROVED
@@ -36,5 +36,5 @@ List specific issues with file paths and suggestions.
 ## OUTPUT
 
 Start your final response with `VERDICT: APPROVED` or `VERDICT: NEEDS
-CHANGES` on its own line — no markdown decoration (no `**`, no `##` heading);
+CHANGES` on its own line - no markdown decoration (no `**`, no `##` heading);
 the pipeline parses that response mechanically.

@@ -1,12 +1,12 @@
-# Unit 5 Intent (draft) — Sandbox Mount Granularity + Egress Policy
+# Unit 5 Intent (draft) - Sandbox Mount Granularity + Egress Policy
 
-> **Status: INTENT ONLY** — draft, not started. Written 2026-10-23 following the security-area scoping discussion. No code written, no AI-DLC workflow started, no decisions committed. Revisit before proceeding.
+> **Status: INTENT ONLY** - draft, not started. Written 2026-10-23 following the security-area scoping discussion. No code written, no AI-DLC workflow started, no decisions committed. Revisit before proceeding.
 
-**Assumption:** this unit starts after plans 018 (restore step + dependency mechanism), 019 (secrets store + `.env*` ban), 020 (host executes nothing from the workspace; tooling integrity check), and 021 (`deps_policy`, locked default) are all implemented. Both 020 and this unit touch `engine/isolation.py` — the plan-020 work lands first.
+**Assumption:** this unit starts after plans 018 (restore step + dependency mechanism), 019 (secrets store + `.env*` ban), 020 (host executes nothing from the workspace; tooling integrity check), and 021 (`deps_policy`, locked default) are all implemented. Both 020 and this unit touch `engine/isolation.py` - the plan-020 work lands first.
 
 ## Intent
 
-Close the last structural channel in the containment model. Today every container mounts the entire workspace read-write, and `network: true` means *unrestricted* egress. Anything that executes inside a container — agent-written code, a squatted package, an install script — can (a) read everything the workspace holds, and (b) send anything it can touch anywhere on the internet. Plan 019 took secrets out of the workspace and plan 020 took the host off the target list; this unit removes the two remaining exfil paths: **reading what a step doesn't need**, and **sending to addresses a step doesn't need**.
+Close the last structural channel in the containment model. Today every container mounts the entire workspace read-write, and `network: true` means *unrestricted* egress. Anything that executes inside a container - agent-written code, a squatted package, an install script - can (a) read everything the workspace holds, and (b) send anything it can touch anywhere on the internet. Plan 019 took secrets out of the workspace and plan 020 took the host off the target list; this unit removes the two remaining exfil paths: **reading what a step doesn't need**, and **sending to addresses a step doesn't need**.
 
 Two mechanisms:
 
@@ -15,44 +15,44 @@ Two mechanisms:
 
 ### What the user gets (the load-bearing pillars)
 
-1. **Least-access mounts** — config expresses mount scope per step; `DockerBackend` assembles per-request mounts; a step physically cannot read what it does not mount.
-2. **Egress allowlists** — config expresses target sets per step; enforcement is network-level, not a prompt rule.
-3. **Read-only where possible** — read-only paths get `ro` mounts, so even a compromised step cannot tamper with them.
-4. **`.git` blindness** — the sandbox never sees repository history.
-5. **Loud failure modes** — a missing path or an allowlist miss fails the run with a clear message, never a silent degradation.
+1. **Least-access mounts** - config expresses mount scope per step; `DockerBackend` assembles per-request mounts; a step physically cannot read what it does not mount.
+2. **Egress allowlists** - config expresses target sets per step; enforcement is network-level, not a prompt rule.
+3. **Read-only where possible** - read-only paths get `ro` mounts, so even a compromised step cannot tamper with them.
+4. **`.git` blindness** - the sandbox never sees repository history.
+5. **Loud failure modes** - a missing path or an allowlist miss fails the run with a clear message, never a silent degradation.
 
 ## Relationship to existing units
 
-- **unit-1/2/3** — the containment foundation (output passing, SDK hardening, kernel isolation). This unit extends unit-3's `isolation.py` (mount assembly + container networking).
-- **unit-4** — WONTSHIP (2026-10-22); no adapter ships. Only its module split matters here (viz lives in `src/agentic_dev_loop/viz/`).
-- **plan 018/021** — the restore step's egress allowlist target set is exactly the package registries; coordinated with 021's locked dial.
-- **plan 019** — egress allowlists bound the rogue-secret-holder residual; mount granularity removes the workspace-wide read a rogue secret-holder would otherwise have.
-- **plan 020** — the run-start git-clean integrity check stays valid; narrower mounts reduce what an agent can modify at all.
+- **unit-1/2/3** - the containment foundation (output passing, SDK hardening, kernel isolation). This unit extends unit-3's `isolation.py` (mount assembly + container networking).
+- **unit-4** - WONTSHIP (2026-10-22); no adapter ships. Only its module split matters here (viz lives in `src/agentic_dev_loop/viz/`).
+- **plan 018/021** - the restore step's egress allowlist target set is exactly the package registries; coordinated with 021's locked dial.
+- **plan 019** - egress allowlists bound the rogue-secret-holder residual; mount granularity removes the workspace-wide read a rogue secret-holder would otherwise have.
+- **plan 020** - the run-start git-clean integrity check stays valid; narrower mounts reduce what an agent can modify at all.
 
 ## Findings (exploratory; live-sourced)
 
 - Mount set today: **exactly `{workspace}`, rw**, in every container (`DockerBackend`, `isolation.py`).
 - `network: true` = bridge container, **no egress filtering of any kind**.
 - The provision container (setup hooks) also mounts `{workspace}` rw with full network at startup.
-- `--cap-drop ALL` means the engine **cannot hand `NET_ADMIN` to a container** for in-container iptables — egress enforcement must live outside the container.
+- `--cap-drop ALL` means the engine **cannot hand `NET_ADMIN` to a container** for in-container iptables - egress enforcement must live outside the container.
 - Docker has no native per-container egress firewall for bridge networks; enforcement options are engine-managed netns + nftables before container start, an egress proxy, or Docker's newer network-policy features (version support TBD).
 
-## Recommended architecture (direction only — Functional Design resolves)
+## Recommended architecture (direction only - Functional Design resolves)
 
-- **Config:** `mounts:` per step — list of `{path (repo-relative), mode: rw | ro}` — default preserves today's `{workspace}` rw (compatibility), plus `exclude: [".git"]`; FD decides strict-vs-compat defaults.
+- **Config:** `mounts:` per step - list of `{path (repo-relative), mode: rw | ro}` - default preserves today's `{workspace}` rw (compatibility), plus `exclude: [".git"]`; FD decides strict-vs-compat defaults.
 - **Mount enforcement:** multiple `-v` flags per request; `ro` submounts for read-only paths.
-- **Egress enforcement:** engine-created per-policy network; the host applies nftables rules to the network namespace *before* the container starts inside it (no NET_ADMIN needed in-container) — or an HTTP(S) proxy the container must use, with a kernel-level block as backstop. Domain-based allowlists need DNS control (resolve-and-allow, or DNS interception) — an FD problem.
-- **Provision container:** startup keeps broad egress (stamp-cached, runs before any agent input exists) — FD confirms.
+- **Egress enforcement:** engine-created per-policy network; the host applies nftables rules to the network namespace *before* the container starts inside it (no NET_ADMIN needed in-container) - or an HTTP(S) proxy the container must use, with a kernel-level block as backstop. Domain-based allowlists need DNS control (resolve-and-allow, or DNS interception) - an FD problem.
+- **Provision container:** startup keeps broad egress (stamp-cached, runs before any agent input exists) - FD confirms.
 
-## Open questions (revisit later — Functional Design)
+## Open questions (revisit later - Functional Design)
 
 1. Egress enforcement mechanism that works with `--cap-drop ALL` and unprivileged containers: nftables-in-netns vs egress proxy vs Docker network-policy features (which Docker versions?).
 2. Domain-based allowlists need DNS control; is IP-based allowlisting acceptable where hosts are stable (`host.docker.internal`, registry IPs)?
-3. `ro` mounts vs copy-on-write: build outputs and caches need rw — which paths stay rw per step?
-4. Default posture: strict-by-default (empty mount list = mount nothing) vs compat-by-default (`{workspace}` rw) — ergonomics vs security.
-5. `.git` removal: mount-exclusion (multiple submounts of repo-minus-`.git`) vs worktree-export (`git archive` to a temp dir) — freshness vs simplicity.
-6. Caches (`.nuget-packages`, `.venv-sandbox`, `node_modules`, `qa/.browsers`): stay rw in-workspace (already part of the model — 020 analysis said STAY); confirm no relocation needed here.
-7. Testability: docker-marked tests asserting mount/egress behavior — how much runs without root on the host (nftables needs root; CI implications)?
+3. `ro` mounts vs copy-on-write: build outputs and caches need rw - which paths stay rw per step?
+4. Default posture: strict-by-default (empty mount list = mount nothing) vs compat-by-default (`{workspace}` rw) - ergonomics vs security.
+5. `.git` removal: mount-exclusion (multiple submounts of repo-minus-`.git`) vs worktree-export (`git archive` to a temp dir) - freshness vs simplicity.
+6. Caches (`.nuget-packages`, `.venv-sandbox`, `node_modules`, `qa/.browsers`): stay rw in-workspace (already part of the model - 020 analysis said STAY); confirm no relocation needed here.
+7. Testability: docker-marked tests asserting mount/egress behavior - how much runs without root on the host (nftables needs root; CI implications)?
 
 ## Sources
 

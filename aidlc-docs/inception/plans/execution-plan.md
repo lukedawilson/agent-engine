@@ -4,29 +4,29 @@
 
 ### Transformation Scope (Brownfield)
 
-- **Transformation Type**: Architectural enhancement — hardening + new optional isolation subsystem (no deployment-model change; library + CLI remain the product)
+- **Transformation Type**: Architectural enhancement - hardening + new optional isolation subsystem (no deployment-model change; library + CLI remain the product)
 - **Primary Changes**: (1) findings/verdict-passing mechanism reworked to pipeline-captured final responses; (2) SDK tooling-injection hardening; (3) opt-in container isolation for terminal tool + command steps
 - **Related Components**: single package (`agent-engine`) + shipped consumer example (`agent-engine/pipeline.yaml`, `sdk_agents/*`); no infra code, no CDK, no shared models
 
 ### Change Impact Assessment
 
-- **User-facing changes**: Yes — pipeline authors' YAML/agent files change (verdict protocol semantics, `file_editor` removal, optional isolation config)
-- **Structural changes**: Yes — new isolation subsystem (Unit 3); stages/verdicts flow reworked (Unit 1)
-- **Data model changes**: Minor — state_dir artifact semantics; no DB schema
-- **API changes**: Yes — `run_agent` capture path, verdict parsing interface, new config fields
-- **NFR impact**: Yes — security (isolation, least privilege), resiliency (scoped: container lifecycle retries)
+- **User-facing changes**: Yes - pipeline authors' YAML/agent files change (verdict protocol semantics, `file_editor` removal, optional isolation config)
+- **Structural changes**: Yes - new isolation subsystem (Unit 3); stages/verdicts flow reworked (Unit 1)
+- **Data model changes**: Minor - state_dir artifact semantics; no DB schema
+- **API changes**: Yes - `run_agent` capture path, verdict parsing interface, new config fields
+- **NFR impact**: Yes - security (isolation, least privilege), resiliency (scoped: container lifecycle retries)
 
 ### Component Relationships
 
 - **Primary Component**: `src/agent_engine/` (stages, verdicts, agents, registry, config, graph)
-- **Dependent Components**: shipped consumer (`agent-engine/` example), `tests/` (e2e fixtures replay historical verdict failures — will need updating for the new capture mechanism)
+- **Dependent Components**: shipped consumer (`agent-engine/` example), `tests/` (e2e fixtures replay historical verdict failures - will need updating for the new capture mechanism)
 - **Supporting Components**: `viz.py` (observes state), `extensions/aidlc.py` (loader layout)
 
 ### Risk Assessment
 
-- **Risk Level**: Medium — multiple components; Unit 3 (kernel isolation) carries the most risk (cross-platform container behavior), but is opt-in and separable; Unit 1 first per user directive
-- **Rollback Complexity**: Easy — git-versioned single package, no schema/data migration
-- **Testing Complexity**: Moderate — e2e fixture suite replays historical parsing edge cases; container tests need a fake-runtime seam
+- **Risk Level**: Medium - multiple components; Unit 3 (kernel isolation) carries the most risk (cross-platform container behavior), but is opt-in and separable; Unit 1 first per user directive
+- **Rollback Complexity**: Easy - git-versioned single package, no schema/data migration
+- **Testing Complexity**: Moderate - e2e fixture suite replays historical parsing edge cases; container tests need a fake-runtime seam
 
 ## Workflow Visualization
 
@@ -95,7 +95,7 @@ flowchart TD
 - [x] Reverse Engineering (COMPLETED)
 - [x] Requirements Analysis (COMPLETED)
 - [x] User Stories (SKIPPED)
-  - **Rationale**: Internal dev-tool hardening — user confirmed "No need for user stories"
+  - **Rationale**: Internal dev-tool hardening - user confirmed "No need for user stories"
 - [x] Execution Plan (IN PROGRESS)
 - [ ] Application Design - EXECUTE
   - **Rationale**: New isolation component (Unit 3) needs component definition; Domain Standards extension demands domain exposition before any model proposal
@@ -121,7 +121,7 @@ flowchart TD
 
 ## Package Change Sequence (Brownfield Only)
 
-Single package (`agent-engine`) — no multi-package coordination. Unit order is the critical path: **Unit 1 (findings/verdict passing) → Unit 2 (tool hardening) → Unit 3 (kernel isolation)**; each is a vertical slice with its own build-and-test checkpoint.
+Single package (`agent-engine`) - no multi-package coordination. Unit order is the critical path: **Unit 1 (findings/verdict passing) → Unit 2 (tool hardening) → Unit 3 (kernel isolation)**; each is a vertical slice with its own build-and-test checkpoint.
 
 ## Estimated Timeline
 
@@ -130,9 +130,9 @@ Single package (`agent-engine`) — no multi-package coordination. Unit order is
 
 ## Success Criteria
 
-- **Primary Goal**: agent-engine runs guardrailed by design — reliable findings/verdict passing, hardened tool injection, opt-in kernel isolation
+- **Primary Goal**: agent-engine runs guardrailed by design - reliable findings/verdict passing, hardened tool injection, opt-in kernel isolation
 - **Key Deliverables**: response-capture mechanism + parsing redesign (Unit 1); SDK restriction exposure + extension registration validation (Unit 2); container isolation backend with fail-fast semantics (Unit 3)
 - **Quality Gates**: full test suite green per unit; e2e fixtures updated for new capture path; PBT on parsing/serialization; security NFRs verified
 
-- **Integration Testing**: All components working together — pipeline self-run (dev→test→review→qa→commit) under hardened + isolated modes
+- **Integration Testing**: All components working together - pipeline self-run (dev→test→review→qa→commit) under hardened + isolated modes
 - **Operational Readiness**: N/A (library; container lifecycle retries + observability of sandboxed execution per Resiliency scoped)

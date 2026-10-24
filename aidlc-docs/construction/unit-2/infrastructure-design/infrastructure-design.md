@@ -1,4 +1,4 @@
-# Infrastructure Design — unit-2 (SDK-level hardening)
+# Infrastructure Design - unit-2 (SDK-level hardening)
 
 ## Summary
 
@@ -8,12 +8,12 @@ Infrastructure design found **no infrastructure components** in unit-2. The unit
 
 | Logical component (FD) | Infrastructure choice | Rationale |
 | --- | --- | --- |
-| `proc.needs_shell` / `split_command` | None — in-process pure functions | String classification + `shlex.split` |
-| `proc.is_pid_token` | None — in-process pure function | Numeric validation |
-| `proc.child_env` | None — in-process pure function | Env-dict construction |
+| `proc.needs_shell` / `split_command` | None - in-process pure functions | String classification + `shlex.split` |
+| `proc.is_pid_token` | None - in-process pure function | Numeric validation |
+| `proc.child_env` | None - in-process pure function | Env-dict construction |
 | `_run_command` (command step) | Host-side subprocess (child of pipeline process) | stdlib `subprocess`; no service |
 | Action helpers (`git`/`lsof`/`ps`/`kill`) | Host-side subprocess, `shutil.which` resolution | Existing host binaries; no new runtime |
-| `Registry.add_tool` validation | None — in-process guard | Validates against the SDK's global registry |
+| `Registry.add_tool` validation | None - in-process guard | Validates against the SDK's global registry |
 
 ## Explicitly Deferred to unit-3
 
@@ -26,7 +26,7 @@ Infrastructure design found **no infrastructure components** in unit-2. The unit
 
 ## Storage Note
 
-`env_allowlist` is a YAML config field on `PipelineConfig` — config, not storage. No new directories, no new lifecycle.
+`env_allowlist` is a YAML config field on `PipelineConfig` - config, not storage. No new directories, no new lifecycle.
 
 ## Security Note
 

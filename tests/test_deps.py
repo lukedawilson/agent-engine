@@ -58,7 +58,7 @@ class TestParseMissingDependencies:
         assert parse_missing_dependencies(text) == ["requests==2.32.0"]
 
     def test_header_name_is_exact(self):
-        # Only the fixed header matches — decoration or case drift is malformed.
+        # Only the fixed header matches - decoration or case drift is malformed.
         assert parse_missing_dependencies("### Missing dependencies\nfoo==1.0\n") == []
         assert parse_missing_dependencies("## missing dependencies\nfoo==1.0\n") == []
 

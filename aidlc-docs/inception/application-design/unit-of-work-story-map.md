@@ -1,6 +1,6 @@
 # Unit of Work Story Map
 
-User Stories stage was skipped (internal tooling) — per U-2 answer, this artifact maps **requirements (FR/NFR IDs)** to units.
+User Stories stage was skipped (internal tooling) - per U-2 answer, this artifact maps **requirements (FR/NFR IDs)** to units.
 
 ## Requirement → Unit Map
 
@@ -38,4 +38,4 @@ User Stories stage was skipped (internal tooling) — per U-2 answer, this artif
 
 ## Unassigned Requirements
 
-None — all FR/NFR IDs above are assigned. (Story-map completeness per plan.)
+None - all FR/NFR IDs above are assigned. (Story-map completeness per plan.)

@@ -1,8 +1,8 @@
-# Unit 4 Infrastructure Design — Claude Dynamic Workflows driver
+# Unit 4 Infrastructure Design - Claude Dynamic Workflows driver
 
 ## Positioning
 
-Home comforts for devs forced onto Claude Code: export a Claude Dynamic Workflow from the pipeline.yaml they already trust, plus the visualiser they trust. We add the deterministic loop through Claude's mechanism — nothing more. No sandboxing, no added security claims.
+Home comforts for devs forced onto Claude Code: export a Claude Dynamic Workflow from the pipeline.yaml they already trust, plus the visualiser they trust. We add the deterministic loop through Claude's mechanism - nothing more. No sandboxing, no added security claims.
 
 ## Topology
 
@@ -46,7 +46,7 @@ flowchart TD
 
 | Category | Disposition | Justification |
 | --- | --- | --- |
-| Deployment Environment | Applicable | Dev laptops (macOS/Linux/Windows); skill install to `~/.claude/skills`; pip/uv extras install — covered by ID-1/ID-3 |
+| Deployment Environment | Applicable | Dev laptops (macOS/Linux/Windows); skill install to `~/.claude/skills`; pip/uv extras install - covered by ID-1/ID-3 |
 | Compute | N/A | No engine compute in workflow mode; subagents run in Claude Code's own environment (FR-4.2/BR-3) |
 | Storage | N/A | No journal/no persistence by decision (NFR-4); only the transient `.agentic-dev-loop/workflow.js` artifact |
 | Messaging | N/A | No queues/brokers; step events are a localhost HTTP POST stream (covered under Networking) |

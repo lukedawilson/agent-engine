@@ -8,16 +8,16 @@ agent-engine is a single Python library + CLI. The CLI (`agent-engine PIPELINE`)
 
 ```mermaid
 flowchart TD
-    subgraph CLI["cli.py — two-phase CLI"]
+    subgraph CLI["cli.py - two-phase CLI"]
         P1["Phase 1: find PIPELINE"]
         P2["Phase 2: full parser<br/>(core flags + loader flags)"]
     end
-    subgraph Config["config.py — strict schema"]
+    subgraph Config["config.py - strict schema"]
         PC["PipelineConfig<br/>(extra=forbid)"]
         SC["StepConfig<br/>agent|command|action"]
         LC["LlmConfig"]
     end
-    subgraph Registry["registry.py — extension seam"]
+    subgraph Registry["registry.py - extension seam"]
         R["Registry<br/>actions / loaders / tools"]
         LE["load_extensions<br/>(module:Class)"]
     end
@@ -79,7 +79,7 @@ flowchart TD
 
 ### agents.py
 - **Purpose**: Agent file loading + SDK factory mechanics.
-- **Responsibilities**: `load_agent` — file must exist (fail fast), frontmatter name must match filename, tools resolved against the SDK's global registry (unknown → ValueError). Imports register `terminal`, `file_editor`, `task_tracker`.
+- **Responsibilities**: `load_agent` - file must exist (fail fast), frontmatter name must match filename, tools resolved against the SDK's global registry (unknown → ValueError). Imports register `terminal`, `file_editor`, `task_tracker`.
 - **Dependencies**: openhands-sdk, openhands-tools.
 - **Type**: Application
 
@@ -158,7 +158,7 @@ sequenceDiagram
 ## Integration Points
 
 - **External APIs**: OpenHands SDK (agent execution), LLM provider HTTP API (DeepSeek, configured via base_url/model/api_key_env).
-- **Databases**: SQLite checkpointer (`<state_dir>/loop-checkpoints.sqlite`) — one per workspace.
+- **Databases**: SQLite checkpointer (`<state_dir>/loop-checkpoints.sqlite`) - one per workspace.
 - **Third-party Services**: none beyond the LLM provider.
 
 ## Infrastructure Components
@@ -170,6 +170,6 @@ sequenceDiagram
 ## Security-Relevant Architecture Notes (for the guardrails/sandboxing intent)
 
 - **Tool injection path**: `pipeline.yaml extensions:` → `load_extensions` → `registry.add_tool` → SDK global tool registry → agent frontmatter `tools:` allowlist → `load_agent` → `agent_definition_to_factory`. Tool names in frontmatter are resolved against the SDK's GLOBAL registry (any extension can register anything; no namespacing).
-- **Shell execution surfaces**: (1) agent `terminal` tool — full host-user shell authority; (2) command steps — `subprocess.Popen(..., shell=True, start_new_session=True)` in the workspace; (3) `actions.py` git/lsof/ps subprocess calls. The prompt-level tool allowlist restricts what agents are OFFERED, not what granted tools can do.
+- **Shell execution surfaces**: (1) agent `terminal` tool - full host-user shell authority; (2) command steps - `subprocess.Popen(..., shell=True, start_new_session=True)` in the workspace; (3) `actions.py` git/lsof/ps subprocess calls. The prompt-level tool allowlist restricts what agents are OFFERED, not what granted tools can do.
 - **Filesystem authority**: agents run with `workspace=` set, but `terminal` can reach the entire host filesystem; artifacts live in `state_dir`.
 - **The SDK's `llm_security_analyzer`** is advisory prompt text, not enforcement.

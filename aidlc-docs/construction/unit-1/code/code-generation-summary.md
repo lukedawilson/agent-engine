@@ -1,4 +1,4 @@
-# Code Generation Summary — unit-1 (output-passing fix)
+# Code Generation Summary - unit-1 (output-passing fix)
 
 ## Created
 
@@ -32,6 +32,6 @@
 
 ## Verification
 
-- Full suite: **373 passed** (`tests/ -q`, 28.6s) — including `test_e2e_fixtures.py` (BR-7 historical fixtures) and `test_sdk_compat.py`.
+- Full suite: **373 passed** (`tests/ -q`, 28.6s) - including `test_e2e_fixtures.py` (BR-7 historical fixtures) and `test_sdk_compat.py`.
 - TDD: red → green → refactor per plan steps 1–12.
 - DDD compliance: no new services; VOs own parse/write; `StagesRuntime` delegates only.

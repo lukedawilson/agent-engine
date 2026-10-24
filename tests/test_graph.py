@@ -3,7 +3,7 @@
 The yosk-equivalent YAML below must reproduce the hardcoded loop's behavior:
 dev → check → review → qa → commit, retries to dev, failure on
 exhaustion/exception. run_agent is stubbed (the SDK network boundary);
-everything else — files, git, checkpoints — is real."""
+everything else - files, git, checkpoints - is real."""
 
 import argparse
 import queue
@@ -216,7 +216,7 @@ class TestRunPipeline:
         script_all_pass(fake_agents)
         fake_agents.set("check", [
             ("write", "ci-fix.md", "VERDICT: FAIL"),
-            ("ok",),  # writes nothing — must be unclear, not a stale FAIL re-read
+            ("ok",),  # writes nothing - must be unclear, not a stale FAIL re-read
             ("write", "ci-fix.md", "VERDICT: PASS"),
         ])
         ok, attempts = run_pipeline("pipeline.yaml", args())
@@ -234,7 +234,7 @@ class TestRunPipeline:
 
     def test_missing_additional_file_fails_fast(self, repo, fake_agents):
         # A committed additional file that has been deleted is a *dirty tooling
-        # file* (020) — the run-start integrity check names it before the
+        # file* (020) - the run-start integrity check names it before the
         # loader ever reads it.
         from agentic_dev_loop.engine.hostboundary import HostBoundaryError
         (repo / "coding-standards-ddd.yaml").unlink()
@@ -245,7 +245,7 @@ class TestRunPipeline:
     def test_never_committed_missing_additional_file_fails_fast(self, repo,
                                                                 fake_agents):
         # A clean (never-committed) additional file that simply does not exist
-        # is not a tooling modification — the loader's missing-file guard is
+        # is not a tooling modification - the loader's missing-file guard is
         # what catches it.
         (repo / "pipeline.yaml").write_text(
             YOSK_YAML.replace("coding-standards-ddd.yaml",
@@ -374,7 +374,7 @@ class TestResume:
         ok, attempts = run_pipeline(
             "pipeline.yaml", args(plan=None, resume=self.sole_thread_id(repo)))
         assert (ok, attempts) == (True, 1)
-        # dev and test completed before the crash — only review onward re-ran
+        # dev and test completed before the crash - only review onward re-ran
         assert fake_agents.agents_called() == \
             ["dev", "check", "review", "review", "qa"]
         assert git(repo, "log", "-1", "--pretty=%s") == \
@@ -400,7 +400,7 @@ class TestResume:
         ok, attempts = run_pipeline(
             "pipeline.yaml", args(plan=None, resume=self.sole_thread_id(repo)))
         assert (ok, attempts) == (True, 1)
-        # dev/check/review completed before the failure — only review onward
+        # dev/check/review completed before the failure - only review onward
         # re-ran, this time to completion
         assert fake_agents.agents_called() == \
             ["dev", "check", "review", "review", "qa"]
@@ -544,7 +544,7 @@ class TestSandboxLifecycle:
 
 def test_run_pipeline_registry_param_typed():
     """API-consistency guard: run_pipeline's registry kwarg must carry the
-    same Registry | None annotation as dry_run's — an untyped param is how
+    same Registry | None annotation as dry_run's - an untyped param is how
     this drifted once already."""
     import inspect
     from typing import get_type_hints

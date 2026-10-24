@@ -37,7 +37,7 @@ STEPS = [
      "on_pass": "review", "on_fail": {"goto": "dev", "retry": True}},
     {"name": "review", "agent": "review", "artifact": "review-findings.md",
      "verdicts": {"pass": "APPROVED", "fail": "NEEDS CHANGES"},
-     "on_pass": "success"},  # no on_fail — fail is fatal, unclear retries entry
+     "on_pass": "success"},  # no on_fail - fail is fatal, unclear retries entry
 ]
 
 
@@ -79,7 +79,7 @@ class TestBuildContext:
 
     def test_output_paths_workspace_relative_for_subdirectory_pipeline(self, tmp_path):
         """yosk layout: the pipeline YAML lives in a subdirectory while the
-        workspace is the repo root — the prompt path must reach the real
+        workspace is the repo root - the prompt path must reach the real
         state_dir; state_dir.name alone sends agents to the wrong directory
         (U18 burned 3 attempts on an unfindable ci-fix.md)."""
         state_dir = tmp_path / "agentic-dev-loop" / ".pr"
@@ -215,7 +215,7 @@ class TestAgentNode:
         assert "I am undecided" in note
 
     def test_unclear_retries_entry_step_when_no_fail_route(self, runtime, fake_agents):
-        # review has no on_fail — the unclear-retry policy targets the entry step
+        # review has no on_fail - the unclear-retry policy targets the entry step
         update = make_agent_node(runtime, runtime.cfg.steps[2])(make_state())
         assert update["retry_target"] == "dev"
 
@@ -304,7 +304,7 @@ class TestCommandNode:
 
     def test_timeout_reaps_the_process_tree(self, tmp_path):
         """The host-path timeout must cut the WHOLE tree short, not just the
-        direct child — a shell wrapper's grandchild that survives keeps the
+        direct child - a shell wrapper's grandchild that survives keeps the
         pipes open and the follow-up communicate() blocks out the full sleep
         (CI-red 9.5s). kill_process_tree's per-OS branches are unit-pinned
         in tests/test_proc.py::TestKillProcessTree."""
@@ -482,7 +482,7 @@ class TestBumpNode:
 
 
 class TestSandboxActionNode:
-    """020: consumer actions are sandbox-executed command-shaped scripts —
+    """020: consumer actions are sandbox-executed command-shaped scripts -
     the exit code is the verdict, and no consumer code runs host-side."""
 
     def _rt(self, runtime, script, **extra):
@@ -630,7 +630,7 @@ class TestSandboxedCommandNode:
         rt = dataclasses.replace(runtime, cfg=cfg)
         node = make_command_node(rt, cfg.steps[1])
         update = node(make_state())
-        # blocked is blocked — a hard failure, never a retry cycle
+        # blocked is blocked - a hard failure, never a retry cycle
         assert update == {"failed": True, "failed_step": "test"}
         assert "notes" not in update
 

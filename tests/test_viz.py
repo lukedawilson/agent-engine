@@ -1,4 +1,4 @@
-"""Viz module tests — translation, the pub/sub bus, and the HTTP/SSE server.
+"""Viz module tests - translation, the pub/sub bus, and the HTTP/SSE server.
 
 Everything here runs real: translation is exercised against a real tiny
 StateGraph + MemorySaver, and HTTP/SSE over a real socket on port 0. Only the
@@ -39,7 +39,7 @@ SELF_PIPELINE = Path(__file__).parent.parent / "agentic-dev-loop" / "pipeline.ya
 def _privileged_ports_enforced() -> bool:
     """True when the kernel reserves privileged ports for root. Some
     containers set ``net.ipv4.ip_unprivileged_port_start=0``, which lets a
-    non-root uid bind port 1 — the loud-privileged-port test can't run there."""
+    non-root uid bind port 1 - the loud-privileged-port test can't run there."""
     if sys.platform != "linux":
         return True
     try:
@@ -1065,7 +1065,7 @@ main();
         assert snaps[0]["classes"]["test"] == "pass"
         assert snaps[1]["badges"] == ["test: pass", "review: fail"]
         assert snaps[1]["classes"]["review"] == "fail"
-        # the loopback must NOT wipe the latest results — the stage pills
+        # the loopback must NOT wipe the latest results - the stage pills
         # and node colours survive the attempt bump
         assert snaps[2]["badges"] == ["test: pass", "review: fail"]
         assert snaps[2]["classes"]["test"] == "pass"
@@ -1091,7 +1091,7 @@ main();
         snaps = self._run_page(node, events, tmp_path)
 
         assert snaps[0]["badges"] == ["test: pass"]
-        # a same-attempt state event must NOT reset — the test pass badge
+        # a same-attempt state event must NOT reset - the test pass badge
         # survives and the review fail badge joins it
         assert snaps[1]["badges"] == ["test: pass", "review: fail"]
         assert snaps[1]["classes"]["test"] == "pass"

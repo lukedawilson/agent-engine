@@ -1,4 +1,4 @@
-"""CLI tests — two-phase argparse: the pipeline YAML determines which
+"""CLI tests - two-phase argparse: the pipeline YAML determines which
 extension flags exist (a loader's flag appears only when its extension is
 listed in the pipeline's `extensions:`). Pipeline runs are real; FakeAgents
 stubs only the SDK network boundary."""
@@ -199,7 +199,7 @@ class TestRun:
                 "SELECT DISTINCT thread_id FROM checkpoints").fetchone()
 
         assert main(["resume.yaml", "--resume", tid, "--no-viz"]) == 0
-        # dev completed before the crash — only test re-ran on resume
+        # dev completed before the crash - only test re-ran on resume
         assert fake_agents.agents_called() == ["dev", "check", "check"]
 
     def test_success_stamps_plan_completed(self, repo, fake_agents):
@@ -238,7 +238,7 @@ class TestRun:
         unit_dir.mkdir(parents=True)
         (unit_dir / "design.md").write_text("# Design")
         (repo / "aidlc-docs" / "aidlc-state.md").write_text(
-            "# State\n\n- **Current Stage**: CONSTRUCTION — Unit unit-3 (SCAN).\n",
+            "# State\n\n- **Current Stage**: CONSTRUCTION - Unit unit-3 (SCAN).\n",
             encoding="utf-8")
         git(repo, "add", "-A")
         git(repo, "commit", "-m", "aidlc fixture")
@@ -294,7 +294,7 @@ class TestViz:
         stdout_before = sys.stdout
         stderr_before = sys.stderr
         code = main(["pipeline.yaml", "--plan", "plan.md"])  # served by default
-        assert code == 0  # main returns only when the loop completes — no keep-alive
+        assert code == 0  # main returns only when the loop completes - no keep-alive
         assert sys.stdout is stdout_before
         assert sys.stderr is stderr_before
         assert "dev" in captured["topology"]
@@ -335,7 +335,7 @@ class TestViz:
         code = main(["pipeline.yaml", "--plan", "plan.md"])
         assert code == 0
         assert opened == ["http://127.0.0.1:45123"]
-        assert ("viz port 8321 busy — serving on http://127.0.0.1:45123"
+        assert ("viz port 8321 busy - serving on http://127.0.0.1:45123"
                 in capsys.readouterr().out)
 
     def test_viz_port_zero_means_any_port_no_notice(self, repo, fake_agents,

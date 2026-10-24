@@ -1,7 +1,7 @@
 """Captured agent output: the value object that owns the response→artifact
 channel (unit-1).
 
-The pipeline — not the agent — writes the step's artifact from the agent's
+The pipeline - not the agent - writes the step's artifact from the agent's
 final SDK response. Verdict parsing lives in `core.verdict`; this module only
 owns the SDK-side capture. Expected conditions are typed `Result` errors,
 never exceptions.
@@ -56,7 +56,7 @@ def _final_agent_text(conv) -> str:
     """Extract the agent's final response from an SDK conversation.
 
     Delegates to the SDK's own `get_agent_final_response`, which handles both
-    ways an agent can end a run — a `FinishTool` call or a plain-text message.
+    ways an agent can end a run - a `FinishTool` call or a plain-text message.
     The events live on ``conv.state.events`` (NOT ``conv.events``), and must be
     read before ``conv.close()`` releases the event stream.
     """

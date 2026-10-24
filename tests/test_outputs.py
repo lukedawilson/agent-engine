@@ -1,4 +1,4 @@
-"""Tests for CapturedOutput — the pipeline-captured agent response channel."""
+"""Tests for CapturedOutput - the pipeline-captured agent response channel."""
 
 import json
 from pathlib import Path
@@ -27,7 +27,7 @@ def _agent_event(text: str) -> MessageEvent:
 
 
 def _finish_event(message: str) -> ActionEvent:
-    """A real FinishTool ActionEvent — how the OpenHands agent actually ends a
+    """A real FinishTool ActionEvent - how the OpenHands agent actually ends a
     run. Its `message` IS the final response, delivered as an action (with the
     matching `FinishObservation` as its result), never a `MessageEvent`."""
     return ActionEvent(
@@ -54,7 +54,7 @@ def _user_event(text: str) -> MessageEvent:
 
 def _conv(*events) -> SimpleNamespace:
     # The real Conversation exposes its events via `.state.events`, not
-    # `.events` — mirror that structure so the test can't pass against a
+    # `.events` - mirror that structure so the test can't pass against a
     # `conv.events` read that the SDK never provides.
     return SimpleNamespace(state=SimpleNamespace(events=list(events)))
 
@@ -112,7 +112,7 @@ class TestFromAgentResult:
 
     def test_finish_tool_without_agent_message(self, tmp_path: Path):
         # A run whose only final response is the FinishTool call (no preceding
-        # agent MessageEvent) must still capture it — not report empty.
+        # agent MessageEvent) must still capture it - not report empty.
         conv = _conv(_user_event("the task"), _finish_event("only the finish message"))
         result = CapturedOutput.from_agent_result(conv, "out.md", tmp_path)
         assert result.is_ok()
@@ -125,7 +125,7 @@ class TestFromAgentResult:
 
 
 class TestRealConversation:
-    """The capture path against a real SDK Conversation (scripted TestLLM) —
+    """The capture path against a real SDK Conversation (scripted TestLLM) -
     the regression guard synthetic `SimpleNamespace` fixtures cannot provide:
     the real events live on `conv.state.events`, never `conv.events`."""
 

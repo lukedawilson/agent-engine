@@ -1,4 +1,4 @@
-"""LLM construction from pipeline config. Fail fast on a missing key —
+"""LLM construction from pipeline config. Fail fast on a missing key -
 never fall back to another env var (no silent fallbacks)."""
 
 import os

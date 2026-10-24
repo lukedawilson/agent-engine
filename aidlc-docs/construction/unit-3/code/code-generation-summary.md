@@ -1,4 +1,4 @@
-# Unit 3 Code Generation Summary — kernel-level sandboxing (always-on)
+# Unit 3 Code Generation Summary - kernel-level sandboxing (always-on)
 
 Implemented per `implementation-spec.md` and the 16-step plan (TDD). All 580
 tests pass locally (unit + PBT + marked Docker integration, real daemon).
@@ -34,7 +34,7 @@ tests pass locally (unit + PBT + marked Docker integration, real daemon).
 
 - `DockerBackend.__init__` keeps an `iso_state_dir` param (host-only audit sink),
   consistent with the implementation-spec §2.3 exact signature; the Q1
-  amendment ("iso_state_dir param dropped") is honoured where it matters — the
+  amendment ("iso_state_dir param dropped") is honoured where it matters - the
   mount set is EXACTLY `{workspace}` and the iso state dir is never mounted.
 - `SandboxExecutionRequest` gains two optional host-side fields (`pipeline`,
   `step`) for the BR-11 audit record; the container never sees them.

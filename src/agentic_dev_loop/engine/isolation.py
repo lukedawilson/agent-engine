@@ -1,6 +1,6 @@
 """Sandbox execution domain (unit-3).
 
-The two agent-influence channels — the ``terminal`` tool and command steps —
+The two agent-influence channels - the ``terminal`` tool and command steps -
 run inside a Docker-based, kernel-level sandbox that is always on (FD-4).
 ``Sandbox`` is the retained extension seam; ``DockerBackend`` is the single
 concrete implementation (user directive 2026-10-19). Everything else here is
@@ -13,7 +13,7 @@ host's throwaway venv can never be written from inside the sandbox. When
 ``isolation.sandbox_venv_dir`` relocates the sandbox venv, one extra rw bind
 mount at ``{ws}/.venv-sandbox`` is added (opt-in). The isolation state dir
 (stamps + audit JSONL) and the pipeline run-state dir (checkpoint DB +
-last-error.md) are never mounted — sandboxed code cannot reach them.
+last-error.md) are never mounted - sandboxed code cannot reach them.
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ from .proc import needs_shell, split_command
 
 DEFAULT_DEV_IMAGE = "ghcr.io/lukedawilson/agentic-dev-loop/dev"
 # Digest-pinned; filled after first publish (KD-2). An empty ref fails fast at
-# runtime unless AGENTIC_DEV_LOOP_DEV_IMAGE overrides it — never a silent
+# runtime unless AGENTIC_DEV_LOOP_DEV_IMAGE overrides it - never a silent
 # `latest` fallback.
 DEFAULT_DEV_IMAGE_REF = "ghcr.io/lukedawilson/agentic-dev-loop/dev@sha256:890105209c127446caf20ce3dc05f0c0f5527e9d679e18cc0075e6b0ee917434"
 IMAGE_ENV_OVERRIDE = "AGENTIC_DEV_LOOP_DEV_IMAGE"
@@ -66,13 +66,13 @@ SANDBOX_ENV_BASE = {
 
 TIMEOUT_EXIT_CODE = 124  # timeout(1) convention inside the container
 AUDIT_MAX_BYTES = 5 * 1024 * 1024
-# Provision is a trusted install/build — give it a generous hard bound so a
+# Provision is a trusted install/build - give it a generous hard bound so a
 # hung `setup:` hook can never wedge startup (BR-8 fail fast, not a hang).
 PROVISION_TIMEOUT_SECONDS = 3600
 
 # The sandbox venv the shipped pipeline relies on (016 sandbox-venv
 # hardening). The engine probes this path INSIDE the exec container
-# before trusting a warm provision stamp — a host-built (darwin) venv
+# before trusting a warm provision stamp - a host-built (darwin) venv
 # symlinks to a host interpreter that does not exist in the Linux
 # container, so it must be detected and re-provisioned there.
 SANDBOX_VENV_DIR = ".venv-sandbox"
@@ -102,7 +102,7 @@ class SandboxExecutionRequest:
     env: dict[str, str]  # resolved sandbox env (already scrubbed)
     timeout: float | None = None  # seconds; None = no limit
     network: bool = False  # route to the bridge-network exec container when True
-    # Host-side audit metadata (BR-11) — never sent into the container.
+    # Host-side audit metadata (BR-11) - never sent into the container.
     pipeline: str | None = None
     step: str | None = None
 
@@ -141,7 +141,7 @@ class SandboxExecutionResult:
 @dataclass(frozen=True)
 class EffectiveProfile:
     """The resolved isolation profile (BR-5): opinionated defaults merged with
-    author overrides. Pure data — no environment access."""
+    author overrides. Pure data - no environment access."""
 
     network_off: bool
     read_only_rootfs: bool
@@ -160,7 +160,7 @@ class ProbeResult:
 
 
 # ---------------------------------------------------------------------------
-# Pure functions (no I/O, no env access — PBT-03 targets)
+# Pure functions (no I/O, no env access - PBT-03 targets)
 # ---------------------------------------------------------------------------
 
 
@@ -197,7 +197,7 @@ def resolve_sandbox_env(step_env: dict[str, str | None] | None, *,
     value; the global ``env_allowlist`` is never consulted and the LLM key is
     never auto-added (NFR-3.1 / BR-9).
 
-    ``secrets`` (019) carries the per-step resolved secret env — injected last,
+    ``secrets`` (019) carries the per-step resolved secret env - injected last,
     so a declared ref is authoritative over any same-named ``env:`` entry. It
     arrives only from ``step_secret_env``, which maps only the refs the step
     declared, so no secret ever reaches an undeclaring step."""
@@ -238,8 +238,8 @@ def _branch_tag_mutation(rest: list[str]) -> bool:
 def is_git_mutation(argv: list[str]) -> bool:
     """Deny-by-default git classifier (BR-6). Only classifies git invocations
     (argv[0] basename in {"git", "git.exe"}); non-git programs return False.
-    Known-read subcommands are always allowed; everything else — including
-    unknown subcommands — is a mutation. Policy convenience only, NOT the
+    Known-read subcommands are always allowed; everything else - including
+    unknown subcommands - is a mutation. Policy convenience only, NOT the
     security boundary (the container is)."""
     if not argv:
         return False
@@ -262,7 +262,7 @@ def is_git_mutation(argv: list[str]) -> bool:
             return False
         break
     if i >= len(args):
-        return False  # bare `git` — no subcommand; not a mutation
+        return False  # bare `git` - no subcommand; not a mutation
     subcommand = args[i]
     rest = args[i + 1:]
     if subcommand in _KNOWN_READ_SUBCOMMANDS:
@@ -295,7 +295,7 @@ def _expand_home(path: str) -> str:
 
 def translate_mount_path(path: str) -> str:
     """expanduser + absolute resolution without symlink chasing. Identity on
-    macOS/Windows/WSL2-with-Docker-Desktop (verbatim passthrough — Docker
+    macOS/Windows/WSL2-with-Docker-Desktop (verbatim passthrough - Docker
     Desktop translates). Idempotent: translate(translate(p)) == translate(p).
     A leading ``~`` resolves against $HOME first (USERPROFILE fallback), then
     the stdlib handles anything left (pwd on POSIX)."""
@@ -310,7 +310,7 @@ def resolve_sandbox_venv_dir(sandbox_venv_dir: str | None,
     """Resolve the opt-in relocated sandbox venv (022).
 
     ``None`` keeps the legacy workspace-local ``.venv-sandbox`` (bit-compatible
-    default — payloads are unchanged). A set value is expanduser + absolute and
+    default - payloads are unchanged). A set value is expanduser + absolute and
     must resolve OUTSIDE the workspace: an in-workspace value defeats the whole
     relocation and fails loud (AE-SBX-015).
     """
@@ -321,7 +321,7 @@ def resolve_sandbox_venv_dir(sandbox_venv_dir: str | None,
     if resolved == ws or ws in resolved.parents:
         raise SandboxError(
             f"AE-SBX-015: isolation.sandbox_venv_dir {resolved!r} must resolve "
-            "outside the workspace — an in-workspace value defeats the 022 "
+            "outside the workspace - an in-workspace value defeats the 022 "
             "relocation (docs/setup.md §3)")
     return str(resolved)
 
@@ -341,7 +341,7 @@ def venv_probe_command() -> str:
 
     Returns a shell command that prints exactly one of ``valid`` /
     ``missing`` / ``broken`` and exits 0. ``broken`` is the host-tampered
-    class: the python entry exists as a path (including a dangling symlink —
+    class: the python entry exists as a path (including a dangling symlink -
     the host-darwin venv case) but is not executable/importable in the
     container. ``missing`` means no such entry at all (the setup hook may
     legitimately not create a venv), so it is treated as a stamp hit, never a
@@ -365,7 +365,7 @@ def venv_probe_argv(container: str, workspace: str) -> list[str]:
 
 def venv_probe_state(stdout: str, exit_code: int | None) -> str:
     """Classify a probe result. A nonzero exit (docker exec failed) is
-    ``unknown`` — the caller leaves the stamp alone rather than guessing."""
+    ``unknown`` - the caller leaves the stamp alone rather than guessing."""
     if exit_code != 0:
         return "unknown"
     line = stdout.strip().splitlines()[-1] if stdout.strip() else ""
@@ -389,12 +389,12 @@ def _clear_dir_contents(path: Path) -> None:
 def remove_sandbox_venv(workspace: str | Path, *,
                         sandbox_venv_dir: str | None = None) -> None:
     """Remove the sandbox venv before re-provision (016 self-heal). Fails loud
-    when the venv exists but cannot be removed — a silent skip would re-create
+    when the venv exists but cannot be removed - a silent skip would re-create
     the ENOENT failure the next run.
 
     With the 022 relocation opt-in (``sandbox_venv_dir``), the venv lives at
     that host path and is the source of a live bind mount in the execution
-    container — so only its CONTENTS are removed (the mount source dir stays),
+    container - so only its CONTENTS are removed (the mount source dir stays),
     leaving the container's ``{ws}/.venv-sandbox`` mount valid for re-provision.
     The default (unset) path removes the whole workspace-local dir as before.
     """
@@ -408,7 +408,7 @@ def remove_sandbox_venv(workspace: str | Path, *,
         except OSError as e:
             raise SandboxError(
                 f"AE-SBX-014: cannot remove invalid sandbox venv at {venv}: {e} "
-                f"— remove it manually and re-run (docs/setup.md §5)") from e
+                f"- remove it manually and re-run (docs/setup.md §5)") from e
         return
     venv = Path(workspace) / SANDBOX_VENV_DIR
     try:
@@ -419,14 +419,14 @@ def remove_sandbox_venv(workspace: str | Path, *,
     except OSError as e:
         raise SandboxError(
             f"AE-SBX-014: cannot remove invalid sandbox venv at {venv}: {e} "
-            f"— remove it manually and re-run (docs/setup.md §5)") from e
+            f"- remove it manually and re-run (docs/setup.md §5)") from e
 
 
 def host_user_flag() -> str | None:
     """The ``docker --user`` value binding the sandbox to the host user.
 
     Container root with all capabilities dropped cannot write a host-owned
-    bind mount on native Linux — the CI-red AE-SBX-009/writable-probe
+    bind mount on native Linux - the CI-red AE-SBX-009/writable-probe
     failures (Docker Desktop's virtiofs masks it on mac/Windows hosts).
     Running as ``uid:gid`` fixes ownership end-to-end. On Windows hosts
     (no os.getuid) the flag is omitted entirely.
@@ -448,7 +448,7 @@ def _sandbox_mounts(workspace: str, sandbox_venv_dir: str | None) -> list[str]:
 
     ``{workspace}`` rw is always first; each host-only dir is then shadowed by
     a read-only empty tmpfs submount (Docker cannot exclude a subdirectory of a
-    bind — a submount is the only way to hide it, and ``ro`` makes any write
+    bind - a submount is the only way to hide it, and ``ro`` makes any write
     attempt fail loudly instead of silently succeeding against a decoy). When
     ``sandbox_venv_dir`` relocates the sandbox venv, one rw bind mount maps it
     to the unchanged container path ``{ws}/.venv-sandbox``.
@@ -466,11 +466,11 @@ def docker_create_payload(*, run_id: str, image: str, profile: EffectiveProfile,
                           sandbox_venv_dir: str | None = None) -> list[str]:
     """Exact ``docker run -d --rm`` argv for the execution container (§3.3, KD-8).
     Mount set {workspace} + host-only masks (022); ``--network none`` (bridge
-    when ``network`` is true — 014 per-stage networking), --read-only,
+    when ``network`` is true - 014 per-stage networking), --read-only,
     --cap-drop ALL; --user host uid:gid (host-owned bind mounts, AE-SBX-009
     root cause) with HOME=/tmp (the rootfs is read-only; /tmp is a 1777 tmpfs).
     ``--rm`` lets the daemon auto-remove the container the instant it exits,
-    however it exits (D1) — a SIGKILLed CLI never reaches close()."""
+    however it exits (D1) - a SIGKILLed CLI never reaches close()."""
     payload = [
         "docker", "run", "--detach", "--rm", "--name",
         exec_container_name(run_id, network),
@@ -514,7 +514,7 @@ def docker_provision_payload(*, run_id: str, image: str, workspace: str,
 
 
 def select_backend(platform: str, probe_result: ProbeResult) -> type["Sandbox"]:
-    """Totality: exactly one backend for every input — DockerBackend. Retained
+    """Totality: exactly one backend for every input - DockerBackend. Retained
     as the seam where a future native/gVisor backend plugs in (BR-3.3)."""
     return DockerBackend
 
@@ -529,7 +529,7 @@ def command_argv(command: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Command runner seam (unit tests inject this — NOT monkeypatching)
+# Command runner seam (unit tests inject this - NOT monkeypatching)
 # ---------------------------------------------------------------------------
 
 
@@ -587,7 +587,7 @@ def _guard_git(request: SandboxExecutionRequest,
     if git_mutations_blocked and is_git_mutation(request.argv):
         name = " ".join(request.argv[:2])
         raise SandboxError(
-            f"AE-SBX-008: git mutation {name!r} blocked — set "
+            f"AE-SBX-008: git mutation {name!r} blocked - set "
             "isolation.allow_git_mutations: true to allow (docs/setup.md §3)")
 
 
@@ -598,7 +598,7 @@ def _request_digest(argv: list[str], cwd: str, env: dict[str, str]) -> str:
 
 class DockerBackend(Sandbox):
     """Docker-based sandbox: a persistent network-none execution container per
-    run, plus — when any step declares ``network: true`` — a second
+    run, plus - when any step declares ``network: true`` - a second
     bridge-network container (eagerly created + started, Q2). ``docker exec``
     per request routes to the container matching its network mode; both are
     destroyed on close(). The injected ``runner`` callable is the unit-test
@@ -646,16 +646,16 @@ class DockerBackend(Sandbox):
             if not _is_transient_pull_error(pull):
                 raise SandboxError(
                     f"AE-SBX-006: image pull failed: {pull.stderr.strip() or pull.stdout.strip()} "
-                    f"— docs/setup.md §5")
+                    f"- docs/setup.md §5")
             time.sleep(2 ** (attempt + 1))
         if last is not None:
             raise SandboxError(
                 f"AE-SBX-006: image pull failed after retries: "
-                f"{last.stderr.strip() or last.stdout.strip()} — docs/setup.md §5")
+                f"{last.stderr.strip() or last.stdout.strip()} - docs/setup.md §5")
         self._verify_digest()
 
     def create_execution_container(self) -> None:
-        """Eager create + start via ``docker run -d --rm`` (Q2, D1) — never
+        """Eager create + start via ``docker run -d --rm`` (Q2, D1) - never
         lazy; ``run -d`` is create + start in one call, so there is no
         separate ``docker start``. When any step declares ``network: true`` a
         second, otherwise-identical bridge-network container is started so no
@@ -678,7 +678,7 @@ class DockerBackend(Sandbox):
             sandbox_venv_dir=self._sandbox_venv_dir)
         net_res = self._runner.run(net_payload, timeout=60)
         if net_res.exit_code != 0:
-            # reclaim the already-started network-none container — never leak it.
+            # reclaim the already-started network-none container - never leak it.
             self._runner.run(["docker", "rm", "-f", self._container], timeout=60)
             self._started = False
             raise SandboxError(
@@ -692,7 +692,7 @@ class DockerBackend(Sandbox):
         stamp-cached. Nonzero exit → AE-SBX-009, no stamp written.
 
         016 self-heal: a warm stamp no longer blind-skips. Before trusting it,
-        probe the sandbox venv inside the exec container — a host-built venv
+        probe the sandbox venv inside the exec container - a host-built venv
         (darwin symlinks to a host interpreter) looks valid on the host but is
         broken in the Linux container. A ``broken`` probe removes the venv
         (fail loud if removal is impossible) and falls through to re-provision;
@@ -712,7 +712,7 @@ class DockerBackend(Sandbox):
             tail = (res.stdout or res.stderr or "")[-4000:]
             raise SandboxError(
                 f"AE-SBX-009: setup command failed (exit {res.exit_code}): {tail} "
-                f"— stamp not written (docs/setup.md §5)")
+                f"- stamp not written (docs/setup.md §5)")
         write_stamp(Path(stamp_dir), stamp_key)
 
     def _probe_venv(self) -> str:
@@ -729,7 +729,7 @@ class DockerBackend(Sandbox):
         if request.network and not self._network_started:
             raise SandboxError(
                 "AE-SBX-013: networked execution requested but no networked "
-                "container is running — declare `network: true` on the step "
+                "container is running - declare `network: true` on the step "
                 "(docs/setup.md §3)")
         start = time.monotonic()
         exec_argv = ["docker", "exec"]
@@ -762,7 +762,7 @@ class DockerBackend(Sandbox):
         if self._started:
             self._runner.run(["docker", "stop", "-t", "5", self._container],
                              timeout=60)
-            # rm -f returns rc != 0 when --rm already removed it — ignore, never raise.
+            # rm -f returns rc != 0 when --rm already removed it - ignore, never raise.
             self._runner.run(["docker", "rm", "-f", self._container], timeout=60)
             self._started = False
         if self._network_started:
@@ -783,7 +783,7 @@ class DockerBackend(Sandbox):
             timeout=30)
         if inspect.exit_code != 0 or digest not in inspect.stdout:
             raise SandboxError(
-                "AE-SBX-007: post-pull digest mismatch — supply-chain check "
+                "AE-SBX-007: post-pull digest mismatch - supply-chain check "
                 "failed; refusing to continue")
 
     def _audit(self, request: SandboxExecutionRequest,
@@ -802,7 +802,7 @@ class DockerBackend(Sandbox):
 
 
 # ---------------------------------------------------------------------------
-# Probe (IO adapter — faked in tests, FD-5)
+# Probe (IO adapter - faked in tests, FD-5)
 # ---------------------------------------------------------------------------
 
 
@@ -810,24 +810,24 @@ def probe_docker(runner: CommandRunner | None = None) -> ProbeResult:
     runner = runner or _default_runner
     if shutil.which("docker") is None:
         raise SandboxError(
-            "AE-SBX-001: docker is not on PATH — install a Docker engine and "
+            "AE-SBX-001: docker is not on PATH - install a Docker engine and "
             "add it to your PATH (docs/setup.md §1)")
     version = runner.run(
         ["docker", "version", "--format", "{{.Server.APIVersion}}"], timeout=30)
     if version.exit_code != 0:
         raise SandboxError(
-            "AE-SBX-002: Docker daemon unreachable — start your Docker engine "
+            "AE-SBX-002: Docker daemon unreachable - start your Docker engine "
             "(docs/setup.md §1)")
     api = version.stdout.strip()
     if _version_lt(api, ENGINE_API_FLOOR):
         raise SandboxError(
             f"AE-SBX-003: Docker Engine API {api} found, require >= "
-            f"{ENGINE_API_FLOOR} (Engine 24) — upgrade Docker (docs/setup.md §1)")
+            f"{ENGINE_API_FLOOR} (Engine 24) - upgrade Docker (docs/setup.md §1)")
     info = runner.run(["docker", "info", "--format", "{{.OSType}}"], timeout=30)
     if info.exit_code != 0 or info.stdout.strip() != "linux":
         raise SandboxError(
             f"AE-SBX-004: Docker OSType must be linux, found "
-            f"{info.stdout.strip() or 'unknown'} — switch Docker Desktop to "
+            f"{info.stdout.strip() or 'unknown'} - switch Docker Desktop to "
             "Linux containers (docs/setup.md §1)")
     return ProbeResult(api_version=api, ostype="linux")
 
@@ -860,7 +860,7 @@ def _is_transient_pull_error(res: CmdResult) -> bool:
 def append_audit_record(state_dir: Path, record: dict) -> None:
     """One JSON record per sandboxed execution, appended to
     sandbox-audit.jsonl. Rotates to sandbox-audit.jsonl.1 (overwrite) at 5 MB.
-    Host-side only — never called from inside the sandbox (BR-11)."""
+    Host-side only - never called from inside the sandbox (BR-11)."""
     state_dir = Path(state_dir)
     state_dir.mkdir(parents=True, exist_ok=True)
     path = state_dir / "sandbox-audit.jsonl"
@@ -891,7 +891,7 @@ def clean_stamps(state_dir: Path) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Eager startup (Q2) — probe → image → run -d --rm → provision all setups
+# Eager startup (Q2) - probe → image → run -d --rm → provision all setups
 # ---------------------------------------------------------------------------
 
 _LOCKFILE_NAMES = ("package-lock.json", "requirements.txt")
@@ -945,7 +945,7 @@ def resolve_image_ref(image: str, environ: Mapping[str, str] | None = None) -> s
     if not image:
         raise SandboxError(
             f"AE-SBX-005: no pinned digest published and no "
-            f"{IMAGE_ENV_OVERRIDE} override — set {IMAGE_ENV_OVERRIDE} to a "
+            f"{IMAGE_ENV_OVERRIDE} override - set {IMAGE_ENV_OVERRIDE} to a "
             "dev image ref (docs/setup.md §2)")
     return image
 

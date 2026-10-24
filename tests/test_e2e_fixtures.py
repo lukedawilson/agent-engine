@@ -1,5 +1,5 @@
 """Historical-fixture e2e: the failures that shaped the dev loop's policies,
-replayed against the SHIPPED example pipeline (agentic-dev-loop/) —
+replayed against the SHIPPED example pipeline (agentic-dev-loop/) -
 a byte-identical copy per test, so state_dir, agents_dir and additional_files
 resolve exactly as they would in a consumer's repo.
 
@@ -7,7 +7,7 @@ run_agent is stubbed (the SDK network boundary, via the fake_agents fixture);
 files, git, checkpoints, verdict parsing and routing are all real. The
 example no longer has a port_sweep step (the startup viz sweep is the
 remaining kill path), so the `_listening_pids` → `[]` patch is
-defense-in-depth — a contributor's real process may be listening on the
+defense-in-depth - a contributor's real process may be listening on the
 default viz port. Kill behavior itself is covered in test_actions.py.
 """
 
@@ -29,7 +29,7 @@ EXAMPLE = Path(__file__).resolve().parent.parent / "agentic-dev-loop"
 # Scripted stand-in for the shipped example's mechanical test command. The
 # example runs `.venv-sandbox/bin/python -m pytest tests/ -q -m "not docker"`,
 # which cannot run inside the consumer-repo copy (no .venv-sandbox, no tests/)
-# — so this fixture scripts the seam locally. The real subprocess path stays
+# - so this fixture scripts the seam locally. The real subprocess path stays
 # covered by test_stages.py and test_graph.py. Behaviors: ("pass",) →
 # (0, "", False); ("fail", output) →
 # (1, output, False); ("timeout", output) → (None, output, True); the last
@@ -39,7 +39,7 @@ _COMMAND_QUEUE: list[tuple] = []
 
 def _fake_sandbox_run(request):
     """Script the example's mechanical test command through the FakeSandbox
-    (the sandbox boundary) — the consumer-repo copy has no `.venv-sandbox`.
+    (the sandbox boundary) - the consumer-repo copy has no `.venv-sandbox`.
     Only the pytest gate is scripted; the network-on `restore` step (added
     later, 016/018) always passes so it never consumes the scripted queue."""
     if "pytest" not in " ".join(request.argv):
@@ -82,7 +82,7 @@ def consumer_repo(tmp_path, monkeypatch, fake_agents, fake_sandbox):
     repo = tmp_path / "repo"
     (repo / "agentic-dev-loop").mkdir(parents=True)
     # .pr is the pipeline's gitignored build-artifact dir. It must NOT ride
-    # into the "shipped example" copy — a prior real run can leave stale
+    # into the "shipped example" copy - a prior real run can leave stale
     # artifacts there, and committing them would flip commit_allowed to False
     # once clear_attempt_artifacts deletes the produced files.
     shutil.copytree(EXAMPLE, repo / "agentic-dev-loop", dirs_exist_ok=True,
@@ -90,7 +90,7 @@ def consumer_repo(tmp_path, monkeypatch, fake_agents, fake_sandbox):
     # The shipped example drops `state_dir` (the relocated default lives in the
     # user home, out of the workspace). The e2e fixture replays historical
     # artifact flows against it, so it declares an explicit in-repo state_dir
-    # under tmp_path — never the real home (Q1 / §7.1).
+    # under tmp_path - never the real home (Q1 / §7.1).
     example_pipeline = repo / "agentic-dev-loop" / "pipeline.yaml"
     example_pipeline.write_text(
         example_pipeline.read_text().replace(
@@ -122,7 +122,7 @@ def _log(repo: Path) -> str:
 class TestHistoricalFixtures:
     def test_run004_decorated_verdict_still_passes(self, consumer_repo,
                                                    fake_agents):
-        """QA run 004 burned 3 attempts on `**VERDICT: PASS**` — markdown
+        """QA run 004 burned 3 attempts on `**VERDICT: PASS**` - markdown
         decoration around the verdict line. The tolerant parser (LAST
         VERDICT line wins) must route this as a pass, not an unclear retry."""
         _passing_scripts(fake_agents, qa=[
@@ -137,7 +137,7 @@ class TestHistoricalFixtures:
     def test_stale_artifact_is_deleted_between_attempts(self, consumer_repo,
                                                         fake_agents):
         """A stale artifact from attempt N must not leak into attempt N+1's
-        verdict — capture is per-attempt (read from the attempt's own final
+        verdict - capture is per-attempt (read from the attempt's own final
         response), so attempt 2's empty response must produce the
         empty-response note, proving the stale FAIL was not re-read."""
         _passing_scripts(fake_agents, qa=[
@@ -155,7 +155,7 @@ class TestHistoricalFixtures:
                                                           fake_agents):
         """Verdict-first truncation: a clear verdict stands even when the run
         was cut short (turn cap / stuck detection) before the agent formally
-        finished — the artifact on disk is the source of truth."""
+        finished - the artifact on disk is the source of truth."""
         _passing_scripts(fake_agents, qa=[
             ("write_truncated", "qa-report.md",
              "Partial QA findings, cut short.\n\nVERDICT: PASS\n")])
@@ -167,7 +167,7 @@ class TestHistoricalFixtures:
     def test_unclear_verdict_retries_with_content_in_notes(self, consumer_repo,
                                                            fake_agents):
         """An unparseable verdict forces an attempt-bounded retry, and the
-        artifact's content rides into the next attempt's notes — findings
+        artifact's content rides into the next attempt's notes - findings
         are never swallowed."""
         _passing_scripts(fake_agents, qa=[
             ("write", "qa-report.md",
@@ -184,7 +184,7 @@ class TestHistoricalFixtures:
     def test_dirty_worktree_at_start_skips_commit_but_run_succeeds(
             self, consumer_repo, fake_agents):
         """Run 004: the dev agent's commit swept up an unrelated edit. Now the
-        single commit point only fires when the worktree was clean at start —
+        single commit point only fires when the worktree was clean at start -
         a dirty-at-start run still succeeds, it just doesn't commit."""
         (consumer_repo / "plan.md").write_text("# Plan\n\nEdited by a human.\n")
         _passing_scripts(fake_agents)
@@ -243,9 +243,9 @@ class TestCommandGate:
 
 class TestExampleExtensionless:
     def test_example_dev_agent_builds_with_bundled_registry(self, monkeypatch):
-        """The example's agents name only bundled tools — the dev agent
+        """The example's agents name only bundled tools - the dev agent
         builds against the default registry with no consumer extensions.
-        (Real SDK factory, fake-key LLM — no network.)"""
+        (Real SDK factory, fake-key LLM - no network.)"""
         monkeypatch.setenv("OPENAI_API_KEY", "fake-key")
         registry = default_registry()
         cfg = load_config(EXAMPLE / "pipeline.yaml")

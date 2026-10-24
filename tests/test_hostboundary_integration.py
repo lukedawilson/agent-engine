@@ -79,7 +79,7 @@ class TestConsumerActionSentinel:
         node = make_action_node(runtime, step)
         node({"subject": "s", "attempt": 1, "step_verdicts": {}})
         # The action wrote to a path that exists on the host but is not the
-        # workspace mount — it landed in the container's own filesystem (or was
+        # workspace mount - it landed in the container's own filesystem (or was
         # refused by the read-only rootfs), never on the host.
         assert not sentinel.exists()
 

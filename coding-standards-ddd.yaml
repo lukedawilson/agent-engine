@@ -5,11 +5,11 @@ role: >-
   mistake until it passes the exception tests in this file.
 
 enforcement_levels:
-  ALWAYS: Must do this — no exceptions.
-  NEVER: Must not do this — no exceptions.
+  ALWAYS: Must do this - no exceptions.
+  NEVER: Must not do this - no exceptions.
   PREFER: Default choice; deviate only with good reason.
   AVOID: Default against; use only with good reason.
-  ALLOW: Explicitly permitted — listed because it might be surprising.
+  ALLOW: Explicitly permitted - listed because it might be surprising.
 
 categories:
   - name: general_principles
@@ -31,7 +31,7 @@ categories:
   - name: architecture_and_boundaries
     rules:
       - enforcement: ALWAYS
-        rule: Entry points (CLI commands and handlers) own all request/response concerns — parsing, validation, orchestration, and output formatting.
+        rule: Entry points (CLI commands and handlers) own all request/response concerns - parsing, validation, orchestration, and output formatting.
       - enforcement: NEVER
         rule: Push HTTP or transport details (DTOs, status codes, headers) into domain logic.
       - enforcement: ALLOW
@@ -42,8 +42,8 @@ categories:
       - enforcement: ALWAYS
         rule: >-
           Assign every behaviour in this order: (1) value object, (2) method on an existing
-          entity, (3) new entity, (4) domain service — only if stateless and genuinely
-          cross-entity, (5) application service — only if shared by two or more entry
+          entity, (3) new entity, (4) domain service - only if stateless and genuinely
+          cross-entity, (5) application service - only if shared by two or more entry
           points. A design must be able to show this descent for every service it contains.
       - enforcement: ALWAYS
         rule: Center designs around domain entities and value objects that match the ubiquitous language.
@@ -54,7 +54,7 @@ categories:
         detail: >-
           Prefer placing persistence on the entity itself. A domain service is justified
           only when the operation genuinely spans multiple entities that don't own each
-          other. The entity or domain service calls the ORM/data-access API directly —
+          other. The entity or domain service calls the ORM/data-access API directly -
           never through a repository, store, or persistence abstraction.
       - enforcement: NEVER
         rule: Introduce Repository, DAO, or generic API/service layer abstractions.
@@ -62,10 +62,10 @@ categories:
   - name: error_handling
     rules:
       - enforcement: NEVER
-        rule: Throw exceptions for expected conditions — validation failures, missing entities, business rule violations, or expected timeouts.
+        rule: Throw exceptions for expected conditions - validation failures, missing entities, business rule violations, or expected timeouts.
       - enforcement: ALWAYS
         rule: >-
-          Return a result object — success value or typed error carrying a code and message —
+          Return a result object - success value or typed error carrying a code and message -
           for expected failure conditions; exit early on failure and let the entry point
           translate error codes into user-facing output.
       - enforcement: NEVER
@@ -76,12 +76,12 @@ categories:
         rule: Replace existing business-logic exceptions with explicit error results when refactoring.
       - enforcement: ALWAYS
         rule: >-
-          Fail fast on startup misconfiguration — missing required environment variables,
+          Fail fast on startup misconfiguration - missing required environment variables,
           invalid connection strings, or unreachable infrastructure must raise immediately
           and exit, never silently degrade or log a warning and continue.
       - enforcement: NEVER
         rule: >-
-          Catch an error at startup, log it as a warning, and continue — the app must not
+          Catch an error at startup, log it as a warning, and continue - the app must not
           start in a degraded state without the operator's knowledge. If a required service
           (database, CMS) is unreachable, crash.
 
@@ -92,14 +92,14 @@ categories:
           Rich domain models that encapsulate behaviour with data. An entity that exposes
           its state for services to manipulate is a defect, not a style choice.
       - enforcement: ALWAYS
-        rule: Keep entry points and handlers thin — they orchestrate and translate but do not contain business rules.
+        rule: Keep entry points and handlers thin - they orchestrate and translate but do not contain business rules.
       - enforcement: PREFER
         rule: Small, cohesive types and functions over god-classes or giant services.
       - enforcement: NEVER
         rule: >-
           Modify or compromise production code purely to improve testability or to fix
           problems with the tests. Tests must adapt to the production code, never the reverse.
-          Fix the tests or the test infrastructure — do not degrade production code to make
+          Fix the tests or the test infrastructure - do not degrade production code to make
           tests pass.
 
   - name: services_are_exceptions
@@ -114,7 +114,7 @@ categories:
       - enforcement: ALWAYS
         rule: >-
           Place a stateless operation whose inputs and outputs belong to one aggregate on
-          that aggregate — instance method when it uses instance state, static method when
+          that aggregate - instance method when it uses instance state, static method when
           it constructs or transforms. Never lift it into a service class.
       - enforcement: NEVER
         rule: >-
@@ -126,17 +126,17 @@ categories:
         rule: >-
           An application service only when the same non-trivial orchestration is shared
           by two or more entry points and cannot be expressed as aggregate methods. One
-          caller means no service — the orchestration moves to the caller or the
+          caller means no service - the orchestration moves to the caller or the
           aggregate.
         detail: >-
-          A surviving application service orchestrates application-level concerns only —
-          transactions, security context, external API calls, logging — and never
+          A surviving application service orchestrates application-level concerns only -
+          transactions, security context, external API calls, logging - and never
           contains business rules: it delegates, it does not decide. Dependency direction
           is entry points → application service → domain; domain code never depends on
           application services.
       - enforcement: NEVER
         rule: >-
-          Name a service after a technical role — "Manager", "Helper", "Orchestrator",
+          Name a service after a technical role - "Manager", "Helper", "Orchestrator",
           "Facade". A service that survives the tests above is named after a business
           capability in the ubiquitous language, is stateless, and is never a God Class
           or a grab-bag of unrelated methods.
@@ -148,7 +148,7 @@ categories:
           Serialisation convention (wire casing and naming) lives in exactly one shared
           module. Every piece of code that reads or writes JSON on our wire passes through it.
         detail: >-
-          Never fix naming with per-call rename tricks — if a wire name is wrong, fix the
+          Never fix naming with per-call rename tricks - if a wire name is wrong, fix the
           producer so the convention produces the right name. Request payloads for external
           APIs keep their own per-API shapes and do NOT use the shared module's convention.
       - enforcement: PREFER
@@ -162,7 +162,7 @@ categories:
         rule: Repositories or DAOs.
       - enforcement: NEVER
         rule: >-
-          Any type — whatever its name — whose methods are predominantly Load, Save, or
+          Any type - whatever its name - whose methods are predominantly Load, Save, or
           Query over a single entity type. That is a repository regardless of label;
           persistence belongs on the entity itself, or on a justified domain service when
           genuinely cross-entity.
@@ -173,4 +173,4 @@ categories:
       - enforcement: NEVER
         rule: SOLID, Clean Architecture, hexagonal, onion, or other "enterprise" architectural styles.
       - enforcement: NEVER
-        rule: Gang of Four patterns — Repository, Factory, Strategy, Specification, Unit of Work, etc.
+        rule: Gang of Four patterns - Repository, Factory, Strategy, Specification, Unit of Work, etc.

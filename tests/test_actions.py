@@ -1,4 +1,4 @@
-"""Action tests — ported from yosk's TestKillListenersOnPort /
+"""Action tests - ported from yosk's TestKillListenersOnPort /
 TestGitWorktreeClean / TestCommitNode, retargeted at the node-shaped
 `(state, params) -> dict` API. Real processes and real git repos throughout:
 git and sockets are local utilities, not network boundaries."""
@@ -28,7 +28,7 @@ def free_port() -> int:
 
 
 def spawn_listener(port: int, cwd: Path | None = None) -> subprocess.Popen:
-    """Spawn a real process listening on 127.0.0.1:port — stands in for an
+    """Spawn a real process listening on 127.0.0.1:port - stands in for an
     orphaned app server. Its command line contains 'socket' (from the -c code)."""
     code = (
         "import socket,time;"
@@ -76,7 +76,7 @@ COMMIT_PARAMS = {"message": "feat: construct {subject} (agent dev loop)"}
 
 class TestKillListenersOnPort:
     """The orphan sweep exists to kill real orphaned servers, so it is tested
-    with real processes — mocking it would test nothing."""
+    with real processes - mocking it would test nothing."""
 
     @lsof_required
     def test_kills_listener_on_port(self):
@@ -102,7 +102,7 @@ class TestKillListenersOnPort:
         try:
             wait_listening(port)
             kill_listeners_on_port(port, match="no-such-process-name")
-            assert proc.poll() is None  # still alive — filter did not match
+            assert proc.poll() is None  # still alive - filter did not match
         finally:
             proc.kill()
 
@@ -121,7 +121,7 @@ class TestKillListenersOnPort:
 
     @lsof_required
     def test_escalates_to_sigkill_when_term_ignored(self):
-        """A server that ignores SIGTERM must still be swept — otherwise the
+        """A server that ignores SIGTERM must still be swept - otherwise the
         orphan holds the port indefinitely."""
         port = free_port()
         code = (
@@ -152,7 +152,7 @@ class TestKillListenersOnPort:
     @lsof_required
     def test_never_sweeps_own_listener(self):
         """A pipeline's own process may be listening on the swept port (the
-        live viz server). It must never be swept — only orphaned listeners
+        live viz server). It must never be swept - only orphaned listeners
         from other processes (previous runs / agent subprocesses)."""
         port = free_port()
         s = socket.socket()
@@ -186,7 +186,7 @@ class TestKillListenersOnPort:
         try:
             wait_listening(port)
             kill_listeners_on_port(port, cwd=other)
-            assert proc.poll() is None  # still alive — cwd differs
+            assert proc.poll() is None  # still alive - cwd differs
         finally:
             proc.kill()
 
@@ -224,7 +224,7 @@ class TestPidCwd:
 
     def test_injection_shaped_pid_tokens_never_reach_lsof(self):
         """A non-numeric pid token is rejected before it can reach lsof
-        (BR-5.2) — the subprocess is never invoked."""
+        (BR-5.2) - the subprocess is never invoked."""
         assert _pid_cwd("1;rm -rf") is None
         assert _pid_cwd("-9") is None
         assert _pid_cwd("") is None
@@ -303,7 +303,7 @@ class TestCommitNode:
 
     def test_missing_state_key_defaults_to_skip(self, tmp_path, monkeypatch):
         """Checkpoints written before the policy existed have no
-        commit_allowed key — resuming them must not suddenly commit."""
+        commit_allowed key - resuming them must not suddenly commit."""
         repo = tmp_path / "repo"
         init_git_repo(repo)
         (repo / "feature.cs").write_text("// constructed by the pipeline")
@@ -328,7 +328,7 @@ class TestCommitNode:
     def test_repo_hooks_are_bypassed_by_trusted_hooks_path(self, tmp_path,
                                                             monkeypatch):
         """Q3: the commit action runs git with `-c core.hooksPath=<trusted>`,
-        so a repo hook in `.git/hooks` never executes — a hostile/agent-written
+        so a repo hook in `.git/hooks` never executes - a hostile/agent-written
         pre-commit hook cannot block or mutate the commit."""
         repo = tmp_path / "repo"
         init_git_repo(repo)
@@ -337,7 +337,7 @@ class TestCommitNode:
         hook = repo / ".git" / "hooks" / "pre-commit"
         hook.write_text(f"#!/bin/sh\ntouch {marker}\nexit 1\n")
         hook.chmod(0o755)
-        # Point the trusted hooks dir at a tmp dir — never the real home.
+        # Point the trusted hooks dir at a tmp dir - never the real home.
         trusted = tmp_path / "trusted-hooks"
         monkeypatch.setattr("agentic_dev_loop.engine.actions._trusted_hooks_dir",
                             lambda: str(trusted))
@@ -351,7 +351,7 @@ class TestCommitNode:
 
     def test_commit_failure_does_not_fail_the_run(self, tmp_path, monkeypatch,
                                                   capsys):
-        """The work is already verified — a git error is a loud warning, not
+        """The work is already verified - a git error is a loud warning, not
         a pipeline failure. The trusted hooksPath still applies (a failing
         hook in the trusted dir fails the commit loudly, non-fatally)."""
         repo = tmp_path / "repo"
@@ -399,7 +399,7 @@ class TestCommitNode:
     def test_git_add_failure_warns_and_skips_commit(self, tmp_path, monkeypatch,
                                                     capsys):
         """A failed `git add` (e.g. a file git cannot stat) must not surface
-        as a misleading 'commit failed: nothing to commit' — warn with the
+        as a misleading 'commit failed: nothing to commit' - warn with the
         real add error and skip the commit entirely."""
         repo = tmp_path / "repo"
         init_git_repo(repo)
@@ -429,7 +429,7 @@ class TestCommitNode:
 
     def test_no_exclude_pathspec_when_state_dir_outside_repo(self, tmp_path,
                                                              monkeypatch):
-        """A state dir outside the repo has no locked DB inside the repo —
+        """A state dir outside the repo has no locked DB inside the repo -
         the add must not carry an exclude pathspec (and must not crash
         building a relative path out of it)."""
         outside = tmp_path / "state" / ".pr"
@@ -492,4 +492,4 @@ class TestCommitExcludesTooling:
         assert "feature.cs" in tracked
         status = subprocess.run(["git", "status", "--porcelain"], cwd=repo,
                                 capture_output=True, text=True).stdout
-        assert "tools/gate.sh" in status  # still dirty — never swept
+        assert "tools/gate.sh" in status  # still dirty - never swept

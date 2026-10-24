@@ -45,7 +45,7 @@ class TestResolvePlanDocs:
         assert resolve_plan_docs(str(plan)) == {"plan.md": "# Plan"}
 
     def test_raises_for_missing_plan(self, tmp_path):
-        """Missing plan file must fail fast — no silent fallback to empty docs."""
+        """Missing plan file must fail fast - no silent fallback to empty docs."""
         with pytest.raises(FileNotFoundError, match="plan"):
             resolve_plan_docs(tmp_path / "nonexistent.md")
 
@@ -129,9 +129,9 @@ class TestMarkPlanCompleted:
     @pytest.mark.parametrize("status_line", [
         "> **Status: COMPLETED** (2026-10-23)",
         "> **Status: DONE**",
-        "Status: COMPLETED — shipped",
+        "Status: COMPLETED - shipped",
         "**Status:** COMPLETED (2026-10-10)",
-        "- **Status**: COMPLETED — all stages done",
+        "- **Status**: COMPLETED - all stages done",
     ])
     def test_replaces_existing_status_line(self, tmp_path, status_line):
         plan = self._write(tmp_path, f"# Plan\n\n{status_line}\n\nBody\n")
@@ -145,7 +145,7 @@ class TestMarkPlanCompleted:
         plan = self._write(
             tmp_path,
             "# Plan\n\n"
-            "**Status**: Completed — shipped: ... **Status: COMPLETED** (2026-10-23).\n\n"
+            "**Status**: Completed - shipped: ... **Status: COMPLETED** (2026-10-23).\n\n"
             "Body\n")
 
         mark_plan_completed(plan)
@@ -183,7 +183,7 @@ class TestMarkPlanCompleted:
 
     def test_deep_status_line_is_ignored_and_stamp_inserted_after_title(self, tmp_path):
         """Only the top of the doc is scanned; a status buried beyond the
-        first ten lines is not the 'existing status recorded' — the stamp
+        first ten lines is not the 'existing status recorded' - the stamp
         goes in after the title and the deep line stays untouched."""
         filler = "\n".join(f"line {i}" for i in range(1, 15))
         plan = self._write(tmp_path,

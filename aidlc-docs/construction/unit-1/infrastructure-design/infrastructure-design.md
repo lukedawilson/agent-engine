@@ -1,4 +1,4 @@
-# Infrastructure Design — unit-1 (output-passing fix)
+# Infrastructure Design - unit-1 (output-passing fix)
 
 ## Summary
 
@@ -8,10 +8,10 @@ Infrastructure design found **no infrastructure components** in unit-1. The unit
 
 | Logical component (FD) | Infrastructure choice | Rationale |
 | --- | --- | --- |
-| `CapturedOutput` VO | None — in-process value object | Pure computation + local file write |
-| `Verdict` VO | None — in-process value object | Pure parsing |
-| `StagesRuntime.run_agent` modification | None — existing orchestrator | Delegation only |
-| `Result[T, E]` type | None — stdlib-level code | No external service |
+| `CapturedOutput` VO | None - in-process value object | Pure computation + local file write |
+| `Verdict` VO | None - in-process value object | Pure parsing |
+| `StagesRuntime.run_agent` modification | None - existing orchestrator | Delegation only |
+| `Result[T, E]` type | None - stdlib-level code | No external service |
 
 ## Explicitly Deferred to unit-3
 
@@ -23,7 +23,7 @@ Infrastructure design found **no infrastructure components** in unit-1. The unit
 
 ## Storage Note
 
-Artifact writes target the existing `state_dir/<artifact>` paths. No new directories, no new lifecycle (stale-artifact hygiene unchanged — BR-5).
+Artifact writes target the existing `state_dir/<artifact>` paths. No new directories, no new lifecycle (stale-artifact hygiene unchanged - BR-5).
 
 ## Security Note
 

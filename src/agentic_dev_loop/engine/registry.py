@@ -1,8 +1,8 @@
-"""Extension registry — the seam between core and consumer/bundled extensions.
+"""Extension registry - the seam between core and consumer/bundled extensions.
 
 Core pre-registers the built-ins (action `commit`, document loader `plan`);
 everything else arrives via `load_extensions` from the pipeline's
-`extensions:` list — `module:Class` strings, explicit only, no
+`extensions:` list - `module:Class` strings, explicit only, no
 auto-discovery.
 
 Host boundary (020): consumer actions are sandbox-executed, command-shaped
@@ -42,7 +42,7 @@ class Extension(Protocol):
 
 
 def _contributed_options(loader: DocumentLoader) -> list[tuple[str, str]]:
-    """The (option string, dest) pairs a loader would add — probed with a
+    """The (option string, dest) pairs a loader would add - probed with a
     throwaway parser so collisions are caught at load time, not parse time,
     and the selection flow can map parsed args back to their loader."""
     probe = argparse.ArgumentParser(add_help=False)
@@ -67,7 +67,7 @@ def _module_file(obj: object) -> Path | None:
 
 
 def _is_engine_bundled(module_name: str) -> bool:
-    """True when ``module_name`` names the engine package or a submodule —
+    """True when ``module_name`` names the engine package or a submodule -
     trusted built-ins guarded by the orchestrator-install self-check, not by
     the workspace-resident refusal (020)."""
     return module_name == "agentic_dev_loop" or module_name.startswith(
@@ -78,7 +78,7 @@ def _module_origin(module_name: str) -> Path | None:
     """Resolve ``module_name``'s file location WITHOUT executing it.
 
     ``importlib.util.find_spec`` locates the module through the import
-    machinery but never runs the module's own top-level code — the host must
+    machinery but never runs the module's own top-level code - the host must
     check workspace-residence before ``import_module`` (import IS execution;
     020). Returns None when the location can't be determined (builtins,
     namespace packages, not found); the import itself then surfaces any real
@@ -95,14 +95,14 @@ def _module_origin(module_name: str) -> Path | None:
 
 def _refuse_workspace_resident_file(kind: str, ref: str, file: Path | None,
                                     workspace: Path | None) -> None:
-    """Fail fast when ``file`` lives under the workspace — agent-writable
+    """Fail fast when ``file`` lives under the workspace - agent-writable
     files must never be imported/registered by the host (020)."""
     if workspace is None or file is None:
         return
     if file.is_relative_to(workspace.resolve()):
         raise ValueError(
             f"{kind} {ref!r} resolves to {file}, inside the workspace "
-            f"{workspace} — workspace-resident {kind}s are refused; install "
+            f"{workspace} - workspace-resident {kind}s are refused; install "
             "consumer extensions outside the workspace "
             "(~/.agentic-dev-loop/extensions)")
 
@@ -133,10 +133,10 @@ class Registry:
 
         Trusted built-ins only: ``default_registry`` seals this path after
         registering ``commit``, so a consumer extension calling it is refused
-        — non-built-in actions must use ``add_sandbox_action``."""
+        - non-built-in actions must use ``add_sandbox_action``."""
         if not self._host_actions_open:
             raise ValueError(
-                f"action {name!r} cannot register a host-side function — only "
+                f"action {name!r} cannot register a host-side function - only "
                 "engine built-ins may; consumer actions must use "
                 "add_sandbox_action(name, script) so they execute inside the "
                 "sandbox")
@@ -147,11 +147,11 @@ class Registry:
     def add_sandbox_action(self, name: str, script: str) -> None:
         """Register a sandbox-executed consumer action (020): a command-shaped
         script rendered with the step's ``params:`` (plus ``{subject}``) and
-        run through the same sandbox path as command steps — exit code is the
+        run through the same sandbox path as command steps - exit code is the
         verdict. Consumer actions never run in the host process."""
         if not name or name != name.strip():
             raise ValueError(
-                f"action name {name!r} is not a valid identifier — a non-empty "
+                f"action name {name!r} is not a valid identifier - a non-empty "
                 "name with no leading/trailing whitespace is required")
         if not isinstance(script, str) or not script.strip():
             raise ValueError(
@@ -161,7 +161,7 @@ class Registry:
         self.sandbox_actions[name] = script
 
     def seal_host_actions(self) -> None:
-        """Close the host-side action path — call after the built-ins are
+        """Close the host-side action path - call after the built-ins are
         registered, before any consumer extension loads."""
         self._host_actions_open = False
 
@@ -182,7 +182,7 @@ class Registry:
         """Register an SDK tool class (agent frontmatter names resolve
         against the SDK's global registry). The name is validated first
         (BR-3): a non-empty identifier that does not collide with any name
-        already in the SDK registry — the SDK silently overwrites duplicates,
+        already in the SDK registry - the SDK silently overwrites duplicates,
         so agentic-dev-loop rejects before ``register_tool`` ever runs.
 
         The tool class's module must not live under the workspace (020): a
@@ -194,7 +194,7 @@ class Registry:
 
         if not name or name != name.strip():
             raise ValueError(
-                f"tool name {name!r} is not a valid identifier — a non-empty "
+                f"tool name {name!r} is not a valid identifier - a non-empty "
                 "name with no leading/trailing whitespace is required")
         if name in sdk_registry.list_registered_tools():
             existing = sdk_registry.get_tool_module_qualnames().get(name)
@@ -203,10 +203,10 @@ class Registry:
             if owner is not None:
                 raise ValueError(
                     f"extension {owner!r} tried to register tool {name!r}, which "
-                    f"is already in the SDK registry{existing} — refusing to "
+                    f"is already in the SDK registry{existing} - refusing to "
                     "silently overwrite it")
             raise ValueError(
-                f"tool name {name!r} is already in the SDK registry{existing} — "
+                f"tool name {name!r} is already in the SDK registry{existing} - "
                 "refusing to silently overwrite it")
         register_tool(name, tool)
 
@@ -231,10 +231,10 @@ def load_extensions(refs: list[str], registry: Registry, *,
     """Import, instantiate, and register each `module:Class` ref. Any failure
     is a loud error naming the ref.
 
-    Consumer modules resolve from ``extensions_dir`` (outside the workspace —
+    Consumer modules resolve from ``extensions_dir`` (outside the workspace -
     020); the bundled engine extensions still import from the installed
     engine package. A module whose file resolves under ``workspace`` is
-    refused BEFORE import, naming the file — no workspace file is ever
+    refused BEFORE import, naming the file - no workspace file is ever
     imported by the host (import is execution)."""
     registry.workspace = Path(workspace) if workspace is not None else None
     added_path: str | None = None
@@ -248,8 +248,8 @@ def load_extensions(refs: list[str], registry: Registry, *,
             module_name, sep, class_name = ref.partition(":")
             if not sep or not module_name or not class_name:
                 raise ValueError(
-                    f"Invalid extension ref {ref!r} — expected 'module:Class'")
-            # 020: refuse a workspace-resident module BEFORE importing it —
+                    f"Invalid extension ref {ref!r} - expected 'module:Class'")
+            # 020: refuse a workspace-resident module BEFORE importing it -
             # import is execution, so the location check must run first.
             # Engine-bundled modules are trusted built-ins (guarded by
             # check_orchestrator_install) and skip this refusal.
@@ -286,6 +286,6 @@ def validate_action_network(step_name: str, action: str, network: bool,
     if network and action in registry.actions:
         raise ValueError(
             f"step {step_name!r}: action {action!r} is host-side and cannot "
-            "declare 'network: true' — host-side actions run in the host "
+            "declare 'network: true' - host-side actions run in the host "
             "process; only sandbox (consumer) actions may take network, like "
             "command steps")

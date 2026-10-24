@@ -2,7 +2,7 @@
 
 The agentic-dev-loop sandbox is **always on** (unit-3): the agent `terminal`
 tool and command steps run inside a Docker-based, kernel-enforced boundary.
-There is no opt-out — the `isolation:` section configures the sandbox, it never
+There is no opt-out - the `isolation:` section configures the sandbox, it never
 disables it. This guide covers the three moving parts: the Docker engine, the
 dev image, and the `pipeline.yaml` contract.
 
@@ -10,10 +10,10 @@ dev image, and the `pipeline.yaml` contract.
 
 Install a compliant Docker engine with **Engine API ≥ 1.43** (Engine 24):
 
-- **macOS / Windows** — [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+- **macOS / Windows** - [Docker Desktop](https://www.docker.com/products/docker-desktop/).
   On Windows, ensure **Linux containers mode** is active (Docker Desktop →
   Settings → General → "Use the WSL 2 based engine" / Linux containers).
-- **Linux** — Docker Engine, [OrbStack](https://orbstack.dev/),
+- **Linux** - Docker Engine, [OrbStack](https://orbstack.dev/),
   [Colima](https://github.com/abiosoft/colima), or a podman docker-compat
   machine.
 
@@ -32,7 +32,7 @@ with a fail-fast message pointing here.
 
 On first run the pipeline probes the daemon, then pulls the **digest-pinned**
 dev image (`ghcr.io/lukedawilson/agentic-dev-loop/dev`) and verifies its
-digest — the supply-chain check refuses to continue on a mismatch. Later runs
+digest - the supply-chain check refuses to continue on a mismatch. Later runs
 reuse the local image cache; the pull is retried (bounded) only on
 connection/timeout errors, never on auth/not-found.
 
@@ -45,7 +45,7 @@ export AGENTIC_DEV_LOOP_DEV_IMAGE=ghcr.io/lukedawilson/agentic-dev-loop/dev:late
 ```
 
 The override wins over the pinned digest and over any per-pipeline
-`isolation.image:` — it is the explicit, never-silent escape hatch.
+`isolation.image:` - it is the explicit, never-silent escape hatch.
 
 ## 3. Writing pipeline.yaml
 
@@ -62,25 +62,25 @@ isolation:
   sandbox_venv_dir: ~/.agentic-dev-loop/venvs/agent-engine   # optional relocation (022)
 ```
 
-- **`env:` (per step)** — `VAR: value` sets it in the sandbox; `VAR: null`
+- **`env:` (per step)** - `VAR: value` sets it in the sandbox; `VAR: null`
   inherits the host value. The sandbox env is the fixed safe base
-  (`PATH`/`HOME`/`LANG`/`LC_ALL`/`TERM`) **plus declared vars only** — the
+  (`PATH`/`HOME`/`LANG`/`LC_ALL`/`TERM`) **plus declared vars only** - the
   global `env_allowlist` never leaks in and the LLM key is never auto-added.
-- **`setup:` (command steps only)** — a trusted author command (e.g.
+- **`setup:` (command steps only)** - a trusted author command (e.g.
   `python -m venv .venv-sandbox && .venv-sandbox/bin/pip install -e ".[dev]"`)
   that runs in the **provision container with network ON** at startup, before
   any step executes. Outputs land in the bind-mounted workspace. Agent and
   action steps reject `setup:` at load.
-- **`network:` (command, agent, and sandbox-action steps)** — `network: true`
+- **`network:` (command, agent, and sandbox-action steps)** - `network: true`
   grants the step egress by running it in a second, otherwise-identical
   bridge-network container (`--read-only`, `--cap-drop ALL`, single workspace
-  mount). Default is `false` — every step stays network-off unless it opts
+  mount). Default is `false` - every step stays network-off unless it opts
   in. The host-side built-in `commit` action rejects `network:` (refused once
   the registry is known).
 - **Git mutations** are blocked by default inside the sandbox (commit, push,
   branch/tag create/delete, rebase, …); reads (`status`/`log`/`diff`) always
   work. `allow_git_mutations: true` re-allows them per-pipeline.
-- **`sandbox_venv_dir` (optional, 022)** — relocates the container-built
+- **`sandbox_venv_dir` (optional, 022)** - relocates the container-built
   `.venv-sandbox` out of the workspace. When set, it is `expanduser`ed,
   made absolute, and must resolve **outside** the workspace (an in-workspace
   value fails fast); the engine bind-mounts it rw at the unchanged container
@@ -89,16 +89,16 @@ isolation:
   workspace-local `.venv-sandbox` unchanged. The host `.venv` is always masked
   from the sandbox by a read-only empty tmpfs.
 - **`state_dir` (run state)** defaults to
-  `~/.agentic-dev-loop/runs/<pipeline-hash>/` — the checkpoint DB and
+  `~/.agentic-dev-loop/runs/<pipeline-hash>/` - the checkpoint DB and
   `last-error.md` live there, **outside** the workspace mount, unreachable by
   the sandbox. An explicit `state_dir:` keeps working unchanged; pointing it
   inside the workspace is an author-accepted exposure.
-- **`deps_policy` / `lockfiles`** — `deps_policy: locked` (default) makes the
+- **`deps_policy` / `lockfiles`** - `deps_policy: locked` (default) makes the
   human-owned lockfile the source of truth and injects the canonical
   dependency rule into every agent step; a non-empty `## Missing dependencies`
   declaration in an agent's final response fails the run fast. `deps_policy:
   open` injects the bootstrap protocol instead. `lockfiles:` names the
-  lockfile(s) (workspace-relative) the rule and fail-fast reference — e.g.
+  lockfile(s) (workspace-relative) the rule and fail-fast reference - e.g.
   `uv.lock` (python), `package-lock.json` (node), `packages.lock.json` (.NET).
   A `locked` pipeline with no `lockfiles:` entry fails fast at load. The
   restore step runs the toolchain's locked mode (`uv sync --locked`, `npm
@@ -111,7 +111,7 @@ isolation:
 Every `setup:` hook is **stamp-cached** in
 `~/.agentic-dev-loop/state/stamps/`, keyed by the setup command plus the
 sha256 of the workspace's lockfiles (`package-lock.json`, `requirements.txt`,
-`*.csproj`). A matching stamp skips the hook — provisioning is paid once per
+`*.csproj`). A matching stamp skips the hook - provisioning is paid once per
 dependency change, not per run.
 
 - `isolation.refresh: true` (or the CLI `--refresh` flag) forces re-provision
@@ -121,13 +121,13 @@ dependency change, not per run.
 **Self-healing venv check (016).** A warm stamp is no longer trusted blindly:
 before skipping a `setup:` hook, the engine probes `.venv-sandbox/bin/python`
 inside the execution container. If the entry exists but is not
-executable/importable — the classic case is a host-built (macOS) venv whose
+executable/importable - the classic case is a host-built (macOS) venv whose
 `bin/python` symlinks to a host interpreter that does not exist in the Linux
-container — the engine removes the invalid venv and re-provisions it. A
+container - the engine removes the invalid venv and re-provisions it. A
 missing venv is left to the (idempotent) setup hook and is not treated as a
 self-heal trigger. If the invalid venv cannot be removed, startup fails loudly
 with `AE-SBX-014`. When `sandbox_venv_dir` relocates the venv (022), only the
-outside dir's contents are removed — the mount-source dir itself is kept so the
+outside dir's contents are removed - the mount-source dir itself is kept so the
 still-running container stays valid (§3).
 
 ## 5. Troubleshooting
@@ -161,7 +161,7 @@ bind-mounted writes can land root-owned in your workspace. Recover with
 
 ## 6. Security notes
 
-This is **kernel-level sandboxing** — the host kernel enforces the boundary via
+This is **kernel-level sandboxing** - the host kernel enforces the boundary via
 namespaces, cgroups, capability checks and seccomp-BPF syscall filters. The
 execution container runs `--network none` (no egress) by default, `--read-only`
 rootfs, `--cap-drop ALL`, with writes only on the single bind-mounted
@@ -193,7 +193,7 @@ Secret values are **refs in config, values only in the host**. Declare the refs
 at the top of `pipeline.yaml` and opt each step into the refs it needs:
 
 ```yaml
-secrets:                              # refs only — never values
+secrets:                              # refs only - never values
   kinde-client-secret:
     from: env                         # provider name (env ships first)
     key: KINDIE_CLIENT_SECRET         # host env var to read + step env name
@@ -209,17 +209,17 @@ steps:
   ref, the declaring step(s), and the provider error. There is no silent
   degradation.
 - **Injection is per step.** A resolved value reaches a step's exec env only
-  when that step lists the ref — the same `resolve_sandbox_env` path step
+  when that step lists the ref - the same `resolve_sandbox_env` path step
   `env:` uses today. It never reaches the provision container, `state_dir`, an
   agent's context, or any other step.
 - **Providers.** Only `env` ships. Later providers (`keychain`, `op`, `sops`)
-  implement the same `resolve(keys) -> {key: value}` interface — that interface
+  implement the same `resolve(keys) -> {key: value}` interface - that interface
   is the compatibility contract.
 - **`.env*` ban.** Before anything else runs, the workspace root is scanned for
   `.env*` files. Any hit fails fast, naming the files, with the remedy text
   ("move these values into `secrets:` refs / host env and delete the files").
   The convention fixtures `.env.example`, `.env.template`, `.env.sample` are
-  whitelisted. The ban applies regardless of `network:` flags — the workspace
+  whitelisted. The ban applies regardless of `network:` flags - the workspace
   must simply not contain secrets.
 - **Output scrubbing.** Every resolved value is scrubbed from captured step
   output, retry notes, artifacts, and `state_dir` files before they are written.
@@ -231,7 +231,7 @@ steps:
 1. Replace secret-bearing workspace files with `secrets:` refs and host env.
 2. Read the values from environment variables in scripts (`qa/common.sh`), not
    from a committed `.env`.
-3. Delete the `.env` file — the run refuses to start while it exists.
+3. Delete the `.env` file - the run refuses to start while it exists.
 4. Add the `secrets:` block and the per-step `secrets: [...]` opt-in.
 5. Run `--dry-run` (validates schema/refs) then a full run against the real
    service with no `.env` in the workspace.

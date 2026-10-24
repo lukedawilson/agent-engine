@@ -1,6 +1,6 @@
 """--dry-run tests: the full load-and-validate pass with zero execution.
 
-All tests run real files in tmp dirs (no mocks — the SDK network boundary is
+All tests run real files in tmp dirs (no mocks - the SDK network boundary is
 never touched, because a dry run builds no agent and makes no LLM call). The
 valid path therefore also works with OPENAI_API_KEY stripped from the
 subprocess environment.
@@ -114,7 +114,7 @@ class TestDryRun:
 
     def test_sandbox_action_passes_dry_run(self, repo, capsys):
         """020: a consumer (sandbox) action is a registered action for the
-        dry-run validation — `unknown action` must not be raised for it."""
+        dry-run validation - `unknown action` must not be raised for it."""
         (repo / "action.yaml").write_text(
             "extensions:\n  - sample_ext:SampleExtension\n"
             + DRY_RUN_YAML.replace(
@@ -156,7 +156,7 @@ class TestDryRun:
         build_parser loads extensions once for loader-contributed flags, and
         the dry run reuses that registry instead of loading again (a second
         load collides with the SDK's process-global tool registry and BR-3
-        rejects it — the pre-fix double-load crash)."""
+        rejects it - the pre-fix double-load crash)."""
         (repo / "tool.yaml").write_text(
             "extensions:\n  - sample_ext:DryRunProbeExtension\n" + DRY_RUN_YAML)
         assert main(["tool.yaml", "--dry-run", "--plan", "plan.md"]) == 0

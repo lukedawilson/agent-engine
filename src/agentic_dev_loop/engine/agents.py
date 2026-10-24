@@ -11,9 +11,9 @@ from typing import TYPE_CHECKING
 
 from openhands.sdk import LLM
 from openhands.sdk.tool import ToolExecutor
-from openhands.tools.file_editor import FileEditorTool  # noqa: F401 — registers "file_editor"
-from openhands.tools.task_tracker import TaskTrackerTool  # noqa: F401 — registers "task_tracker"
-from openhands.tools.terminal import TerminalTool  # noqa: F401 — registers "terminal"
+from openhands.tools.file_editor import FileEditorTool  # noqa: F401 - registers "file_editor"
+from openhands.tools.task_tracker import TaskTrackerTool  # noqa: F401 - registers "task_tracker"
+from openhands.tools.terminal import TerminalTool  # noqa: F401 - registers "terminal"
 
 from .isolation import SandboxExecutionRequest, command_argv, resolve_sandbox_env
 
@@ -29,16 +29,16 @@ def load_agent(agents_dir: Path | str, name: str, llm: LLM) -> "Agent":
     ValueError; the markdown body is delivered as the system prompt suffix).
 
     Tool surface (BR-1): the frontmatter `tools:` list is the exact
-    capability allowlist — every name must resolve to a registered SDK tool.
+    capability allowlist - every name must resolve to a registered SDK tool.
     `FinishTool` (done signal) and `ThinkTool` (reasoning scaffold) are added
     by the SDK as default infra, never part of the allowlist and never
     removable via `tools:`. There is no regex or default-tools knob.
 
     Two pipeline policies on top of the SDK's native AgentDefinition loader:
-    the file must exist (fail fast — the SDK's dir loader would silently
+    the file must exist (fail fast - the SDK's dir loader would silently
     skip it) and its frontmatter name must match its filename. A file with
     no frontmatter or no name gets the SDK's stem fallback ("<name>.agent"),
-    which can never match the stem — so both degenerate cases fail the name
+    which can never match the stem - so both degenerate cases fail the name
     check."""
     from openhands.sdk.subagent.registry import agent_definition_to_factory
     from openhands.sdk.subagent.schema import AgentDefinition
@@ -79,13 +79,13 @@ class SandboxTerminalExecutor(ToolExecutor):
 
         if action.reset:
             return TerminalObservation.from_text(
-                "[reset unsupported — stateless sandbox]",
+                "[reset unsupported - stateless sandbox]",
                 command=action.command, exit_code=None, timeout=False,
                 metadata=CmdOutputMetadata(exit_code=-1))
 
         if action.is_input:
             return TerminalObservation.from_text(
-                "[input unsupported — stateless sandbox]",
+                "[input unsupported - stateless sandbox]",
                 command=action.command, exit_code=None, timeout=False,
                 metadata=CmdOutputMetadata(exit_code=-1))
 

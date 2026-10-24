@@ -1,4 +1,4 @@
-"""build_llm tests. LLM is an SDK network class — mocking it is permitted."""
+"""build_llm tests. LLM is an SDK network class - mocking it is permitted."""
 
 from unittest.mock import patch
 
@@ -18,7 +18,7 @@ def _cfg(**kw):
 
 class TestBuildLlm:
     def test_missing_api_key_env_raises_naming_the_var(self, monkeypatch):
-        """Fail fast naming the missing var — never fall back to another key."""
+        """Fail fast naming the missing var - never fall back to another key."""
         monkeypatch.delenv(KEY, raising=False)
         with pytest.raises(RuntimeError, match=KEY):
             build_llm(_cfg())
@@ -33,7 +33,7 @@ class TestBuildLlm:
         assert kw["model"] == "openai/deepseek-v4-pro"
         assert kw["api_key"] == "sk-test"
         assert kw["base_url"] == "https://api.deepseek.com"
-        assert "extra_body" not in kw  # dead config — the SDK silently drops it
+        assert "extra_body" not in kw  # dead config - the SDK silently drops it
         assert kw["timeout"] is None  # opinionated no-timeout default
 
     def test_timeout_passed_through_when_set(self, monkeypatch):
@@ -46,7 +46,7 @@ class TestBuildLlm:
 
 class TestReasoningContentShim:
     """DeepSeek thinking mode 400s on multi-turn requests unless prior
-    reasoning_content is echoed back — but OpenHands SDK gates that passback
+    reasoning_content is echoed back - but OpenHands SDK gates that passback
     on a closed model-name list (SEND_REASONING_CONTENT_MODELS) that does not
     know deepseek-v4-pro. agentic_dev_loop.engine.llm must register it (import-time
     shim, removable once the SDK lists the model or adds an override)."""

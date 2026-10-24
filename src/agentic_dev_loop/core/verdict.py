@@ -1,9 +1,9 @@
-"""Verdict parsing — the shared decision contract (BR-6).
+"""Verdict parsing - the shared decision contract (BR-6).
 
 `Verdict.from_text` parses the captured response for routing; expected
 conditions are typed `Result` errors, never exceptions. `parse_verdict`
 collapses that `Result` to a route string for routing consumers: a clear
-decision maps to its canonical value, anything unclear maps to ``retry`` —
+decision maps to its canonical value, anything unclear maps to ``retry`` -
 totality for arbitrary input (no crash, no silent routing).
 """
 
@@ -21,7 +21,7 @@ _DECOR = "*_`> "
 # Caveat delimiters: after one of these, arbitrary prose may follow the
 # keyword without the line losing its decision status. '.' doubles as the
 # bare sentence terminator.
-_CAVEAT = "—–,;:."
+_CAVEAT = "\u2014\u2013,;:."
 # Negators recognized immediately before the keyword.
 _NEGATORS = ("NOT", "DOES NOT", "DID NOT")
 
@@ -40,7 +40,7 @@ class Verdict:
     Parsing policy (BR-2): the last decoration-tolerant `VERDICT: X` line
     that carries a *decision* wins; a keyword followed directly by prose is
     discussion, not a decision. Conflicting decisions are never silently
-    resolved — they surface as AMBIGUOUS and retry.
+    resolved - they surface as AMBIGUOUS and retry.
     """
 
     value: str
@@ -66,7 +66,7 @@ class Verdict:
 
 def parse_verdict(text: str, verdicts: dict[str, str]) -> str:
     """Route for a verdict artifact: the canonical decision value on a single
-    clear decision, else ``retry``. Never raises — unclear verdicts retry."""
+    clear decision, else ``retry``. Never raises - unclear verdicts retry."""
     result = Verdict.from_text(text, verdicts)
     if result.is_ok():
         return result.value.value
@@ -78,7 +78,7 @@ def _parse_line(line: str, verdicts: dict[str, str]) -> tuple[bool, str | None]:
 
     Ported verbatim from the pre-unit-1 `verdicts.py` parser; the original
     returned None for both non-verdict lines and verdict lines without a
-    decision — the flag now separates those cases for BR-2.5/BR-2.6.
+    decision - the flag now separates those cases for BR-2.5/BR-2.6.
     """
     stripped = line.strip().lstrip(_LEAD_DECOR)
     if not stripped.upper().startswith("VERDICT"):
@@ -104,7 +104,7 @@ def _parse_line(line: str, verdicts: dict[str, str]) -> tuple[bool, str | None]:
             if after[1:].strip():
                 return True, None  # bare '!' is emphasis; '!' plus prose is not
         elif after and after[0] not in _CAVEAT and not after.startswith("-"):
-            return True, None  # bare prose — discussion, not a decision
+            return True, None  # bare prose - discussion, not a decision
         if negated:
             if len(verdicts) == 2:
                 other = next(k for k in verdicts if k != keyword)

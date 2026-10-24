@@ -30,7 +30,7 @@ def main(argv: list[str] | None = None) -> int:
     url = f"http://127.0.0.1:{bound}"
     print(f"Live graph viz: {url}", flush=True)
     if args.port and bound != args.port:
-        print(f"viz port {args.port} busy — serving on {url}", flush=True)
+        print(f"viz port {args.port} busy - serving on {url}", flush=True)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

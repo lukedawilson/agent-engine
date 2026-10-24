@@ -1,6 +1,6 @@
 """Hypothesis properties for the pure sandbox translation logic (PBT-03).
 
-Every property targets a pure function — no I/O, no environment access, no
+Every property targets a pure function - no I/O, no environment access, no
 Docker daemon. The generated payloads must satisfy the kernel-isolation
 invariants: network off, single-mount, read-only rootfs, caps dropped.
 """

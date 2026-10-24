@@ -17,7 +17,7 @@ Parse `$ARGUMENTS` to determine the type. If ambiguous, treat it as an epic (num
 
 **Current entity resolution (no `$ARGUMENTS`):**
 1. Read `aidlc-docs/aidlc-state.md`.
-2. Find the first story under `🟢 CONSTRUCTION PHASE` whose status is NOT `✅ Complete` — this is the current story. Its parent unit and epic are the "current" ones.
+2. Find the first story under `🟢 CONSTRUCTION PHASE` whose status is NOT `✅ Complete` - this is the current story. Its parent unit and epic are the "current" ones.
 3. Summarise the **current unit** (the unit containing that story), not the story itself.
 4. If all stories are complete, summarise all units.
 
@@ -38,11 +38,11 @@ Cross-reference with `unit-of-work-story-map.md` to determine which units contai
 Output:
 
 ```
-Epic 1: Onboarding — Status: To Do
+Epic 1: Onboarding - Status: To Do
 
 Stories (2 total):
-  • US-01: Authenticate — 0/0 tasks → To Do
-  • US-02: Enter Business Information — 0/1 tasks → To Do
+  • US-01: Authenticate - 0/0 tasks → To Do
+  • US-02: Enter Business Information - 0/1 tasks → To Do
 
 Units: 2 (Onboarding)
 Story completion: 0/2 done (0%). Tasks: 0/1 done (0%).
@@ -60,22 +60,22 @@ Cross-reference `unit-of-work.md` with `aidlc-state.md` to determine stage progr
 Output:
 
 ```
-Unit 2: Onboarding — Status: To Do
+Unit 2: Onboarding - Status: To Do
 
 Purpose: User authentication via OIDC, business input form, session state.
 
 Stories (2 total):
-  • US-01: Authenticate — 0/0 tasks → To Do
-  • US-02: Enter Business Information — 0/1 tasks → To Do
+  • US-01: Authenticate - 0/0 tasks → To Do
+  • US-02: Enter Business Information - 0/1 tasks → To Do
 
 Story completion: 0/2 done (0%). Tasks: 0/1 done (0%).
 
 Construction stages (0/5 done):
-  • Functional Design — To Do
-  • NFR Requirements — To Do
-  • NFR Design — To Do
-  • Infrastructure Design — To Do
-  • Code Generation — To Do
+  • Functional Design - To Do
+  • NFR Requirements - To Do
+  • NFR Design - To Do
+  • Infrastructure Design - To Do
+  • Code Generation - To Do
 
 Backend: AuthController, OIDC, SessionStore, ReportJob
 Frontend: InputForm.ts
@@ -83,7 +83,7 @@ Dependencies: Foundation (U1), OIDC SDK, UI framework, design system
 Tests: Auth flows, SessionStore concurrency, InputForm validation
 ```
 
-Story status calculation: same rules as for epic stories — 0 tasks or 0% done → To Do; partial → In Progress; all done → Done.
+Story status calculation: same rules as for epic stories - 0 tasks or 0% done → To Do; partial → In Progress; all done → Done.
 
 ---
 
@@ -94,7 +94,7 @@ Parse the story block (`### US-XX`) from `stories.md` and cross-reference with t
 Output:
 
 ```
-US-03: Run Website Analysis — Status: To Do
+US-03: Run Website Analysis - Status: To Do
 
 Epic: 2 (Analysis)  |  Unit: 3 (Analysis)
 
@@ -107,15 +107,15 @@ Acceptance Criteria:
   • Unreachable website shows clear error (no crash)
   • Results cached for the session (no re-run on back-navigation)
 
-Subtasks — Construction stages (0/5 done):
+Subtasks - Construction stages (0/5 done):
   ⬜ Functional Design
   ⬜ NFR Requirements
   ⬜ NFR Design
   ⬜ Infrastructure Design
   ⬜ Code Generation
 
-Subtasks — Design tasks: 0/1 done (0%)
-  [ ] Design: Design system components — analysis progress dashboard
+Subtasks - Design tasks: 0/1 done (0%)
+  [ ] Design: Design system components - analysis progress dashboard
 
 ```
 

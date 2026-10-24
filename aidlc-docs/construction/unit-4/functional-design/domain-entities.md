@@ -1,4 +1,4 @@
-# Unit 4 Functional Design — Domain Entities
+# Unit 4 Functional Design - Domain Entities
 
 ## Trace List
 
@@ -17,19 +17,19 @@
 
 ## New entities
 
-### `WorkflowProjection` — frozen dataclass in `core`
+### `WorkflowProjection` - frozen dataclass in `core`
 
-Produced by `project_workflow(cfg, agents_dir, pipeline_hash)`. Fields: `pipeline_name`, `pipeline_hash`, `core_version`, `steps: list[ProjectedStep]`. `ProjectedStep`: `id`, `kind` (`agent` | `command` | `action`), `command` (command steps), `prompt_path` (agent steps — reference, BR-5), `verdicts`, `on_pass`, `on_fail`, `max_attempts`, `timeout`. Construction validates: steps well-formed, verdict routing targets exist, prompt refs exist (BR-4). Constructor validation = invariant behaviour, not anaemic.
+Produced by `project_workflow(cfg, agents_dir, pipeline_hash)`. Fields: `pipeline_name`, `pipeline_hash`, `core_version`, `steps: list[ProjectedStep]`. `ProjectedStep`: `id`, `kind` (`agent` | `command` | `action`), `command` (command steps), `prompt_path` (agent steps - reference, BR-5), `verdicts`, `on_pass`, `on_fail`, `max_attempts`, `timeout`. Construction validates: steps well-formed, verdict routing targets exist, prompt refs exist (BR-4). Constructor validation = invariant behaviour, not anaemic.
 
-### Generated workflow JS — skill artifact
+### Generated workflow JS - skill artifact
 
 `render_workflow_js(template, projection, core_version, pipeline_hash)` fills the wheel-shipped template: baked step data, routing (`on_pass`/`on_fail`/`goto`), attempt counter, clean-at-start first step, viz launch step, commit step. Header records core version + pipeline hash. Self-contained at runtime (no parsing, no imports).
 
-### `IngestToken` + endpoint — `viz` module
+### `IngestToken` + endpoint - `viz` module
 
 Server issues a random token at launch (PBT: unique per launch); POST endpoint accepts stage events with the token header; SSE read-only stream tokenless; localhost-bound.
 
-### Commit shim — docker-free, reuses engine commit policy
+### Commit shim - docker-free, reuses engine commit policy
 
 Same clean-at-start gate + trusted hooksPath + templated message as the engine's commit action, exposed as a subprocess-invocable helper without needing docker/openhands. Refuses loudly when `commit_allowed` is false.
 
@@ -44,9 +44,9 @@ Same clean-at-start gate + trusted hooksPath + templated message as the engine's
 
 ## Modified entities
 
-- **`PipelineConfig`** — moves to `core`; gains the projection entry point; engine-only fields (`isolation:`, `network:`, `setup:`) validated as today in engine mode, ignored-with-documented-semantics in workflow mode (BR-11).
-- **Engine modules** (`graph`, `stages`, `isolation`, CLI) — re-homed under `engine` package; behaviour unchanged (guard-tested).
-- **Viz** — re-homed under `viz`; gains the HTTP ingest endpoint; in-process VizBus unchanged.
+- **`PipelineConfig`** - moves to `core`; gains the projection entry point; engine-only fields (`isolation:`, `network:`, `setup:`) validated as today in engine mode, ignored-with-documented-semantics in workflow mode (BR-11).
+- **Engine modules** (`graph`, `stages`, `isolation`, CLI) - re-homed under `engine` package; behaviour unchanged (guard-tested).
+- **Viz** - re-homed under `viz`; gains the HTTP ingest endpoint; in-process VizBus unchanged.
 
 ## Descent Audit (DDD step descent)
 
@@ -62,7 +62,7 @@ Same clean-at-start gate + trusted hooksPath + templated message as the engine's
 | Commit | Shim (engine policy, docker-free) | Correct |
 | Stage events | Subagent → viz ingest (token) | Correct |
 | SSE stream | `viz` server | Correct |
-| Sandboxing | `engine` only — never on workflow path | Correct (excluded scope) |
+| Sandboxing | `engine` only - never on workflow path | Correct (excluded scope) |
 
 ## Requirements Traceability
 
@@ -80,5 +80,5 @@ Same clean-at-start gate + trusted hooksPath + templated message as the engine's
 
 ## Deferred / recorded amendments
 
-- Interactive metering (intent pillar 1): out of unit-4 scope (FR-4.2) — recorded, not designed.
-- Intent doc's MCP-tools architecture: superseded by skill + JS (FR-4.8) — amendment already applied to intent doc.
+- Interactive metering (intent pillar 1): out of unit-4 scope (FR-4.2) - recorded, not designed.
+- Intent doc's MCP-tools architecture: superseded by skill + JS (FR-4.8) - amendment already applied to intent doc.

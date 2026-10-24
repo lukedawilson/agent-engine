@@ -1,4 +1,4 @@
-"""Pure subprocess helper tests — PBT-02 properties plus unit pins.
+"""Pure subprocess helper tests - PBT-02 properties plus unit pins.
 
 ``needs_shell``, ``split_command``, ``is_pid_token`` and ``child_env`` are
 stateless pure functions shared by the command-step and action-step
@@ -46,8 +46,8 @@ class TestNeedsShell:
 
 class TestHostShellExecution:
     """How the HOST (non-sandbox) path executes a shell-needing command.
-    Windows cannot rely on shell=True — cmd.exe mangles $VAR and pipelines
-    (the CI-red hybrid failures) — so it prefers the discovered POSIX sh."""
+    Windows cannot rely on shell=True - cmd.exe mangles $VAR and pipelines
+    (the CI-red hybrid failures) - so it prefers the discovered POSIX sh."""
 
     def test_posix_uses_shell_true(self):
         argv, shell = host_shell_execution("a && b", nt=False)
@@ -145,7 +145,7 @@ class TestChildEnv:
 
 class TestKillProcessTree:
     """The timeout reap path. CI-red on Windows: `proc.kill()` terminates
-    only the direct child — a git-bash `sh -c` wrapper's python child
+    only the direct child - a git-bash `sh -c` wrapper's python child
     survives, keeps the pipes open, and the follow-up communicate() blocks
     out the full sleep. The tree must be reaped root-to-leaves."""
 
@@ -181,6 +181,6 @@ class TestKillProcessTree:
 
         kill_process_tree(proc, nt=True, run=fake_run)
 
-        # taskkill /T needs the parent alive to walk the tree — then the
+        # taskkill /T needs the parent alive to walk the tree - then the
         # wrapper itself is swept up.
         assert log == ["taskkill", "kill"]

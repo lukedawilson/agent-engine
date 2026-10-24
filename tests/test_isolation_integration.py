@@ -113,7 +113,7 @@ class TestGitGuardE2E:
 
 class TestNetworkedContainerE2E:
     """014: `network: true` steps run in a second, bridge-network container.
-    The distinguishing observable is the interface set — network-none has only
+    The distinguishing observable is the interface set - network-none has only
     loopback; the bridge container additionally gets a routable eth0. This is
     deterministic (no external egress required)."""
 
@@ -162,7 +162,7 @@ class TestNetworkedContainerE2E:
             network=False)
         result = b.run(req)
         assert result.exit_code == 0, result.stderr
-        assert result.stdout.strip() == "0"  # no routes at all — no egress
+        assert result.stdout.strip() == "0"  # no routes at all - no egress
 
 
 class TestProvisionE2E:
@@ -185,7 +185,7 @@ class TestProvisionE2E:
 
 class TestVenvSelfHealE2E:
     """016 exact repro: a warm stamp plus a host-built (darwin) venv that is
-    broken inside the Linux container must self-heal — remove + re-provision —
+    broken inside the Linux container must self-heal - remove + re-provision -
     instead of blind-skipping into a later ENOENT."""
 
     def test_stamp_hit_with_host_venv_reprovisions(self, backend, tmp_path):
@@ -221,7 +221,7 @@ class TestVenvSelfHealE2E:
 class TestRelocatedVenvE2E:
     """022: `sandbox_venv_dir` relocates the sandbox venv outside the workspace.
     The outside dir is bind-mounted at `{ws}/.venv-sandbox` in BOTH containers,
-    so the venv materializes there and stays absent from the repo dir — and the
+    so the venv materializes there and stays absent from the repo dir - and the
     probe/remove_sandbox_venv self-heal keeps operating at the unchanged
     container path (the mount)."""
 
@@ -252,7 +252,7 @@ class TestRelocatedVenvE2E:
                         str(tmp_path / "stamps"), force=False)
             # 022: the venv materialized OUTSIDE the workspace. bin/python is
             # a symlink to the CONTAINER's interpreter, which dangles on the
-            # host — existence must be checked without following links.
+            # host - existence must be checked without following links.
             assert os.path.lexists(venv_dir / "bin" / "python")
             assert (venv_dir / "pyvenv.cfg").exists()
             # No venv content leaked into the workspace. Docker auto-creates

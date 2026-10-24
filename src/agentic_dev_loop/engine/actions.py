@@ -2,7 +2,7 @@
 
 `commit` policy (ported unchanged from yosk): agents never commit mid-run;
 the pipeline commits exactly once, and only when the worktree was clean at
-run start — a dirty-at-start run is committed by the human, so the
+run start - a dirty-at-start run is committed by the human, so the
 auto-commit can never swallow pre-existing unrelated changes (run 004: the
 dev agent's b4acb62a swept up an unrelated .gitignore edit).
 """
@@ -18,7 +18,7 @@ from .proc import child_env, is_pid_token
 
 
 def _git(args: list[str], cwd: Path) -> subprocess.CompletedProcess:
-    """Best-effort git invocation — callers inspect returncode/stdout rather
+    """Best-effort git invocation - callers inspect returncode/stdout rather
     than raising, so a git problem never crashes a verified run. ``git`` is
     resolved via ``shutil.which`` and run argv-style with a scrubbed child
     environment (BR-5)."""
@@ -41,7 +41,7 @@ def _trusted_hooks_dir() -> str:
 
 def git_worktree_clean(path: Path) -> bool:
     """True only when `path` is a git repo with no uncommitted changes.
-    Outside a repo there is no clean baseline — False (fail-safe, keeps the
+    Outside a repo there is no clean baseline - False (fail-safe, keeps the
     commit node disabled)."""
     result = _git(["status", "--porcelain"], cwd=path)
     return result.returncode == 0 and not result.stdout.strip()
@@ -88,7 +88,7 @@ def _listening_pids(port: int, match: str | None = None,
                     cwd: Path | str | None = None) -> list[str]:
     """PIDs of processes listening on `port`, optionally only those whose
     command line contains `match` and whose working directory resolves to
-    `cwd`. The current process is always excluded — a pipeline must never
+    `cwd`. The current process is always excluded - a pipeline must never
     sweep its own listener (e.g. the live viz server), only orphaned
     listeners left behind by earlier runs or agent subprocesses.
 
@@ -139,11 +139,11 @@ def kill_listeners_on_port(port: int, match: str | None = None,
     previous attempt's build.
 
     SIGTERM first, then SIGKILL whatever still holds the port after
-    `term_timeout` — a server that ignores TERM must not hold the port
+    `term_timeout` - a server that ignores TERM must not hold the port
     indefinitely. Port freedom is judged by re-running lsof, so zombies
     (dead, unreaped children) never look like survivors."""
     if shutil.which("lsof") is None:
-        print(f"WARNING: lsof not found — cannot sweep orphaned listeners on "
+        print(f"WARNING: lsof not found - cannot sweep orphaned listeners on "
               f"port {port}.", file=sys.stderr, flush=True)
         return
     kill = shutil.which("kill")
@@ -171,7 +171,7 @@ def checkpoint_exclude_pathspec(state_dir: str | None, cwd: Path) -> str | None:
     whole run; on Windows an open SQLite file blocks other readers, so
     ``git add`` fails to hash it (CI-red gate failure). When the state dir
     sits inside the repo, exclude its sqlite files (db + wal/shm) from the
-    auto-commit — checkpoint state is runtime machinery, not constructed
+    auto-commit - checkpoint state is runtime machinery, not constructed
     work. Returns None when there is nothing in-repo to exclude (no state
     dir known, or it lives outside the repo).
     """
@@ -208,12 +208,12 @@ def commit(state: dict, params: dict) -> dict:
     dirty at run start, so the auto-commit can never swallow pre-existing
     unrelated changes; a dirty-at-start run is committed by the human.
 
-    `params["message"]` is required — a template rendered with `{subject}`.
+    `params["message"]` is required - a template rendered with `{subject}`.
     Runs in the process's cwd (the consumer repo the pipeline was launched
     from)."""
     subject = state["subject"]
     if not state.get("commit_allowed", False):
-        print(f"[{subject}] Skipping auto-commit — worktree was dirty at run "
+        print(f"[{subject}] Skipping auto-commit - worktree was dirty at run "
               f"start; commit the constructed work manually.", flush=True)
         return {}
     if "message" not in params:
@@ -232,8 +232,8 @@ def commit(state: dict, params: dict) -> dict:
     added = _git(add_argv, cwd=cwd)
     if added.returncode != 0:
         # The add is the step that touches the most files (a locked DB, a
-        # permission problem) — its error is the diagnostic that matters.
-        print(f"WARNING: [{subject}] auto-commit failed — git add: "
+        # permission problem) - its error is the diagnostic that matters.
+        print(f"WARNING: [{subject}] auto-commit failed - git add: "
               f"{added.stderr.strip()}", file=sys.stderr, flush=True)
         return {}
     if not _git(["status", "--porcelain"], cwd=cwd).stdout.strip():
@@ -243,9 +243,9 @@ def commit(state: dict, params: dict) -> dict:
     result = _git(["-c", f"core.hooksPath={hooks}", "commit", "-m", message],
                   cwd=cwd)
     if result.returncode != 0:
-        # The work is built and verified — a git error is a loud warning,
+        # The work is built and verified - a git error is a loud warning,
         # not a pipeline failure.
-        print(f"WARNING: [{subject}] auto-commit failed — commit manually.\n"
+        print(f"WARNING: [{subject}] auto-commit failed - commit manually.\n"
               f"{result.stderr.strip()}", file=sys.stderr, flush=True)
         return {}
     short = _git(["rev-parse", "--short", "HEAD"], cwd=cwd).stdout.strip()

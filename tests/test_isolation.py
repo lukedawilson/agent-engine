@@ -1,5 +1,5 @@
 """Unit tests for the sandbox domain (steps 2-6): value objects, pure
-functions, the Docker backend with an injected command runner (the seam — no
+functions, the Docker backend with an injected command runner (the seam - no
 monkeypatching), and the host-side audit/stamp helpers against real temp dirs.
 
 No Docker daemon is required: every backend test drives the injected
@@ -28,7 +28,7 @@ from agentic_dev_loop.engine.isolation import (
 
 
 class FakeRunner:
-    """Scripted CommandRunner — the unit-test seam for the docker CLI."""
+    """Scripted CommandRunner - the unit-test seam for the docker CLI."""
 
     def __init__(self, *script):
         self.calls: list[list[str]] = []
@@ -73,7 +73,7 @@ class TestRequest:
 
     def test_posix_absolute_cwd_accepted_on_any_host(self):
         """The cwd is a CONTAINER-side path (the container is always Linux),
-        so POSIX-absolute values like '/ws' must validate on every host OS —
+        so POSIX-absolute values like '/ws' must validate on every host OS -
         Windows included (the CI-red ValueError on test_valid_request)."""
         r = SandboxExecutionRequest(argv=["echo", "hi"], cwd="/ws",
                                     env={}, timeout=1.0)
@@ -107,7 +107,7 @@ class TestEffectiveProfile:
 
     def test_default_ref_is_digest_pinned(self):
         """KD-2: the shipped default must name the published dev image by
-        digest — AE-SBX-005 fails fast while the constant is empty, and an
+        digest - AE-SBX-005 fails fast while the constant is empty, and an
         unpinned tag would silently drift to `latest`."""
         assert DEFAULT_DEV_IMAGE_REF.startswith(
             DEFAULT_DEV_IMAGE + "@sha256:"
@@ -306,7 +306,7 @@ class TestRemoveSandboxVenv:
 
     def test_relocated_clears_contents_keeps_dir(self, tmp_path):
         """022: a relocated venv is the bind-mount source for the still-running
-        exec container, so only its CONTENTS are removed — deleting the dir
+        exec container, so only its CONTENTS are removed - deleting the dir
         would leave the container pointed at a stale inode."""
         venv = tmp_path / "outside-venv"
         (venv / "bin").mkdir(parents=True)
@@ -378,7 +378,7 @@ class TestPayloads:
         assert p[p.index("--env") + 1] == "HOME=/tmp"
 
     def test_payloads_omit_user_flag_without_posix_ids(self, tmp_path, monkeypatch):
-        """Windows hosts have no os.getuid/getgid — the --user flag must be
+        """Windows hosts have no os.getuid/getgid - the --user flag must be
         omitted rather than fabricating an identity."""
         monkeypatch.delattr(os, "getuid", raising=False)
         monkeypatch.delattr(os, "getgid", raising=False)
@@ -392,7 +392,7 @@ class TestPayloads:
 
     def test_networked_create_payload(self, tmp_path):
         """014: `network: true` swaps the network mode AND the container name,
-        but nothing else — the networked container is otherwise identical
+        but nothing else - the networked container is otherwise identical
         (read-only, cap-dropped, single mount)."""
         ws = str(tmp_path)
         p = docker_create_payload(run_id="r1", image="img",
@@ -408,7 +408,7 @@ class TestPayloads:
 
     def test_create_payload_masks_host_only_venv(self, tmp_path):
         """022: `.venv` is host-only. It cannot be excluded from the workspace
-        bind, so it is shadowed by a read-only empty tmpfs submount — any
+        bind, so it is shadowed by a read-only empty tmpfs submount - any
         container-side write fails loudly instead of mutating the host venv."""
         ws = str(tmp_path)
         p = docker_create_payload(run_id="r1", image="img",
@@ -461,7 +461,7 @@ class TestResolveSandboxVenvDir:
 
     def test_home_wins_over_userprofile(self, tmp_path, monkeypatch):
         # The engine is driven from bash, where HOME is the authoritative home
-        # on every platform — CPython's Windows expanduser ignores HOME in
+        # on every platform - CPython's Windows expanduser ignores HOME in
         # favour of USERPROFILE, which would resolve `~` inconsistently.
         monkeypatch.setenv("HOME", str(tmp_path / "home"))
         monkeypatch.setenv("USERPROFILE", str(tmp_path / "prof"))
@@ -643,7 +643,7 @@ class TestCreateExecutionContainer:
 
     def test_networked_second_container_eagerly_created(self, tmp_path):
         """014: when any step declares network, startup creates BOTH the
-        network-none container and a bridge-network container — zero infra
+        network-none container and a bridge-network container - zero infra
         work is deferred to the run phase."""
         runner = FakeRunner(ok("cid-none"), ok("cid-net"))
         backend = _backend(tmp_path, runner, network=True)
@@ -692,7 +692,7 @@ class TestRun:
 
     def test_networked_request_routes_to_network_container(self, tmp_path):
         """014: an exec routes to the bridge-network container iff the request
-        declares network — the default stays network-none."""
+        declares network - the default stays network-none."""
         runner = FakeRunner(ok(""), ok(""))
         backend = _backend(tmp_path, runner, network=True)
         backend._container = "c1"
@@ -835,7 +835,7 @@ class TestProvisionStampsAudit:
 
     def test_provision_skips_on_stamp(self, tmp_path):
         """A warm stamp still skips, but only after the in-container venv
-        probe reports ``valid`` (016 self-heal) — no blind skip."""
+        probe reports ``valid`` (016 self-heal) - no blind skip."""
         runner = FakeRunner(ok("valid"))
         backend = _backend(tmp_path, runner)
         stamp_dir = tmp_path / "stamps"
@@ -902,7 +902,7 @@ class TestProvisionStampsAudit:
 
 class TestStartupSandbox:
     """Eager startup sequence (Q2): probe → image → create/start → provision
-    all declared setups — with zero infra operations left for the run phase."""
+    all declared setups - with zero infra operations left for the run phase."""
 
     def _cfg(self, tmp_path, with_setup=False):
         from agentic_dev_loop.core.config import PipelineConfig
@@ -950,7 +950,7 @@ class TestStartupSandbox:
     def test_network_declaration_starts_second_container(self, tmp_path, monkeypatch):
         """014: declaring `network: true` on any step makes eager startup
         create the bridge-network container in addition to the default
-        network-none one — the default (no declaration) stays single-container."""
+        network-none one - the default (no declaration) stays single-container."""
         from agentic_dev_loop.core.config import PipelineConfig
         from agentic_dev_loop.engine.isolation import startup_sandbox
 

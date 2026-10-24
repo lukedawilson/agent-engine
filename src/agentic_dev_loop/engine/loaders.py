@@ -9,7 +9,7 @@ from .registry import DocumentLoader, Registry
 
 
 def resolve_plan_docs(plan_path: Path | str) -> dict[str, str]:
-    """Load a single plan doc as the pipeline's full context — plan mode is
+    """Load a single plan doc as the pipeline's full context - plan mode is
     self-contained (no unit/inception docs; shared files like coding
     standards come from the pipeline's `additional_files:`, appended by the
     runner)."""
@@ -23,7 +23,7 @@ def resolve_plan_docs(plan_path: Path | str) -> dict[str, str]:
 # `> **Status: COMPLETED** (date)`, `**Status:** ...`, `- **Status**: ...`,
 # or bare `Status: ...`.
 _STATUS_LINE = re.compile(r"^\s*(?:>\s*)?(?:[-*]\s+)?\*{0,2}Status\*{0,2}\s*:")
-# The status only counts as "recorded at the top" when it appears early —
+# The status only counts as "recorded at the top" when it appears early -
 # buried history (e.g. `## Status history` or a later `Status: ...` line)
 # is not the doc's current status.
 _STATUS_SCAN_LINES = 10
@@ -35,7 +35,7 @@ def mark_plan_completed(plan_path: Path | str) -> None:
 
     Replaces the first status line found within the top of the doc, or
     inserts the stamp right after the `# ` title (blank separators around
-    it) — or at the very top when there is no title. Trailing-newline
+    it) - or at the very top when there is no title. Trailing-newline
     presence is preserved."""
     path = Path(plan_path)
     text = path.read_text(encoding="utf-8")
@@ -61,7 +61,7 @@ def mark_plan_completed(plan_path: Path | str) -> None:
 
 class PlanDocumentLoader:
     name = "plan"
-    defaultable = False  # needs a path — never autodetects
+    defaultable = False  # needs a path - never autodetects
 
     def add_cli_args(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument("--plan", type=Path, default=None,
@@ -73,7 +73,7 @@ class PlanDocumentLoader:
 
 
 def select_loader(registry: Registry, args: argparse.Namespace) -> DocumentLoader | None:
-    """The document-loader coexistence model — load many, invoke one:
+    """The document-loader coexistence model - load many, invoke one:
 
     1. A loader flag present in argv (parsed value not None) selects its
        loader; other loaders are bypassed. Flags from two different loaders
@@ -114,7 +114,7 @@ def resolve_docs(cfg: PipelineConfig, base: Path, registry: Registry,
             # U3 policy: an empty load silently degraded to a context the
             # agents couldn't act on. Fail fast at the call site instead.
             raise RuntimeError(
-                f"Document loader {loader.name!r} returned no docs — "
+                f"Document loader {loader.name!r} returned no docs - "
                 "refusing to build context from nothing")
     else:
         docs, subject = {}, cfg.name

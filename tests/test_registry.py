@@ -157,7 +157,7 @@ class TestExtensionsDir:
         assert "wstool.py" in str(excinfo.value)
 
     def test_workspace_resident_extension_refused_before_import(self, tmp_path):
-        """020 ordering: the refusal must run BEFORE import — import IS
+        """020 ordering: the refusal must run BEFORE import - import IS
         execution, so a workspace-resident module's top-level code must never
         run in the host. The sentinel proves the module body never executed."""
         ws = tmp_path / "ws"
