@@ -183,7 +183,7 @@ class TestDirectSlugMatching:
 class TestGetCurrentUnit:
     def _write_state(self, tmp_path, stage_line: str):
         state = tmp_path / "aidlc-state.md"
-        state.write_text(f"# AI-DLC State Tracking\n\n{stage_line}\n")
+        state.write_text(f"# AI-DLC State Tracking\n\n{stage_line}\n", encoding="utf-8")
         return state
 
     def test_parses_slug_from_current_stage(self, tmp_path):
@@ -210,7 +210,8 @@ class TestGetCurrentUnit:
         state.write_text(
             "# AI-DLC State Tracking\n\n"
             "- Finished Unit 9 (REPORT) last week.\n"
-            "- **Current Stage**: CONSTRUCTION — Unit unit-3 (SCAN) — Code Generation.\n")
+            "- **Current Stage**: CONSTRUCTION — Unit unit-3 (SCAN) — Code Generation.\n",
+            encoding="utf-8")
         assert get_current_unit(tmp_path) == "unit-3"
 
     def test_stage_line_without_unit_raises_despite_earlier_mention(self, tmp_path):
@@ -220,7 +221,8 @@ class TestGetCurrentUnit:
         state.write_text(
             "# AI-DLC State Tracking\n\n"
             "- Previously worked on Unit 9.\n"
-            "- **Current Stage**: INCEPTION — requirements gathering.\n")
+            "- **Current Stage**: INCEPTION — requirements gathering.\n",
+            encoding="utf-8")
         with pytest.raises(RuntimeError, match="current unit"):
             get_current_unit(tmp_path)
 
@@ -256,7 +258,8 @@ class TestAidlcDocumentLoader:
     def test_resolve_without_unit_autodetects_current(self, tmp_path):
         self._unit_docs(tmp_path)
         (tmp_path / "aidlc-state.md").write_text(
-            "# State\n\n- **Current Stage**: CONSTRUCTION — Unit unit-3 (SCAN).\n")
+            "# State\n\n- **Current Stage**: CONSTRUCTION — Unit unit-3 (SCAN).\n",
+            encoding="utf-8")
         loader = AidlcDocumentLoader(docs_dir=tmp_path)
 
         docs, subject = loader.resolve(argparse.Namespace(aidlc_unit=None))
@@ -269,7 +272,8 @@ class TestAidlcDocumentLoader:
         unit_dir.mkdir(parents=True)
         (unit_dir / "design.md").write_text("# Design")
         (tmp_path / "aidlc-state.md").write_text(
-            "# State\n\n- **Current Stage**: CONSTRUCTION — Unit unit-004-preset-management ADL-01.\n")
+            "# State\n\n- **Current Stage**: CONSTRUCTION — Unit unit-004-preset-management ADL-01.\n",
+            encoding="utf-8")
         loader = AidlcDocumentLoader(docs_dir=tmp_path)
 
         docs, subject = loader.resolve(argparse.Namespace(aidlc_unit=None))

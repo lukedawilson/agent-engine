@@ -46,7 +46,7 @@ def resolve_unit_docs(docs_dir: Path | str, unit_slug: str) -> dict[str, str]:
     for file in sorted(unit_dir.rglob("*")):
         if file.is_file() and file.suffix in _DOC_SUFFIXES:
             key = file.relative_to(unit_dir).as_posix()
-            docs[key] = file.read_text()
+            docs[key] = file.read_text(encoding="utf-8")
 
     # At this point docs holds only unit-dir files — an empty load means the
     # pipeline would build context from inception docs alone (the 2026-07-19
@@ -62,14 +62,14 @@ def resolve_unit_docs(docs_dir: Path | str, unit_slug: str) -> dict[str, str]:
     if inception.is_dir():
         for file in sorted(inception.iterdir()):
             if file.is_file() and file.suffix in (".md", ".txt"):
-                docs[f"inception/{file.name}"] = file.read_text()
+                docs[f"inception/{file.name}"] = file.read_text(encoding="utf-8")
 
     # The unit's code-generation plans are the build spec — absent is fine,
     # present is how the spec reaches agents.
     plans_dir = docs_dir / "construction" / "plans"
     if plans_dir.is_dir():
         for file in sorted(plans_dir.glob(f"{unit_slug}-*-code-generation-plan.md")):
-            docs[f"plans/{file.name}"] = file.read_text()
+            docs[f"plans/{file.name}"] = file.read_text(encoding="utf-8")
 
     return docs
 
@@ -86,7 +86,7 @@ def get_current_unit(docs_dir: Path | str) -> str:
         raise FileNotFoundError(f"aidlc-state file not found: {state_file}")
     # Anchor to the Current Stage line — the file accumulates history, so an
     # unanchored search could silently pick up an earlier "Unit N" mention.
-    match = re.search(r"Current Stage[^\n]*Unit ([\w-]+(?:\.[\w-]+)*)", state_file.read_text())
+    match = re.search(r"Current Stage[^\n]*Unit ([\w-]+(?:\.[\w-]+)*)", state_file.read_text(encoding="utf-8"))
     if not match:
         raise RuntimeError(
             f"Could not determine current unit from {state_file} "

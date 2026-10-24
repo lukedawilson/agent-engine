@@ -59,6 +59,14 @@ code path.
   degraded behaviour.
 - If a secret/token is mandatory for an operation to work correctly, fail fast.
 
+## Em dash ban
+
+**The em dash character (U+2014) is forbidden anywhere in this repo**: in
+source code, tests, docs, planning docs, commit messages, and any other
+committed file. It has repeatedly produced Windows CI encoding failures
+(the cp1252 vs UTF-8 class) and is never load-bearing. Use a comma, colon,
+hyphen, or a restructured sentence instead. Everything committed is ASCII.
+
 ## Debugging
 
 **Checking deployment status is absolutely forbidden.** Never run `gh run`,

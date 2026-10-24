@@ -16,7 +16,7 @@ def resolve_plan_docs(plan_path: Path | str) -> dict[str, str]:
     path = Path(plan_path)
     if not path.is_file():
         raise FileNotFoundError(f"Plan doc not found: {path}")
-    return {path.name: path.read_text()}
+    return {path.name: path.read_text(encoding="utf-8")}
 
 
 # A status line at the top of a planning doc, in any recorded form:
@@ -122,5 +122,5 @@ def resolve_docs(cfg: PipelineConfig, base: Path, registry: Registry,
         path = base / rel
         if not path.is_file():
             raise FileNotFoundError(f"additional_files entry not found: {path}")
-        docs[path.name] = path.read_text()
+        docs[path.name] = path.read_text(encoding="utf-8")
     return loader, docs, subject

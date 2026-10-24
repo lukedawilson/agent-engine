@@ -238,15 +238,16 @@ class TestRun:
         unit_dir.mkdir(parents=True)
         (unit_dir / "design.md").write_text("# Design")
         (repo / "aidlc-docs" / "aidlc-state.md").write_text(
-            "# State\n\n- **Current Stage**: CONSTRUCTION — Unit unit-3 (SCAN).\n")
+            "# State\n\n- **Current Stage**: CONSTRUCTION — Unit unit-3 (SCAN).\n",
+            encoding="utf-8")
         git(repo, "add", "-A")
         git(repo, "commit", "-m", "aidlc fixture")
         fake_agents.set("dev", [("write", "implementation-summary.md", "done")])
-        state_before = (repo / "aidlc-docs" / "aidlc-state.md").read_text()
+        state_before = (repo / "aidlc-docs" / "aidlc-state.md").read_text(encoding="utf-8")
 
         assert main(["aidlc.yaml", "--aidlc-unit", "unit-3", "--no-viz"]) == 0
 
-        assert (repo / "aidlc-docs" / "aidlc-state.md").read_text() == state_before
+        assert (repo / "aidlc-docs" / "aidlc-state.md").read_text(encoding="utf-8") == state_before
         assert (repo / "aidlc-docs" / "construction" / "unit-3" / "design.md").read_text() == "# Design"
         assert (repo / "plan.md").read_text() == "THE PLAN"
 
