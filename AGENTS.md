@@ -67,6 +67,10 @@ committed file. It has repeatedly produced Windows CI encoding failures
 (the cp1252 vs UTF-8 class) and is never load-bearing. Use a comma, colon,
 hyphen, or a restructured sentence instead. Everything committed is ASCII.
 
+Enforced by `tests/test_repo_ascii.py` (every test run, CI included) and by
+a pre-commit hook (`.pre-commit-config.yaml` via `tools/check_no_em_dash.py`,
+active after `pre-commit install`).
+
 ## Debugging
 
 **Checking deployment status is absolutely forbidden.** Never run `gh run`,
